@@ -1,0 +1,25 @@
+# This workflow will install Python dependencies, run tests, run linting, and test building docs
+name: Codestyle and Linting
+
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install flake8 black
+    - name: Lint  Code with Black
+      run: |
+        black --check --diff app.py cdk_deployment
+    - name: Lint Code with Flake
+      run: |
+        flake8 --count --max-line-length 88 app.py cdk_deployment
+

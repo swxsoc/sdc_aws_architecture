@@ -1,0 +1,32 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Install dev dependencies
+      - pip3 install flake8 black pytest pytest-astropy pytest-cov
+      - pip3 install pytest pytest-astropy pytest-cov
+      - pip3 install aws-cdk-lib==2.31.1 constructs==10.0.127
+      - pip3 install git+https://github.com/dbarrous/hermes_core.git
+      
+      - npm install -g aws-cdk
+      - echo Lint with Black
+      - black --check --diff app.py lambda_function cdk_deployment
+      - echo Lint with Flake
+      - flake8 --count --max-line-length 88 app.py cdk_deployment lambda_function --exclude lambda_function_test_script.py
+      - echo Perform Unit Testing
+      - pytest --pyargs lambda_function --cov lambda_function
+      - cdk synth
+    
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Installing requirements...
+      - pip3 install -r requirements.txt -t lambda_function
+
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Deploying Lambda Function...
+      - cdk bootstrap -y --require-approval never
+      - cdk deploy -y --require-approval never
