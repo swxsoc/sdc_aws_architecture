@@ -1,6 +1,6 @@
 # SWSOC Pipeline Architecture
 
-| **CodeBuild Status** |![aws build status]()|
+| **CodeBuild Status** |TBD|
 |-|-|
 
 ### **Description**:
