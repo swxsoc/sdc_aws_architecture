@@ -10,15 +10,15 @@ phases:
       
       - npm install -g aws-cdk
       - echo Lint with Black
-      - black --check --diff app.py lambda_function cdk_deployment
+      - black --check --diff app.py cdk_deployment
       - echo Lint with Flake
-      - flake8 --count --max-line-length 88 app.py cdk_deployment lambda_function --exclude lambda_function_test_script.py
+      - flake8 --count --max-line-length 88 app.py cdk_deployment
       - echo CDK Test
       - cdk synth
     
   build:
     commands:
       - echo Build completed on `date`
-      - echo Deploying Lambda Function...
+      - echo Deploying Pipeline Architecture...
       - cdk bootstrap -y --require-approval never
       - cdk deploy -y --require-approval never

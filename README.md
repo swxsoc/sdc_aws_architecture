@@ -1,6 +1,6 @@
 # SWSOC Pipeline Architecture
 
-| **CodeBuild Status** |TBD|
+| **CodeBuild Status** |![Codebuild Status](https://codebuild.us-east-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoibjJMSXl1RzBncExCVGdyUGdVTWZPTkN0blhJaWQ3dHVobEtSaUVUdHJ5UnNlTnl5V25MY3NncG9zOVlORTVjQUJKa3lWaDNPa05rYit1MkR5dXZlRWNrPSIsIml2UGFyYW1ldGVyU3BlYyI6ImpzT3E5dW9wRFh1eWdYM0IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main)|
 |-|-|
 
 ### **Description**:

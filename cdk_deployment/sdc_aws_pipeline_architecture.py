@@ -13,9 +13,16 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Iterate through the S3 Buckets List and Create the Buckets
         for bucket in vars.BUCKET_LIST:
 
+            # Bucket name based off current deployment environment
+            bucket_name = (
+                bucket
+                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+                else f"{bucket}-dev"
+            )
+
             # Initiate Bucket
             s3_bucket = aws_s3.Bucket(
-                self, f"aws_sdc_{bucket}_bucket", bucket_name=bucket
+                self, f"aws_sdc_{bucket}_bucket", bucket_name=bucket_name
             )
 
             # Apply Tags
@@ -27,9 +34,18 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Iterate through the Private ECR Repos and initiate
         for ecr_repo in vars.ECR_PRIVATE_REPO_LIST:
 
+            # Repo name based off current deployment environment
+            repository_name = (
+                ecr_repo
+                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+                else f"{ecr_repo}-dev"
+            )
+
             # Initiate Repo
             private_ecr_repo = aws_ecr.Repository(
-                self, f"aws_sdc_{ecr_repo}_private_repo", repository_name=ecr_repo
+                self,
+                f"aws_sdc_{ecr_repo}_private_repo",
+                repository_name=repository_name,
             )
 
             # Apply Tags
@@ -41,9 +57,16 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Iterate through the Public ECR Repos and initiate
         for ecr_repo in vars.ECR_PUBLIC_REPO_LIST:
 
+            # Repo name based off current deployment environment
+            repository_name = (
+                ecr_repo
+                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+                else f"{ecr_repo}-dev"
+            )
+
             # Initiate Repo
             public_ecr_repo = aws_ecr.CfnPublicRepository(
-                self, f"aws_sdc_{ecr_repo}_public_repo", repository_name=ecr_repo
+                self, f"aws_sdc_{ecr_repo}_public_repo", repository_name=repository_name
             )
 
             # Apply Tags
