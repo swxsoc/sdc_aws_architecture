@@ -1,4 +1,4 @@
-from aws_cdk import Stack, aws_s3, aws_ecr, Tags
+from aws_cdk import Stack, aws_s3, aws_ecr, Tags, RemovalPolicy, Duration
 from constructs import Construct
 from . import vars
 import logging
@@ -17,12 +17,28 @@ class SDCAWSPipelineArchitectureStack(Stack):
             bucket_name = (
                 bucket
                 if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-                else f"{bucket}-dev"
+                else f"dev-{bucket}"
             )
 
             # Initiate Bucket
-            s3_bucket = aws_s3.Bucket(
-                self, f"aws_sdc_{bucket}_bucket", bucket_name=bucket_name
+            # If Environment is Development, applies removal policy + auto-delete
+            # If Environment is Production, Retains all resources to keep data safe
+            s3_bucket = (
+                aws_s3.Bucket(
+                    self,
+                    f"aws_sdc_{bucket}_bucket",
+                    bucket_name=bucket_name,
+                    removal_policy=RemovalPolicy.RETAIN,
+                    auto_delete_objects=False,
+                )
+                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+                else aws_s3.Bucket(
+                    self,
+                    f"aws_sdc_{bucket}_bucket",
+                    bucket_name=bucket_name,
+                    removal_policy=RemovalPolicy.DESTROY,
+                    auto_delete_objects=True,
+                )
             )
 
             # Apply Tags
@@ -42,11 +58,26 @@ class SDCAWSPipelineArchitectureStack(Stack):
             )
 
             # Initiate Repo
-            private_ecr_repo = aws_ecr.Repository(
-                self,
-                f"aws_sdc_{ecr_repo}_private_repo",
-                repository_name=repository_name,
+            # If Environment is Development, applies removal policy
+            # If Environment is Production, Retains all resources to keep data safe
+            private_ecr_repo = (
+                aws_ecr.Repository(
+                    self,
+                    f"aws_sdc_{ecr_repo}_private_repo",
+                    repository_name=repository_name,
+                    removal_policy=RemovalPolicy.RETAIN,
+                )
+                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+                else aws_ecr.Repository(
+                    self,
+                    f"aws_sdc_{ecr_repo}_private_repo",
+                    repository_name=repository_name,
+                    removal_policy=RemovalPolicy.DESTROY,
+                )
             )
+
+            # Apply Lifecycle Policy
+            self._apply_ecr_lifecycle_policy(private_ecr_repo)
 
             # Apply Tags
             self._apply_standard_tags(private_ecr_repo)
@@ -65,14 +96,29 @@ class SDCAWSPipelineArchitectureStack(Stack):
             )
 
             # Initiate Repo
-            public_ecr_repo = aws_ecr.CfnPublicRepository(
-                self, f"aws_sdc_{ecr_repo}_public_repo", repository_name=repository_name
+            # If Environment is Development, applies removal policy
+            # If Environment is Production, Retains all resources to keep data safe
+            public_ecr_repo = (
+                aws_ecr.CfnPublicRepository(
+                    self,
+                    f"aws_sdc_{ecr_repo}_private_repo",
+                    repository_name=repository_name,
+                    removal_policy=RemovalPolicy.RETAIN,
+                )
+                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+                else aws_ecr.Repository(
+                    self,
+                    f"aws_sdc_{ecr_repo}_private_repo",
+                    repository_name=repository_name,
+                    removal_policy=RemovalPolicy.DESTROY,
+                )
             )
 
+            # Apply Lifecycle Policy
+            self._apply_ecr_lifecycle_policy(public_ecr_repo)
+
             # Apply Tags
-            Tags.of(public_ecr_repo).add(
-                "Purpose", "SWSOC Pipeline", apply_to_launched_instances=True
-            )
+            self._apply_standard_tags(public_ecr_repo)
 
             # Log Result
             logging.info(f"Created the {public_ecr_repo} Public ECR Repo")
@@ -103,3 +149,25 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Git Version Tag If It Exists
         if os.getenv("GIT_TAG"):
             Tags.of(construct).add("Version", os.getenv("GIT_TAG"))
+
+    def _apply_ecr_lifecycle_policy(self, ecr_repository):
+        """
+        Apply common lifecycle rules to clean old images from ECR Repositories
+        """
+
+        # Applies Lifecycle rule to preserve images tagged with a version tag (i.e. v0.0.1, v1, v*)
+        ecr_repository.add_lifecycle_rule(
+            description="Keeps images prefixed with version tag (e.i. v0.0.1)",
+            tag_prefix_list=["v"],
+            max_image_count=9999,
+        )
+
+        # Applies Lifecycle rule to preserve images tagged with a latest tag (i.e. latest)
+        ecr_repository.add_lifecycle_rule(
+            description="Keeps images prefixed with latest ",
+            tag_prefix_list=["latest"],
+            max_image_count=9999,
+        )
+
+        # Applies Lifecycle rule to remove images older than 30 days that aren't preserved
+        ecr_repository.add_lifecycle_rule(max_image_age=Duration.days(30))
