@@ -7,8 +7,8 @@ phases:
       - pip3 install flake8 black pytest pytest-astropy pytest-cov
       - pip3 install pytest pytest-astropy pytest-cov
       - pip3 install aws-cdk-lib==2.31.1 constructs==10.0.127
-      
       - npm install -g aws-cdk
+      
       - echo Lint with Black
       - black --check --diff app.py cdk_deployment
       - echo Lint with Flake

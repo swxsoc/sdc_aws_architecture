@@ -90,8 +90,15 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Standard Last Modified Tag
         Tags.of(construct).add("Last Modified", str(datetime.today()))
 
+        # Environment Name
+        environment_name = (
+            "Production"
+            if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+            else "Development"
+        )
+
         # Standard Environment Tag
-        Tags.of(construct).add("Environment", "Production")
+        Tags.of(construct).add("Environment", environment_name)
 
         # Git Version Tag If It Exists
         if os.getenv("GIT_TAG"):
