@@ -110,7 +110,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
 
             # Log Result
             logging.info(f"Created the {public_ecr_repo} Public ECR Repo")
-    
+
     def _get_construct_name(self, resource):
         """
         This function returns the proper resource name based off environment
