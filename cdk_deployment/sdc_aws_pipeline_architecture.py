@@ -14,11 +14,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
         for bucket in vars.BUCKET_LIST:
 
             # Bucket name based off current deployment environment
-            bucket_name = (
-                bucket
-                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-                else f"dev-{bucket}"
-            )
+            bucket_name = self._get_construct_name(bucket)
 
             # Initiate Bucket
             # If Environment is Development, applies removal policy + auto-delete
@@ -51,11 +47,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
         for ecr_repo in vars.ECR_PRIVATE_REPO_LIST:
 
             # Repo name based off current deployment environment
-            repository_name = (
-                ecr_repo
-                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-                else f"{ecr_repo}-dev"
-            )
+            repository_name = self._get_construct_name(ecr_repo)
 
             # Initiate Repo
             # If Environment is Development, applies removal policy
@@ -89,11 +81,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
         for ecr_repo in vars.ECR_PUBLIC_REPO_LIST:
 
             # Repo name based off current deployment environment
-            repository_name = (
-                ecr_repo
-                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-                else f"{ecr_repo}-dev"
-            )
+            repository_name = self._get_construct_name(ecr_repo)
 
             # Initiate Repo
             # If Environment is Development, applies removal policy
@@ -122,6 +110,20 @@ class SDCAWSPipelineArchitectureStack(Stack):
 
             # Log Result
             logging.info(f"Created the {public_ecr_repo} Public ECR Repo")
+
+    def _get_construct_name(self, resource):
+        """
+        This function returns the proper resource name based off environment
+        """
+
+        # Appends 'dev-' prefix if not in Production
+        resource_name = (
+            resource
+            if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+            else f"dev-{resource}"
+        )
+
+        return resource_name
 
     def _apply_standard_tags(self, construct):
         """
@@ -153,21 +155,26 @@ class SDCAWSPipelineArchitectureStack(Stack):
     def _apply_ecr_lifecycle_policy(self, ecr_repository):
         """
         Apply common lifecycle rules to clean old images from ECR Repositories
+        Note: Order does matter when creates Lifecycle Policies. For more info:
+        https://docs.aws.amazon.com/AmazonECR/latest/userguide/LifecyclePolicies.html
         """
 
-        # Applies Lifecycle rule to preserve images tagged with a version tag (i.e. v0.0.1, v1, v*)
+        # Applies Lifecycle rule to preserve images tagged with a version tag
+        # (i.e. v0.0.1, v1, v*)
         ecr_repository.add_lifecycle_rule(
             description="Keeps images prefixed with version tag (e.i. v0.0.1)",
             tag_prefix_list=["v"],
             max_image_count=9999,
         )
 
-        # Applies Lifecycle rule to preserve images tagged with a latest tag (i.e. latest)
+        # Applies Lifecycle rule to preserve images tagged with a latest tag
+        # (i.e. latest)
         ecr_repository.add_lifecycle_rule(
             description="Keeps images prefixed with latest ",
             tag_prefix_list=["latest"],
             max_image_count=9999,
         )
 
-        # Applies Lifecycle rule to remove images older than 30 days that aren't preserved
+        # Applies Lifecycle rule to remove images older than 30 days
+        # that aren't preserved by the above rules
         ecr_repository.add_lifecycle_rule(max_image_age=Duration.days(30))
