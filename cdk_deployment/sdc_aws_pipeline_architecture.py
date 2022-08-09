@@ -94,7 +94,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
                     removal_policy=RemovalPolicy.RETAIN,
                 )
                 if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-                else aws_ecr.Repository(
+                else aws_ecr.CfnPublicRepository(
                     self,
                     f"aws_sdc_{ecr_repo}_private_repo",
                     repository_name=repository_name,
@@ -110,7 +110,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
 
             # Log Result
             logging.info(f"Created the {public_ecr_repo} Public ECR Repo")
-
+    
     def _get_construct_name(self, resource):
         """
         This function returns the proper resource name based off environment
