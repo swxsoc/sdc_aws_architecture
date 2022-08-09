@@ -49,7 +49,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
             # Repo name based off current deployment environment
             repository_name = self._get_construct_name(ecr_repo)
 
-            # Initiate Repo
+            # Initiate Private Repo
             # If Environment is Development, applies removal policy
             # If Environment is Production, Retains all resources to keep data safe
             private_ecr_repo = (
@@ -83,27 +83,13 @@ class SDCAWSPipelineArchitectureStack(Stack):
             # Repo name based off current deployment environment
             repository_name = self._get_construct_name(ecr_repo)
 
-            # Initiate Repo
-            # If Environment is Development, applies removal policy
-            # If Environment is Production, Retains all resources to keep data safe
-            public_ecr_repo = (
-                aws_ecr.CfnPublicRepository(
-                    self,
-                    f"aws_sdc_{ecr_repo}_private_repo",
-                    repository_name=repository_name,
-                    removal_policy=RemovalPolicy.RETAIN,
-                )
-                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-                else aws_ecr.CfnPublicRepository(
-                    self,
-                    f"aws_sdc_{ecr_repo}_private_repo",
-                    repository_name=repository_name,
-                    removal_policy=RemovalPolicy.DESTROY,
-                )
+            # Initiate Public Repos
+            # Note: Public ECR Repos don't support removal policies
+            public_ecr_repo = aws_ecr.CfnPublicRepository(
+                self,
+                f"aws_sdc_{ecr_repo}_private_repo",
+                repository_name=repository_name,
             )
-
-            # Apply Lifecycle Policy
-            self._apply_ecr_lifecycle_policy(public_ecr_repo)
 
             # Apply Tags
             self._apply_standard_tags(public_ecr_repo)
