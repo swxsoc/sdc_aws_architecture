@@ -13,74 +13,30 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Iterate through the S3 Buckets List and Create the Buckets
         for bucket in vars.BUCKET_LIST:
 
-            # Skip if in Production list and environment is Development
-            if (
-                os.getenv("CDK_ENVIRONMENT") != "PRODUCTION"
-                and bucket in vars.PRODUCTION_ONLY_BUCKET_LIST
-            ):
-                logging.info(f"Skipping Bucket {bucket}")
-                continue
-            # Bucket name based off current deployment environment
-            bucket_name = self._get_construct_name(bucket)
-
             # Initiate Bucket
-            # If Environment is Development, applies removal policy + auto-delete
-            # If Environment is Production, Retains all resources to keep data safe
-            s3_bucket = (
-                aws_s3.Bucket(
-                    self,
-                    f"aws_sdc_{bucket}_bucket",
-                    bucket_name=bucket_name,
-                    removal_policy=RemovalPolicy.RETAIN,
-                    auto_delete_objects=False,
-                )
-                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-                else aws_s3.Bucket(
-                    self,
-                    f"aws_sdc_{bucket}_bucket",
-                    bucket_name=bucket_name,
-                    removal_policy=RemovalPolicy.DESTROY,
-                    auto_delete_objects=True,
-                )
+            s3_bucket = aws_s3.Bucket(
+                self,
+                f"aws_sdc_{bucket}_bucket",
+                bucket_name=bucket,
+                removal_policy=RemovalPolicy.RETAIN,
+                auto_delete_objects=False,
             )
 
             # Apply Standard Tags to the Bucket
             self._apply_standard_tags(s3_bucket)
 
             # Log Result
-            logging.info(f"Created the {s3_bucket} S3 Bucket")
+            logging.info(f"Created the {bucket} S3 Bucket")
 
         # Iterate through the Private ECR Repos and initiate
         for ecr_repo in vars.ECR_PRIVATE_REPO_LIST:
 
-            # Skip if in Production list and environment is Development
-            if (
-                os.getenv("CDK_ENVIRONMENT") != "PRODUCTION"
-                and ecr_repo in vars.PRODUCTION_ONLY_REPO_LIST
-            ):
-                logging.info(f"Skipping Bucket {bucket_name}")
-                continue
-
-            # Repo name based off current deployment environment
-            repository_name = self._get_construct_name(ecr_repo)
-
             # Initiate Private Repo
-            # If Environment is Development, applies removal policy
-            # If Environment is Production, Retains all resources to keep data safe
-            private_ecr_repo = (
-                aws_ecr.Repository(
-                    self,
-                    f"aws_sdc_{ecr_repo}_private_repo",
-                    repository_name=repository_name,
-                    removal_policy=RemovalPolicy.RETAIN,
-                )
-                if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-                else aws_ecr.Repository(
-                    self,
-                    f"aws_sdc_{ecr_repo}_private_repo",
-                    repository_name=repository_name,
-                    removal_policy=RemovalPolicy.DESTROY,
-                )
+            private_ecr_repo = aws_ecr.Repository(
+                self,
+                f"aws_sdc_{ecr_repo}_private_repo",
+                repository_name=ecr_repo,
+                removal_policy=RemovalPolicy.RETAIN,
             )
 
             # Apply Lifecycle Policy
@@ -90,49 +46,22 @@ class SDCAWSPipelineArchitectureStack(Stack):
             self._apply_standard_tags(private_ecr_repo)
 
             # Log Result
-            logging.info(f"Created the {private_ecr_repo} Private ECR Repo")
+            logging.info(f"Created the {ecr_repo} Private ECR Repo")
 
         # Iterate through the Public ECR Repos and initiate
         for ecr_repo in vars.ECR_PUBLIC_REPO_LIST:
 
-            # Skip if in Production list and environment is Development
-            if (
-                os.getenv("CDK_ENVIRONMENT") != "PRODUCTION"
-                and ecr_repo in vars.PRODUCTION_ONLY_REPO_LIST
-            ):
-                logging.info(f"Skipping Bucket {bucket_name}")
-                continue
-
-            # Repo name based off current deployment environment
-            repository_name = self._get_construct_name(ecr_repo)
-
             # Initiate Public Repos
             # Note: Public ECR Repos don't support removal policies
             public_ecr_repo = aws_ecr.CfnPublicRepository(
-                self,
-                f"aws_sdc_{ecr_repo}_private_repo",
-                repository_name=repository_name,
+                self, f"aws_sdc_{ecr_repo}_private_repo", repository_name=ecr_repo
             )
 
             # Apply Tags
             self._apply_standard_tags(public_ecr_repo)
 
             # Log Result
-            logging.info(f"Created the {public_ecr_repo} Public ECR Repo")
-
-    def _get_construct_name(self, resource):
-        """
-        This function returns the proper resource name based off environment
-        """
-
-        # Appends 'dev-' prefix if not in Production
-        resource_name = (
-            resource
-            if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-            else f"dev-{resource}"
-        )
-
-        return resource_name
+            logging.info(f"Created the {ecr_repo} Public ECR Repo")
 
     def _apply_standard_tags(self, construct):
         """

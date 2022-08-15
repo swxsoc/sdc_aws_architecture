@@ -22,9 +22,6 @@ BUCKET_LIST = [
     SORTING_LAMBDA_BUCKET_NAME,
 ]
 
-# List of Buckets to only be Created in Production
-PRODUCTION_ONLY_BUCKET_LIST = [SORTING_LAMBDA_BUCKET_NAME]
-
 # ECR Repository Names
 PROCESSING_LAMBDA_ECR_NAME = "sdc_aws_processing_lambda"
 SWSOC_DOCKER_BASE_ECR_NAME = "swsoc-docker-lambda-base"
@@ -34,6 +31,3 @@ ECR_PUBLIC_REPO_LIST = [SWSOC_DOCKER_BASE_ECR_NAME]
 
 # Private ECR Repo List (This is only deployed to selected region)
 ECR_PRIVATE_REPO_LIST = [PROCESSING_LAMBDA_ECR_NAME]
-
-# List of ECR Repos to only be Created in Production
-PRODUCTION_ONLY_REPO_LIST = [SWSOC_DOCKER_BASE_ECR_NAME, PROCESSING_LAMBDA_ECR_NAME]
