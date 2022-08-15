@@ -1,6 +1,7 @@
 from aws_cdk import Stack, aws_lambda, aws_s3_notifications, aws_s3
 from constructs import Construct
 import logging
+import os
 from . import vars
 
 
@@ -33,9 +34,7 @@ class SDCAWSSortingLambdaStack(Stack):
                 "SWSOC Processing Lambda function deployed using AWS CDK Python"
             ),
             environment={"LAMBDA_ENVIRONMENT": "PRODUCTION"},
-            code=aws_lambda.S3Code(
-                lambda_bucket, "dev_sorting_function_1660565506.zip"
-            ),
+            code=aws_lambda.S3Code(lambda_bucket, f"{os.getenv('ZIP_NAME')}"),
         )
 
         # Grant Access to Buckets
