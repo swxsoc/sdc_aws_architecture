@@ -13,7 +13,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Iterate through the S3 Buckets List and Create the Buckets
         for bucket in vars.BUCKET_LIST:
 
-            # Skip if not in Production list
+            # Skip if in Production list and environment is Development
             if (
                 os.getenv("CDK_ENVIRONMENT") != "PRODUCTION"
                 and bucket in vars.PRODUCTION_ONLY_BUCKET_LIST
@@ -53,7 +53,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Iterate through the Private ECR Repos and initiate
         for ecr_repo in vars.ECR_PRIVATE_REPO_LIST:
 
-            # Skip if not in Production list
+            # Skip if in Production list and environment is Development
             if (
                 os.getenv("CDK_ENVIRONMENT") != "PRODUCTION"
                 and ecr_repo in vars.PRODUCTION_ONLY_REPO_LIST
@@ -94,8 +94,8 @@ class SDCAWSPipelineArchitectureStack(Stack):
 
         # Iterate through the Public ECR Repos and initiate
         for ecr_repo in vars.ECR_PUBLIC_REPO_LIST:
-            
-            # Skip if not in Production list
+
+            # Skip if in Production list and environment is Development
             if (
                 os.getenv("CDK_ENVIRONMENT") != "PRODUCTION"
                 and ecr_repo in vars.PRODUCTION_ONLY_REPO_LIST
