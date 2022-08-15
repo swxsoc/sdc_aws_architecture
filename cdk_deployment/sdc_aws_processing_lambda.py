@@ -1,5 +1,5 @@
 import os
-from aws_cdk import Stack, aws_lambda, aws_ecr
+from aws_cdk import Stack, aws_lambda, aws_ecr, Duration
 from constructs import Construct
 import logging
 from . import vars
@@ -28,6 +28,7 @@ class SDCAWSProcessingLambdaStack(Stack):
             description=(
                 "SWSOC Processing Lambda function deployed using AWS CDK Python"
             ),
+            timeout=Duration.minutes(10),
             code=aws_lambda.DockerImageCode.from_ecr(ecr_repository, tag_or_digest=TAG),
         )
 

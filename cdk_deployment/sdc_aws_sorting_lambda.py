@@ -1,4 +1,4 @@
-from aws_cdk import Stack, aws_lambda, aws_s3_notifications, aws_s3
+from aws_cdk import Stack, aws_lambda, aws_s3_notifications, aws_s3, Duration
 from constructs import Construct
 import logging
 import os
@@ -34,6 +34,7 @@ class SDCAWSSortingLambdaStack(Stack):
                 "SWSOC Processing Lambda function deployed using AWS CDK Python"
             ),
             environment={"LAMBDA_ENVIRONMENT": "PRODUCTION"},
+            timeout=Duration.minutes(10),
             code=aws_lambda.S3Code(lambda_bucket, f"{os.getenv('ZIP_NAME')}"),
         )
 
