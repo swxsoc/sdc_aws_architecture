@@ -3,6 +3,7 @@ from constructs import Construct
 import logging
 from . import vars
 
+
 class SDCAWSSortingLambdaStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -32,7 +33,9 @@ class SDCAWSSortingLambdaStack(Stack):
                 "SWSOC Processing Lambda function deployed using AWS CDK Python"
             ),
             environment={"LAMBDA_ENVIRONMENT": "PRODUCTION"},
-            code=aws_lambda.S3Code(lambda_bucket, "dev_sorting_function_1660565506.zip"),
+            code=aws_lambda.S3Code(
+                lambda_bucket, "dev_sorting_function_1660565506.zip"
+            ),
         )
 
         # Add Trigger to the Bucket to call Lambda
