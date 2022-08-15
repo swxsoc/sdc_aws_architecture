@@ -12,12 +12,6 @@ from cdk_deployment.vars import DEPLOYMENT_REGION
 
 app = cdk.App()
 
-# # Environment Name
-# environment_name = (
-#     ""
-#     if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
-#     else "Dev-SDCAWSPipelineArchitectureStack"
-# )
 
 # Initialize Deployment Stack
 SDCAWSPipelineArchitectureStack(
@@ -45,5 +39,6 @@ SDCAWSSortingLambdaStack(
         account=os.getenv("CDK_DEFAULT_ACCOUNT"), region=DEPLOYMENT_REGION
     ),
 )
+
 # Synthesize Cloudformation Template
 app.synth()
