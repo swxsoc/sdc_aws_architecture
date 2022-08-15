@@ -18,7 +18,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
                 os.getenv("CDK_ENVIRONMENT") != "PRODUCTION"
                 and bucket in vars.PRODUCTION_ONLY_BUCKET_LIST
             ):
-                logging.info(f"Skipping Bucket {bucket_name}")
+                logging.info(f"Skipping Bucket {bucket}")
                 continue
             # Bucket name based off current deployment environment
             bucket_name = self._get_construct_name(bucket)
