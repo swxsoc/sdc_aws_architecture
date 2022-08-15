@@ -27,12 +27,7 @@ class SDCAWSSortingLambdaStack(Stack):
             "My Role",
             assumed_by=aws_iam.ServicePrincipal("sns.amazonaws.com"),
             managed_policies=[
-                aws_iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AWSLambdaBasicExecutionRole"
-                ),
-                aws_iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "AmazonS3FullAccess"
-                ),
+                aws_iam.ManagedPolicy.from_aws_managed_policy_name("AmazonS3FullAccess")
             ],
         )
 
