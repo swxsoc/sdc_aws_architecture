@@ -1,6 +1,8 @@
 """
 This contains variables used throughout the SDC Pipeline
 """
+# Region that the stack will be deployed to
+DEPLOYMENT_REGION = "us-east-1"
 
 # S3 Bucket Names
 INCOMING_BUCKET_NAME = "swsoc-incoming"
@@ -19,6 +21,9 @@ BUCKET_LIST = [
     MERIT_BUCKET_NAME,
     SORTING_LAMBDA_BUCKET_NAME,
 ]
+
+# List of Buckets to only be Created in Production
+PRODUCTION_ONLY_BUCKET_LIST = [SORTING_LAMBDA_BUCKET_NAME]
 
 # ECR Repository Names
 PROCESSING_LAMBDA_ECR_NAME = "sdc_aws_processing_lambda"

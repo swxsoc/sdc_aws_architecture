@@ -16,6 +16,13 @@ class SDCAWSPipelineArchitectureStack(Stack):
             # Bucket name based off current deployment environment
             bucket_name = self._get_construct_name(bucket)
 
+            if (
+                os.getenv("CDK_ENVIRONMENT") != "PRODUCTION"
+                and bucket in vars.PRODUCTION_ONLY_BUCKET_LIST
+            ):
+                logging.info(f"Skipping Bucket {bucket_name}")
+                continue
+
             # Initiate Bucket
             # If Environment is Development, applies removal policy + auto-delete
             # If Environment is Production, Retains all resources to keep data safe
@@ -37,7 +44,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
                 )
             )
 
-            # Apply Tags
+            # Apply Standard Tags to the Bucket
             self._apply_standard_tags(s3_bucket)
 
             # Log Result

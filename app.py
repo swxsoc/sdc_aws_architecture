@@ -4,12 +4,10 @@ import os
 import aws_cdk as cdk
 
 from cdk_deployment.sdc_aws_pipeline_architecture import SDCAWSPipelineArchitectureStack
+from cdk_deployment.vars import DEPLOYMENT_REGION
 
 
 app = cdk.App()
-
-# Region that the stack will be deployed to
-DEPLOYMENT_REGION = "us-east-1"
 
 # Environment Name
 environment_name = (
