@@ -1,4 +1,4 @@
-from aws_cdk import Stack, aws_lambda, aws_s3_notifications, aws_s3, aws_iam
+from aws_cdk import Stack, aws_lambda, aws_s3_notifications, aws_s3
 from constructs import Construct
 import logging
 from . import vars
