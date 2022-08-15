@@ -28,7 +28,7 @@ phases:
           cdk deploy SDCAWSPipelineArchitectureStack -y --require-approval never
           echo Start other Codebuilds
           aws codebuild start-build --project-name build_sdc_aws_base_docker_image --region us-east-2
-          codebuild start-build --project-name build_sdc_aws_sorting_lambda --region us-east-2
+          aws codebuild start-build --project-name build_sdc_aws_sorting_lambda --region us-east-2
         else
           if [[ $LAMBDA_PIPELINE == *"SORTING"* ]];then
             echo Deploying Sorting Lambda

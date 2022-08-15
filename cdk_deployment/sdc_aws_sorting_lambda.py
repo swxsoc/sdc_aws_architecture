@@ -1,4 +1,4 @@
-from aws_cdk import Stack, aws_lambda, aws_s3_notifications, aws_s3
+from aws_cdk import Stack, aws_lambda, aws_s3_notifications, aws_s3, aws_iam
 from constructs import Construct
 import logging
 from . import vars
@@ -21,6 +21,12 @@ class SDCAWSSortingLambdaStack(Stack):
             self, "aws_sdc_lambda_bucket", vars.SORTING_LAMBDA_BUCKET_NAME
         )
 
+        # Lambda Role
+        my_role = aws_iam.Role(self, "My Role",
+            assumed_by=aws_iam.ServicePrincipal("sns.amazonaws.com"),
+            managed_policies=[aws_iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole"), aws_iam.ManagedPolicy.from_aws_managed_policy_name("AmazonS3FullAccess")]
+        )
+        
         # Create Sorting Lambda Function from Zip
         sdc_aws_sorting_function = aws_lambda.Function(
             scope=self,
@@ -36,6 +42,7 @@ class SDCAWSSortingLambdaStack(Stack):
             code=aws_lambda.S3Code(
                 lambda_bucket, "dev_sorting_function_1660565506.zip"
             ),
+            role=my_role,
         )
 
         # Add Trigger to the Bucket to call Lambda
