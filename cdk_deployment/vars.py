@@ -6,6 +6,7 @@ DEPLOYMENT_REGION = "us-east-1"
 
 # S3 Bucket Names
 INCOMING_BUCKET_NAME = "swsoc-incoming"
+UNSORTED_BUCKET_NAME = "swsoc-unsorted"
 SPANI_BUCKET_NAME = "hermes-spani"
 NEMISIS_BUCKET_NAME = "hermes-nemisis"
 EEA_BUCKET_NAME = "hermes-eea"
@@ -20,6 +21,7 @@ BUCKET_LIST = [
     EEA_BUCKET_NAME,
     MERIT_BUCKET_NAME,
     SORTING_LAMBDA_BUCKET_NAME,
+    UNSORTED_BUCKET_NAME,
 ]
 
 # ECR Repository Names
