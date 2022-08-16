@@ -32,4 +32,7 @@ class SDCAWSProcessingLambdaStack(Stack):
             code=aws_lambda.DockerImageCode.from_ecr(ecr_repository, tag_or_digest=TAG),
         )
 
+        # Grant Access to Repo
+        ecr_repository.grant_pull_push(sdc_aws_processing_function)
+
         logging.info("Function created successfully: %s", sdc_aws_processing_function)
