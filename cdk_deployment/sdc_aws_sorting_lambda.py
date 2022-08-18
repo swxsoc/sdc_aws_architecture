@@ -1,4 +1,14 @@
-from aws_cdk import Stack, aws_lambda, aws_s3_notifications, aws_s3, Duration
+from aws_cdk import (
+    Stack,
+    aws_lambda,
+    aws_s3_notifications,
+    aws_s3,
+    Duration,
+    aws_events,
+    aws_events_targets,
+    Tags,
+)
+import datetime
 from constructs import Construct
 import logging
 import os
@@ -22,6 +32,9 @@ class SDCAWSSortingLambdaStack(Stack):
             self, "aws_sdc_lambda_bucket", vars.SORTING_LAMBDA_BUCKET_NAME
         )
 
+        # Lambda Schedule to sort any missed files
+        lambda_schedule = aws_events.Schedule.rate(Duration.minutes(10))
+
         # Create Sorting Lambda Function from Zip
         sdc_aws_sorting_function = aws_lambda.Function(
             scope=self,
@@ -37,6 +50,27 @@ class SDCAWSSortingLambdaStack(Stack):
             timeout=Duration.minutes(10),
             code=aws_lambda.S3Code(lambda_bucket, f"{os.getenv('ZIP_NAME')}"),
         )
+        # Apply Standard Tags to Lambda Function
+        self._apply_standard_tags(sdc_aws_sorting_function)
+
+        # Attach schedule to lambda function with target
+        event_target = aws_events_targets.LambdaFunction(
+            handler=sdc_aws_sorting_function
+        )
+
+        # Create Cloudwatch Event Rule to trigger Lambda
+        lambda_cw_event = aws_events.Rule(
+            self,
+            "aws_sdc_lambda_cw_event",
+            description="CloudWatch event trigger for the AWS Sorting Lambda,"
+            "runs every hour",
+            enabled=True,
+            schedule=lambda_schedule,
+            targets=[event_target],
+        )
+
+        # Apply Standard Tags to CW Event
+        self._apply_standard_tags(lambda_cw_event)
 
         # Grant Access to Buckets
         for bucket in vars.BUCKET_LIST:
@@ -53,3 +87,30 @@ class SDCAWSSortingLambdaStack(Stack):
         )
 
         logging.info("Function created successfully: %s", sdc_aws_sorting_function)
+
+    def _apply_standard_tags(self, construct):
+        """
+        This function applies the default tags to the different resources created
+        """
+
+        # Standard Purpose Tag
+        Tags.of(construct).add(
+            "Purpose", "SWSOC Pipeline", apply_to_launched_instances=True
+        )
+
+        # Standard Last Modified Tag
+        Tags.of(construct).add("Last Modified", str(datetime.today()))
+
+        # Environment Name
+        environment_name = (
+            "Production"
+            if os.getenv("CDK_ENVIRONMENT") == "PRODUCTION"
+            else "Development"
+        )
+
+        # Standard Environment Tag
+        Tags.of(construct).add("Environment", environment_name)
+
+        # Git Version Tag If It Exists
+        if os.getenv("GIT_TAG"):
+            Tags.of(construct).add("Version", os.getenv("GIT_TAG"))
