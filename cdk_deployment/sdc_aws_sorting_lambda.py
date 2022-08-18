@@ -8,7 +8,7 @@ from aws_cdk import (
     aws_events_targets,
     Tags,
 )
-import datetime
+from datetime import datetime
 from constructs import Construct
 import logging
 import os
