@@ -47,16 +47,13 @@ class SDCAWSProcessingLambdaStack(Stack):
         # Apply Standard Tags to CW Event
         self._apply_standard_tags(sdc_aws_processing_function)
 
-        # Grant Access to Buckets
-        for bucket in vars.BUCKET_LIST:
+        # Attach bucket event to lambda function with target
+        for bucket in vars.INSTRUMENT_BUCKET_LIST:
             # Get the incoming bucket from S3
             lambda_bucket = aws_s3.Bucket.from_bucket_name(
                 self, f"aws_sdc_{bucket}", bucket
             )
             lambda_bucket.grant_read_write(sdc_aws_processing_function)
-
-        # Attach bucket event to lambda function with target
-        for bucket in vars.INSTRUMENT_BUCKET_LIST:
             # Add Trigger to the Bucket to call Lambda
             lambda_bucket.add_event_notification(
                 aws_s3.EventType.OBJECT_CREATED,
