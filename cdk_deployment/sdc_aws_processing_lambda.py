@@ -59,7 +59,7 @@ class SDCAWSProcessingLambdaStack(Stack):
             lambda_bucket.add_event_notification(
                 aws_s3.EventType.OBJECT_CREATED,
                 aws_s3_notifications.LambdaDestination(sdc_aws_processing_function),
-                prefix="unprocessed/",
+                aws_s3.NotificationKeyFilter(prefix="unprocessed/"),
             )
 
         logging.info("Function created successfully: %s", sdc_aws_processing_function)
