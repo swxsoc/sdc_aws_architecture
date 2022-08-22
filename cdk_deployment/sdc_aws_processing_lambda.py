@@ -1,6 +1,5 @@
 import os
 from datetime import datetime
-from sys import prefix
 from aws_cdk import (
     Stack,
     aws_lambda,
