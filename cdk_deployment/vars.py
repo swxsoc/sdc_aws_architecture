@@ -24,6 +24,14 @@ BUCKET_LIST = [
     UNSORTED_BUCKET_NAME,
 ]
 
+# List of Instrument Bucket Names
+INSTRUMENT_BUCKET_LIST = [
+    SPANI_BUCKET_NAME,
+    NEMISIS_BUCKET_NAME,
+    EEA_BUCKET_NAME,
+    MERIT_BUCKET_NAME,
+]
+
 # ECR Repository Names
 PROCESSING_LAMBDA_ECR_NAME = "sdc_aws_processing_lambda"
 SWSOC_DOCKER_BASE_ECR_NAME = "swsoc-docker-lambda-base"

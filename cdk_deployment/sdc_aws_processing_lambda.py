@@ -55,6 +55,8 @@ class SDCAWSProcessingLambdaStack(Stack):
             )
             lambda_bucket.grant_read_write(sdc_aws_processing_function)
 
+        # Attach bucket event to lambda function with target
+        for bucket in vars.INSTRUMENT_BUCKET_LIST:
             # Add Trigger to the Bucket to call Lambda
             lambda_bucket.add_event_notification(
                 aws_s3.EventType.OBJECT_CREATED,
