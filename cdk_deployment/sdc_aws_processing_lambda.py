@@ -39,6 +39,7 @@ class SDCAWSProcessingLambdaStack(Stack):
             ),
             timeout=Duration.minutes(10),
             code=aws_lambda.DockerImageCode.from_ecr(ecr_repository, tag_or_digest=TAG),
+            environment={"LAMBDA_ENVIRONMENT": "PRODUCTION"},
         )
 
         # Grant Access to Repo
