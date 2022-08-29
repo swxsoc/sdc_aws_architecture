@@ -1,5 +1,5 @@
-aws-cdk-lib==2.10.0
-constructs>=10.0.0,<11.0.0
+aws-cdk-lib==2.31.1
+constructs==10.0.127
 hermes_core @ git+https://github.com/HERMES-SOC/hermes_core.git
 flake8
 black
