@@ -4,9 +4,7 @@ phases:
   pre_build:
     commands:
       - echo Install dev dependencies
-      - pip3 install flake8 black pytest pytest-astropy pytest-cov
-      - pip3 install pytest pytest-astropy pytest-cov
-      - pip3 install aws-cdk-lib==2.31.1 constructs==10.0.127
+      - pip3 install -r requirements.txt
       - npm install -g aws-cdk
       
       - echo Lint with Black

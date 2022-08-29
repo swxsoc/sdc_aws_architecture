@@ -12,6 +12,7 @@ from aws_cdk import (
 from constructs import Construct
 import logging
 from . import vars
+from hermes_core.util import util  # noqa: E402
 
 
 class SDCAWSProcessingLambdaStack(Stack):
@@ -55,12 +56,14 @@ class SDCAWSProcessingLambdaStack(Stack):
                 self, f"aws_sdc_{bucket}", bucket
             )
             lambda_bucket.grant_read_write(sdc_aws_processing_function)
+
             # Add Trigger to the Bucket to call Lambda
-            lambda_bucket.add_event_notification(
-                aws_s3.EventType.OBJECT_CREATED,
-                aws_s3_notifications.LambdaDestination(sdc_aws_processing_function),
-                aws_s3.NotificationKeyFilter(prefix="unprocessed/"),
-            )
+            for data_level in util.VALID_DATA_LEVELS:
+                lambda_bucket.add_event_notification(
+                    aws_s3.EventType.OBJECT_CREATED,
+                    aws_s3_notifications.LambdaDestination(sdc_aws_processing_function),
+                    aws_s3.NotificationKeyFilter(prefix=data_level),
+                )
 
         logging.info("Function created successfully: %s", sdc_aws_processing_function)
 
