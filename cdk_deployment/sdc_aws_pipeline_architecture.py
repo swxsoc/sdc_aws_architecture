@@ -14,7 +14,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
         sdc_aws_pipeline_architecture_dynamodb_table = aws_dynamodb.Table(
             scope=self,
             id="aws_sdc_pipeline_architecture_dynamodb_table",
-            table_name="aws_sdc_pipeline_architecture_dynamodb_table",
+            table_name="aws_sdc_s3_log_dynamodb_table",
             partition_key=aws_dynamodb.Attribute(
                 name="id", type=aws_dynamodb.AttributeType.STRING
             ),
