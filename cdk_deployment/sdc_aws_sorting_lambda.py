@@ -33,7 +33,7 @@ class SDCAWSSortingLambdaStack(Stack):
         )
 
         # Lambda Schedule to sort any missed files
-        lambda_schedule = aws_events.Schedule.rate(Duration.minutes(10))
+        lambda_schedule = aws_events.Schedule.cron(hour="0,12", minute="0")
 
         # Create Sorting Lambda Function from Zip
         sdc_aws_sorting_function = aws_lambda.Function(
