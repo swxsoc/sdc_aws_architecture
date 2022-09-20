@@ -1,4 +1,4 @@
-from aws_cdk import Stack, aws_s3, aws_ecr, Tags, RemovalPolicy, Duration
+from aws_cdk import Stack, aws_s3, aws_ecr, Tags, RemovalPolicy, Duration, aws_dynamodb
 from constructs import Construct
 from . import vars
 import logging
@@ -9,6 +9,20 @@ from datetime import datetime
 class SDCAWSPipelineArchitectureStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        #  Create S3 Log DynamoDB Table
+        sdc_aws_pipeline_architecture_dynamodb_table = aws_dynamodb.Table(
+            scope=self,
+            id="aws_sdc_pipeline_architecture_dynamodb_table",
+            table_name="aws_sdc_pipeline_architecture_dynamodb_table",
+            partition_key=aws_dynamodb.Attribute(
+                name="id", type=aws_dynamodb.AttributeType.STRING
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # Apply Standard Tags to DynamoDB Table
+        self._apply_standard_tags(sdc_aws_pipeline_architecture_dynamodb_table)
 
         # Initiate Server Access Logs Bucket
         s3_server_access_bucket = aws_s3.Bucket(
