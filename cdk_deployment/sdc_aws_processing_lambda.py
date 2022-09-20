@@ -4,6 +4,7 @@ from aws_cdk import (
     Stack,
     aws_lambda,
     aws_ecr,
+    aws_dynamodb,
     Duration,
     aws_s3,
     aws_s3_notifications,
@@ -42,6 +43,16 @@ class SDCAWSProcessingLambdaStack(Stack):
             code=aws_lambda.DockerImageCode.from_ecr(ecr_repository, tag_or_digest=TAG),
             environment={"LAMBDA_ENVIRONMENT": "PRODUCTION"},
         )
+
+        # Get the S3 Log DynamoDB Table
+        s3_log_table = aws_dynamodb.Table.from_table_arn(
+            self,
+            "ImportedTable",
+            "arn:aws:dynamodb:us-east-1:351967858401:table/aws_sdc_s3_log_dynamodb_table",
+        )
+
+        # Grant Read/Write Permissions to the S3 Log DynamoDB Table
+        s3_log_table.grant_read_write_data(sdc_aws_processing_function)
 
         # Grant Access to Repo
         ecr_repository.grant_pull_push(sdc_aws_processing_function)

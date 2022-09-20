@@ -3,6 +3,7 @@ from aws_cdk import (
     aws_lambda,
     aws_s3_notifications,
     aws_s3,
+    aws_dynamodb,
     Duration,
     aws_events,
     aws_events_targets,
@@ -50,6 +51,17 @@ class SDCAWSSortingLambdaStack(Stack):
             timeout=Duration.minutes(10),
             code=aws_lambda.S3Code(lambda_bucket, f"{os.getenv('ZIP_NAME')}"),
         )
+
+        # Get the S3 Log DynamoDB Table
+        s3_log_table = aws_dynamodb.Table.from_table_arn(
+            self,
+            "ImportedTable",
+            "arn:aws:dynamodb:us-east-1:351967858401:table/aws_sdc_s3_log_dynamodb_table",
+        )
+
+        # Grant Read/Write Permissions to the S3 Log DynamoDB Table
+        s3_log_table.grant_read_write_data(sdc_aws_sorting_function)
+
         # Apply Standard Tags to Lambda Function
         self._apply_standard_tags(sdc_aws_sorting_function)
 
