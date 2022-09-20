@@ -13,6 +13,8 @@ EEA_BUCKET_NAME = "hermes-eea"
 MERIT_BUCKET_NAME = "hermes-merit"
 SORTING_LAMBDA_BUCKET_NAME = "swsoc-sorting-lambda"
 
+# S3 Server Access Logs Bucket
+S3_SERVER_ACCESS_LOGS_BUCKET_NAME = "swsoc-s3-server-access-logs"
 # List of Buckets to be Created
 BUCKET_LIST = [
     INCOMING_BUCKET_NAME,

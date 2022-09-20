@@ -10,6 +10,15 @@ class SDCAWSPipelineArchitectureStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        # Initiate Server Access Logs Bucket
+        s3_server_access_bucket = aws_s3.Bucket(
+            self,
+            f"aws_sdc_{vars.S3_SERVER_ACCESS_LOGS_BUCKET_NAME}_bucket",
+            bucket_name=vars.S3_SERVER_ACCESS_LOGS_BUCKET_NAME,
+            removal_policy=RemovalPolicy.RETAIN,
+            auto_delete_objects=False,
+        )
+
         # Iterate through the S3 Buckets List and Create the Buckets
         for bucket in vars.BUCKET_LIST:
 
@@ -20,6 +29,8 @@ class SDCAWSPipelineArchitectureStack(Stack):
                 bucket_name=bucket,
                 removal_policy=RemovalPolicy.RETAIN,
                 auto_delete_objects=False,
+                server_access_logs_bucket=s3_server_access_bucket,
+                server_access_logs_prefix=f"{bucket}/",
             )
 
             # Apply Standard Tags to the Bucket
