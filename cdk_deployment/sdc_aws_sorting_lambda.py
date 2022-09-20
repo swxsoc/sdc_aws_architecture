@@ -56,7 +56,7 @@ class SDCAWSSortingLambdaStack(Stack):
         s3_log_table = aws_dynamodb.Table.from_table_arn(
             self,
             "ImportedTable",
-            "arn:aws:dynamodb:us-east-1:351967858401:table/aws_sdc_s3_log_dynamodb_table",
+            vars.S3_BUCKET_DYNAMODB_TABLE_ARN,
         )
 
         # Grant Read/Write Permissions to the S3 Log DynamoDB Table
