@@ -44,7 +44,6 @@ ECR_PUBLIC_REPO_LIST = [SWSOC_DOCKER_BASE_ECR_NAME]
 # Private ECR Repo List (This is only deployed to selected region)
 ECR_PRIVATE_REPO_LIST = [PROCESSING_LAMBDA_ECR_NAME]
 
-# S3 Bucket DynamoDB Table ARN
-S3_BUCKET_DYNAMODB_TABLE_ARN = (
-    "arn:aws:dynamodb:us-east-1:351967858401:table/" "aws_sdc_s3_log_dynamodb_table"
-)
+# Timestream Database and Table Names for Logs
+TIMESTREAM_DATABASE_NAME = "sdc_aws_logs"
+TIMESTREAM_S3_LOGS_TABLE_NAME = "sdc_aws_s3_bucket_log_table"

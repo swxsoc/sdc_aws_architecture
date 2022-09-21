@@ -4,7 +4,7 @@ from aws_cdk import (
     Stack,
     aws_lambda,
     aws_ecr,
-    aws_dynamodb,
+    aws_iam,
     Duration,
     aws_s3,
     aws_s3_notifications,
@@ -44,16 +44,19 @@ class SDCAWSProcessingLambdaStack(Stack):
             environment={"LAMBDA_ENVIRONMENT": "PRODUCTION"},
         )
 
-        # Get the S3 Log DynamoDB Table
-        s3_log_table = aws_dynamodb.Table.from_table_arn(
-            self,
-            "ImportedTable",
-            vars.S3_BUCKET_DYNAMODB_TABLE_ARN,
+        # Give Lambda Read/Write Access to all Timestream Tables
+        sdc_aws_processing_function.add_to_role_policy(
+            aws_iam.PolicyStatement(
+                effect=aws_iam.Effect.ALLOW,
+                actions=[
+                    "timestream:WriteRecords",
+                    "timestream:DescribeEndpoints",
+                    "timestream:DescribeDatabase",
+                    "timestream:DescribeTable",
+                ],
+                resources=["*"],
+            )
         )
-
-        # Grant Read/Write Permissions to the S3 Log DynamoDB Table
-        s3_log_table.grant_read_write_data(sdc_aws_processing_function)
-
         # Grant Access to Repo
         ecr_repository.grant_pull_push(sdc_aws_processing_function)
 

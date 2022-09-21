@@ -1,4 +1,12 @@
-from aws_cdk import Stack, aws_s3, aws_ecr, Tags, RemovalPolicy, Duration, aws_dynamodb
+from aws_cdk import (
+    Stack,
+    aws_s3,
+    aws_ecr,
+    Tags,
+    RemovalPolicy,
+    Duration,
+    aws_timestream,
+)
 from constructs import Construct
 from . import vars
 import logging
@@ -10,19 +18,28 @@ class SDCAWSPipelineArchitectureStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        #  Create S3 Log DynamoDB Table
-        sdc_aws_pipeline_architecture_dynamodb_table = aws_dynamodb.Table(
-            scope=self,
-            id="aws_sdc_pipeline_architecture_dynamodb_table",
-            table_name="aws_sdc_s3_log_dynamodb_table",
-            partition_key=aws_dynamodb.Attribute(
-                name="id", type=aws_dynamodb.AttributeType.STRING
-            ),
-            removal_policy=RemovalPolicy.DESTROY,
+        # Create AWS Timestream Database for Logs
+        timestream_database = aws_timestream.CfnDatabase(
+            self,
+            id="timestream_database",
+            database_name=vars.TIMESTREAM_DATABASE_NAME,
         )
 
-        # Apply Standard Tags to DynamoDB Table
-        self._apply_standard_tags(sdc_aws_pipeline_architecture_dynamodb_table)
+        # Create AWS Timestream Table for Logs
+        timestream_s3_log_table = aws_timestream.CfnTable(
+            self,
+            id="timestream_table",
+            database_name=vars.TIMESTREAM_DATABASE_NAME,
+            table_name=vars.TIMESTREAM_S3_LOGS_TABLE_NAME,
+            retention_properties={
+                "MagneticStoreRetentionPeriodInDays": 30,
+                "MemoryStoreRetentionPeriodInHours": 24,
+            },
+        )
+
+        # Apply Standard Tags
+        self._apply_standard_tags(timestream_database)
+        self._apply_standard_tags(timestream_s3_log_table)
 
         # Initiate Server Access Logs Bucket
         s3_server_access_bucket = aws_s3.Bucket(
