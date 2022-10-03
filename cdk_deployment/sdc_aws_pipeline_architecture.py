@@ -20,9 +20,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
 
         # Create AWS Timestream Database for Logs
         timestream_database = aws_timestream.CfnDatabase(
-            self,
-            id="timestream_database",
-            database_name=vars.TIMESTREAM_DATABASE_NAME,
+            self, id="timestream_database", database_name=vars.TIMESTREAM_DATABASE_NAME,
         )
 
         # Create AWS Timestream Table for Logs
@@ -48,6 +46,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
             bucket_name=vars.S3_SERVER_ACCESS_LOGS_BUCKET_NAME,
             removal_policy=RemovalPolicy.RETAIN,
             auto_delete_objects=False,
+            versioned=True,
         )
 
         # Iterate through the S3 Buckets List and Create the Buckets
@@ -62,6 +61,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
                 auto_delete_objects=False,
                 server_access_logs_bucket=s3_server_access_bucket,
                 server_access_logs_prefix=f"{bucket}/",
+                versioned=True,
             )
 
             # Apply Standard Tags to the Bucket
