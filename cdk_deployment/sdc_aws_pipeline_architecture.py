@@ -20,7 +20,9 @@ class SDCAWSPipelineArchitectureStack(Stack):
 
         # Create AWS Timestream Database for Logs
         timestream_database = aws_timestream.CfnDatabase(
-            self, id="timestream_database", database_name=vars.TIMESTREAM_DATABASE_NAME,
+            self,
+            id="timestream_database",
+            database_name=vars.TIMESTREAM_DATABASE_NAME,
         )
 
         # Create AWS Timestream Table for Logs
