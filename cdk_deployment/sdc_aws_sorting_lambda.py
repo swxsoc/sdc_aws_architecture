@@ -13,15 +13,16 @@ from datetime import datetime
 from constructs import Construct
 import logging
 import os
-from . import vars
 
 
 class SDCAWSSortingLambdaStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self, scope: Construct, construct_id: str, config: dict, **kwargs
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # Name of Incoming Bucket that will trigger the lambda
-        bucket_name = vars.INCOMING_BUCKET_NAME
+        bucket_name = config["INCOMING_BUCKET_NAME"]
 
         # Get the incoming bucket from S3
         incoming_bucket = aws_s3.Bucket.from_bucket_name(
@@ -30,7 +31,7 @@ class SDCAWSSortingLambdaStack(Stack):
 
         # Get the incoming bucket from S3
         lambda_bucket = aws_s3.Bucket.from_bucket_name(
-            self, "aws_sdc_lambda_bucket", vars.SORTING_LAMBDA_BUCKET_NAME
+            self, "aws_sdc_lambda_bucket", config["SORTING_LAMBDA_BUCKET_NAME"]
         )
 
         # Lambda Schedule to sort any missed files
@@ -89,7 +90,7 @@ class SDCAWSSortingLambdaStack(Stack):
         self._apply_standard_tags(lambda_cw_event)
 
         # Grant Access to Buckets
-        for bucket in vars.BUCKET_LIST:
+        for bucket in config["BUCKET_LIST"]:
             # Get the incoming bucket from S3
             lambda_bucket = aws_s3.Bucket.from_bucket_name(
                 self, f"aws_sdc_{bucket}", bucket

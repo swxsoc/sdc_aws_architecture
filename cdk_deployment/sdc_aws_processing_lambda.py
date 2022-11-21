@@ -12,16 +12,16 @@ from aws_cdk import (
 )
 from constructs import Construct
 import logging
-from . import vars
-from hermes_core.util import util  # noqa: E402
 
 
 class SDCAWSProcessingLambdaStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self, scope: Construct, construct_id: str, config: dict, **kwargs
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # ECR Repo Name
-        repo_name = vars.PROCESSING_LAMBDA_ECR_NAME
+        repo_name = config["PROCESSING_LAMBDA_PRIVATE_ECR_NAME"]
 
         # Get SDC Processing Lambda ECR Repo
         ecr_repository = aws_ecr.Repository.from_repository_name(
@@ -64,7 +64,7 @@ class SDCAWSProcessingLambdaStack(Stack):
         self._apply_standard_tags(sdc_aws_processing_function)
 
         # Attach bucket event to lambda function with target
-        for bucket in vars.INSTRUMENT_BUCKET_LIST:
+        for bucket in config["INSTR_TO_BUCKET_NAME"]:
             # Get the incoming bucket from S3
             lambda_bucket = aws_s3.Bucket.from_bucket_name(
                 self, f"aws_sdc_{bucket}", bucket
@@ -72,7 +72,7 @@ class SDCAWSProcessingLambdaStack(Stack):
             lambda_bucket.grant_read_write(sdc_aws_processing_function)
 
             # Add Trigger to the Bucket to call Lambda
-            for data_level in util.VALID_DATA_LEVELS:
+            for data_level in config["VALID_DATA_LEVELS"]:
                 lambda_bucket.add_event_notification(
                     aws_s3.EventType.OBJECT_CREATED,
                     aws_s3_notifications.LambdaDestination(sdc_aws_processing_function),

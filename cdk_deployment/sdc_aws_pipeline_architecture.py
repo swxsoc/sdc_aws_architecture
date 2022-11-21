@@ -8,29 +8,30 @@ from aws_cdk import (
     aws_timestream,
 )
 from constructs import Construct
-from . import vars
 import logging
 import os
 from datetime import datetime
 
 
 class SDCAWSPipelineArchitectureStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self, scope: Construct, construct_id: str, config: dict, **kwargs
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # Create AWS Timestream Database for Logs
         timestream_database = aws_timestream.CfnDatabase(
             self,
             id="timestream_database",
-            database_name=vars.TIMESTREAM_DATABASE_NAME,
+            database_name=config["TIMESTREAM_DATABASE_NAME"],
         )
 
         # Create AWS Timestream Table for Logs
         timestream_s3_log_table = aws_timestream.CfnTable(
             self,
             id="timestream_table",
-            database_name=vars.TIMESTREAM_DATABASE_NAME,
-            table_name=vars.TIMESTREAM_S3_LOGS_TABLE_NAME,
+            database_name=config["TIMESTREAM_DATABASE_NAME"],
+            table_name=config["TIMESTREAM_S3_LOGS_TABLE_NAME"],
             retention_properties={
                 "MagneticStoreRetentionPeriodInDays": 30,
                 "MemoryStoreRetentionPeriodInHours": 24,
@@ -44,15 +45,17 @@ class SDCAWSPipelineArchitectureStack(Stack):
         # Initiate Server Access Logs Bucket
         s3_server_access_bucket = aws_s3.Bucket(
             self,
-            f"aws_sdc_{vars.S3_SERVER_ACCESS_LOGS_BUCKET_NAME}_bucket",
-            bucket_name=vars.S3_SERVER_ACCESS_LOGS_BUCKET_NAME,
+            f"aws_sdc_{config['S3_SERVER_ACCESS_LOGS_BUCKET_NAME']}_bucket",
+            bucket_name=config["S3_SERVER_ACCESS_LOGS_BUCKET_NAME"],
             removal_policy=RemovalPolicy.RETAIN,
             auto_delete_objects=False,
             versioned=True,
         )
 
         # Iterate through the S3 Buckets List and Create the Buckets
-        for bucket in vars.BUCKET_LIST:
+        for bucket in config["BUCKET_LIST"]:
+            if bucket == config["S3_SERVER_ACCESS_LOGS_BUCKET_NAME"]:
+                continue
 
             # Initiate Bucket
             s3_bucket = aws_s3.Bucket(
@@ -73,7 +76,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
             logging.info(f"Created the {bucket} S3 Bucket")
 
         # Iterate through the Private ECR Repos and initiate
-        for ecr_repo in vars.ECR_PRIVATE_REPO_LIST:
+        for ecr_repo in config["ECR_PRIVATE_REPO_LIST"]:
 
             # Initiate Private Repo
             private_ecr_repo = aws_ecr.Repository(
@@ -93,7 +96,7 @@ class SDCAWSPipelineArchitectureStack(Stack):
             logging.info(f"Created the {ecr_repo} Private ECR Repo")
 
         # Iterate through the Public ECR Repos and initiate
-        for ecr_repo in vars.ECR_PUBLIC_REPO_LIST:
+        for ecr_repo in config["ECR_PUBLIC_REPO_LIST"]:
 
             # Initiate Public Repos
             # Note: Public ECR Repos don't support removal policies
