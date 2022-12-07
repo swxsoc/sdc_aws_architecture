@@ -6,6 +6,11 @@ phases:
       - echo Install dev dependencies
       - pip3 install -r requirements.txt
       - npm install -g aws-cdk
+
+      - Docs test
+      - apt-get update && apt-get install -y python3-pip
+      - apt-get install make graphviz -y
+      - make html
       
       - echo Lint with Black
       - black --check --diff app.py cdk_deployment
@@ -15,6 +20,8 @@ phases:
       
       - echo CDK Test
       - cdk synth
+
+
     
   build:
     commands:

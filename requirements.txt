@@ -6,3 +6,7 @@ black
 pytest
 pytest-astropy
 pytest-cov
+sphinx # for documentation
+sphinx-automodapi # for documentation
+sphinx-changelog # for changelog in documentation
+sphinx_rtd_theme
