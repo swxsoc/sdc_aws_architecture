@@ -5,7 +5,7 @@ phases:
     commands:
       - echo Install dev dependencies
       - pip3 install -r requirements.txt
-      - npm install -g aws-cdk
+      - npm install -g aws-cdk@2.77.0
 
       - Docs test
       - apt-get update && apt-get install -y python3-pip
@@ -32,8 +32,8 @@ phases:
           echo Deploying Pipeline Architecture...
           cdk deploy SDCAWSPipelineArchitectureStack -y --require-approval never
           echo Start other Codebuilds
-          aws codebuild start-build --project-name build_sdc_aws_base_docker_image --region us-east-2
-          aws codebuild start-build --project-name build_sdc_aws_sorting_lambda --region us-east-2
+          aws codebuild start-build --project-name build_sdc_aws_base_docker_image --region us-east-2 --environment-variables-override name=DEPLOYMENT_ENVIRONMENT,value=$CDK_ENVIRONMENT,type=PLAINTEXT
+          aws codebuild start-build --project-name build_sdc_aws_sorting_lambda --region us-east-2 --environment-variables-override name=DEPLOYMENT_ENVIRONMENT,value=$CDK_ENVIRONMENT,type=PLAINTEXT
         else
           if [[ $LAMBDA_PIPELINE == *"SORTING"* ]];then
             echo Deploying Sorting Lambda

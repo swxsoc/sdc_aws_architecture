@@ -18,6 +18,8 @@ jobs:
         npm install -g aws-cdk
     - name: Run tests
       run: |
+        export DRY_RUN=true
+        export ZIP_FILE=aws_sorting_lambda.zip
         cdk synth
 
 

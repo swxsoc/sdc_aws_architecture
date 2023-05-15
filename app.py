@@ -19,38 +19,34 @@ if not validate_config(config):
 
 app = cdk.App()
 
+env_prefix = "Dev" if config["DEPLOYMENT_ENVIRONMENT"] != "PRODUCTION" else ""
+
+pipeline_stack_name = f"{env_prefix}SDCAWSPipelineArchitectureStack"
+processing_lambda_stack_name = f"{env_prefix}SDCAWSProcessingLambdaStack"
+sorting_lambda_stack_name = f"{env_prefix}SDCAWSSortingLambdaStack"
+
+
+def initialize_stack(stack_class, stack_name, app, config):
+    stack = stack_class(
+        app,
+        stack_name,
+        env=cdk.Environment(
+            account=os.getenv("CDK_DEFAULT_ACCOUNT"), region=config["DEPLOYMENT_REGION"]
+        ),
+        config=config,
+    )
+    logging.info(f"{stack_name} synthesized successfully")
+    return stack
+
+
 # Initialize Deployment Stack
-SDCAWSPipelineArchitectureStack(
-    app,
-    "SDCAWSPipelineArchitectureStack",
-    env=cdk.Environment(
-        account=os.getenv("CDK_DEFAULT_ACCOUNT"), region=config["DEPLOYMENT_REGION"]
-    ),
-    config=config,
-)
-logging.info("SDCAWSPipelineArchitectureStack synthesized successfully")
+initialize_stack(SDCAWSPipelineArchitectureStack, pipeline_stack_name, app, config)
 
 # Initialize Processing Lambda Stack
-SDCAWSProcessingLambdaStack(
-    app,
-    "SDCAWSProcessingLambdaStack",
-    env=cdk.Environment(
-        account=os.getenv("CDK_DEFAULT_ACCOUNT"), region=config["DEPLOYMENT_REGION"]
-    ),
-    config=config,
-)
-logging.info("SDCAWSProcessingLambdaStack synthesized successfully")
+initialize_stack(SDCAWSProcessingLambdaStack, processing_lambda_stack_name, app, config)
 
 # Initialize Sorting Lambda Stack
-SDCAWSSortingLambdaStack(
-    app,
-    "SDCAWSSortingLambdaStack",
-    env=cdk.Environment(
-        account=os.getenv("CDK_DEFAULT_ACCOUNT"), region=config["DEPLOYMENT_REGION"]
-    ),
-    config=config,
-)
-logging.info("SDCAWSSortingLambdaStack synthesized successfully")
+initialize_stack(SDCAWSSortingLambdaStack, sorting_lambda_stack_name, app, config)
 
 # Synthesize Cloudformation Template
 app.synth()

@@ -1,12 +1,8 @@
-aws-cdk-lib==2.31.1
-constructs==10.0.127
-hermes_core @ git+https://github.com/HERMES-SOC/hermes_core.git
-flake8
-black
-pytest
-pytest-astropy
-pytest-cov
-sphinx # for documentation
-sphinx-automodapi # for documentation
-sphinx-changelog # for changelog in documentation
-sphinx_rtd_theme
+aws-cdk-lib==2.74.0
+constructs==10.1.313
+boto3==1.26.127
+flake8==6.0.0
+black==23.3.0
+sphinx==6.1.3
+sphinx-automodapi==0.15.0
+sphinx_rtd_theme==1.2.0

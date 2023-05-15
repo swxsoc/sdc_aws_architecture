@@ -16,9 +16,6 @@ VALID_DATA_LEVELS:
 - l0
 - l1
 - ql 
-- l2 
-- l3
-- l4
 
 # Instrument Names Used in the Mission. 
 # The names are used to dynamically create the instrument bucket
