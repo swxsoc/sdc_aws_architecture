@@ -30,14 +30,14 @@ variable "mission_name" {
   description = "The list of missions"
 }
 
-variable "sorting_lambda_bucket_name" {
-  type        = string
-  description = "The name of the S3 bucket to create for storing the sorting lambda"
-}
-
 variable "s3_server_access_logs_bucket_name" {
   type        = string
   description = "The name of the S3 bucket to create for storing access logs"
+}
+
+variable "sorting_function_private_ecr_name" {
+  type        = string
+  description = "Private ECR repository for the sorting function"
 }
 
 variable "processing_function_private_ecr_name" {
@@ -64,15 +64,16 @@ variable "slack_channel" {
   sensitive   = true
 }
 
-variable "image_tag" {
+variable "pf_image_tag" {
   type        = string
-  description = "ECR image tag"
+  description = "Processing Function ECR image tag"
   default     = "latest"
 }
 
-variable "s3_key" {
-  type = string
-  description = "S3 key for the sorting lambda"
+variable "sf_image_tag" {
+  type        = string
+  description = "Sorting Function ECR image tag"
+  default     = "latest"
 }
 
 variable "valid_data_levels" {

@@ -203,6 +203,13 @@ resource "aws_ecr_repository" "processing_function_private_ecr" {
   tags                 = local.standard_tags
 }
 
+// Private ECR for the processing function
+resource "aws_ecr_repository" "sorting_function_private_ecr" {
+  name                 = "${local.environment_short_name}${var.sorting_function_private_ecr_name}"
+  image_tag_mutability = "MUTABLE"
+  tags                 = local.standard_tags
+}
+
 // Public ECR for the docker base image
 resource "aws_ecrpublic_repository" "docker_base_public_ecr" {
   repository_name = "${local.environment_short_name}${var.docker_base_public_ecr_name}"

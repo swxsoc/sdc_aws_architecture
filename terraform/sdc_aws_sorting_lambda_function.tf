@@ -8,8 +8,6 @@
 // Creates the Sorting Lambda function
 resource "aws_lambda_function" "sorting_lambda_function" {
   function_name = local.is_production ? "aws_sdc_sorting_lambda_function" : "dev_aws_sdc_sorting_lambda_function"
-  handler       = "lambda_function.handler"
-  runtime       = "python3.10"
   memory_size   = 128
   timeout       = 600
 
@@ -21,8 +19,9 @@ resource "aws_lambda_function" "sorting_lambda_function" {
     }
   }
 
-  s3_bucket = "${local.environment_short_name}${var.sorting_lambda_bucket_name}"
-  s3_key    = var.s3_key
+  image_uri    = "${aws_ecr_repository.sorting_function_private_ecr.repository_url}:${var.sf_image_tag}"
+  package_type = "Image"
+
   ephemeral_storage {
     size = 512
   }
@@ -30,9 +29,6 @@ resource "aws_lambda_function" "sorting_lambda_function" {
   tracing_config {
     mode = "PassThrough"
   }
-
-  architectures = ["x86_64"]
-  // The last object, assuming it's the latest
 
   role = aws_iam_role.sorting_lambda_exec.arn
 

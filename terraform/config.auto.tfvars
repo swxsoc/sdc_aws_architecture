@@ -25,9 +25,9 @@ timestream_s3_logs_table_name = "sdc_aws_s3_bucket_log_table"
 # The names of the buckets that will be created for the mission
 incoming_bucket_name = "swsoc-incoming"
 
-# S3 Sorting Lambda Bucket Name
-# The name of the bucket that will be created to store the build artifacts for the sorting lambda
-sorting_lambda_bucket_name = "swsoc-sorting-lambda"
+# S3 Sorting Lambda ECR Repository Name
+# The name of the ECR repository that will be created to store the sorting lambda image
+sorting_function_private_ecr_name = "sdc_aws_sorting_lambda"
 
 # S3 Server Access Logs Bucket
 # The name of the bucket that will be created to store the s3 server access logs

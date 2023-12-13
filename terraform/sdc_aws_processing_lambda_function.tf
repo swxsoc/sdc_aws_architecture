@@ -11,7 +11,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
   memory_size   = 128
   timeout       = 900
 
-  image_uri    = "${aws_ecr_repository.processing_function_private_ecr.repository_url}:${var.image_tag}"
+  image_uri    = "${aws_ecr_repository.processing_function_private_ecr.repository_url}:${var.pf_image_tag}"
   package_type = "Image"
 
   environment {

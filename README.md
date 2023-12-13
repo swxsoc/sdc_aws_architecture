@@ -4,7 +4,7 @@
 |-|-|
 
 ### **Description**:
-This repo contains the CDK Project that sets up all of the infrastructure the file processing pipeline requires.
+This repo contains the CDK Project that sets up all of the infrastructure the file processing pipeline requires. This includes S3 Buckets, Public and Private ECR Repos, Timestream databases, Postgres RDS Servers, as well as Lambda Functions.
 
 
 # Information on working with a CDK Project

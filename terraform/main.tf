@@ -54,7 +54,7 @@ locals {
   last_data_level = element(var.valid_data_levels, length(var.valid_data_levels) - 1)
 
   instrument_bucket_names = [for bucket in var.instrument_names : "${var.mission_name}-${bucket}"]
-  bucket_list             = concat([var.incoming_bucket_name], [var.sorting_lambda_bucket_name], local.instrument_bucket_names)
+  bucket_list             = concat([var.incoming_bucket_name], local.instrument_bucket_names)
 }
 
 

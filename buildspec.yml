@@ -3,46 +3,59 @@ version: 0.2
 phases:
   pre_build:
     commands:
-      - echo Install dev dependencies
+      # Install dependencies
+      - echo "Installing dev dependencies"
+      - apt-get update
+      - apt-get install -y python3-pip make graphviz unzip
       - pip3 install -r requirements.txt
-      - npm install -g aws-cdk@2.77.0
 
-      - Docs test
-      - apt-get update && apt-get install -y python3-pip
-      - apt-get install make graphviz -y
+      # Documentation Test
+      - echo "Generating documentation"
       - make html
-      
-      - echo Lint with Black
-      - black --check --diff app.py cdk_deployment
 
-      - echo Lint with Flake
-      - flake8 --count --max-line-length 88 app.py cdk_deployment
-      
-      - echo CDK Test
-      - cdk synth
+      # Install Terraform
+      - echo "Installing Terraform"
+      - cd terraform
+      - curl -o terraform.zip https://releases.hashicorp.com/terraform/1.4.6/terraform_1.4.6_linux_amd64.zip
+      - unzip -o terraform.zip
+      - sudo mv terraform /usr/local/bin/
+      - terraform --version
+      - terraform init && terraform validate
 
-
-    
   build:
     commands:
-      - echo Deploying Bootstrap Architecture...
-      - cdk bootstrap -y --require-approval never
+      # Deployment commands
+      - echo "Deploying Bootstrap Architecture..."
       - |
-        if [[ -z "${LAMBDA_PIPELINE}" ]];then
-          echo Deploying Pipeline Architecture...
-          cdk deploy SDCAWSPipelineArchitectureStack -y --require-approval never
-          echo Start other Codebuilds
-          aws codebuild start-build --project-name build_sdc_aws_base_docker_image --region us-east-2 --environment-variables-override name=DEPLOYMENT_ENVIRONMENT,value=$CDK_ENVIRONMENT,type=PLAINTEXT
-          aws codebuild start-build --project-name build_sdc_aws_sorting_lambda --region us-east-2 --environment-variables-override name=DEPLOYMENT_ENVIRONMENT,value=$CDK_ENVIRONMENT,type=PLAINTEXT
+        if git describe --tags --exact-match > /dev/null 2>&1; then
+          echo "This is a tag push event"
+          PF_ECR_REPO=sdc_aws_processing_lambda
+          CDK_ENVIRONMENT=PRODUCTION
+          SF_ECR_REPO=sdc_aws_sorting_lambda
+          terraform workspace select prod
+        elif [ "${CDK_ENVIRONMENT}" = "PRODUCTION" ]; then
+          echo "This is a production environment"
+          PF_ECR_REPO=sdc_aws_processing_lambda
+          SF_ECR_REPO=sdc_aws_sorting_lambda
+          terraform workspace select prod
         else
-          if [[ $LAMBDA_PIPELINE == *"SORTING"* ]];then
-            echo Deploying Sorting Lambda
-            cdk deploy SDCAWSSortingLambdaStack -y --require-approval never
-          else
-            echo Deploying Processing Lambda
-            cdk deploy SDCAWSProcessingLambdaStack -y --require-approval never
-          fi    
-        fi   
-   
+          echo "This is a development environment"
+          PF_ECR_REPO=dev-sdc_aws_processing_lambda
+          SF_ECR_REPO=dev-sdc_aws_sorting_lambda
+          terraform workspace select dev
+        fi
 
-      - echo Build completed on `date`
+      # Fetch latest image and SF image tag
+      - |
+        PF_IMAGE_TAG=$(aws ecr describe-images --repository-name $PF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
+        echo $PF_IMAGE_TAG
+
+        SF_IMAGE_TAG=$(aws ecr describe-images --repository-name $SF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
+        echo $SF_IMAGE_TAG
+
+
+      # Run Terraform apply
+      - terraform apply -auto-approve -var "pf_image_tag=$PF_IMAGE_TAG" -var "sf_image_tag=$SF_IMAGE_TAG"
+
+      # Completion message
+      - echo "Build completed on $(date)"
