@@ -45,6 +45,11 @@ variable "processing_function_private_ecr_name" {
   description = "Private ECR repository for the processing function"
 }
 
+variable "artifacts_function_private_ecr_name" {
+  type        = string
+  description = "Private ECR repository for the artifacts function"
+}
+
 variable "docker_base_public_ecr_name" {
   type        = string
   description = "Public ECR repository for the docker base image"
@@ -73,6 +78,12 @@ variable "pf_image_tag" {
 variable "sf_image_tag" {
   type        = string
   description = "Sorting Function ECR image tag"
+  default     = "latest"
+}
+
+variable "af_image_tag" {
+  type        = string
+  description = "Artifact Function ECR image tag"
   default     = "latest"
 }
 

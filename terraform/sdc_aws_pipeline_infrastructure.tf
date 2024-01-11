@@ -203,9 +203,16 @@ resource "aws_ecr_repository" "processing_function_private_ecr" {
   tags                 = local.standard_tags
 }
 
-// Private ECR for the processing function
+// Private ECR for the sorting function
 resource "aws_ecr_repository" "sorting_function_private_ecr" {
   name                 = "${local.environment_short_name}${var.sorting_function_private_ecr_name}"
+  image_tag_mutability = "MUTABLE"
+  tags                 = local.standard_tags
+}
+
+// Private ECR for the processing artifacts function
+resource "aws_ecr_repository" "artifacts_function_private_ecr" {
+  name                 = "${local.environment_short_name}${var.artifacts_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
   tags                 = local.standard_tags
 }

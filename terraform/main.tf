@@ -50,7 +50,7 @@ locals {
     "Purpose"     = "SWSOC Pipeline"
   }
 
-  data_levels     = slice(var.valid_data_levels, 0, length(var.valid_data_levels) - 1)
+  data_levels     = slice(var.valid_data_levels, 0, length(var.valid_data_levels))
   last_data_level = element(var.valid_data_levels, length(var.valid_data_levels) - 1)
 
   instrument_bucket_names = [for bucket in var.instrument_names : "${var.mission_name}-${bucket}"]

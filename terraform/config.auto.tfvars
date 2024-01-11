@@ -29,6 +29,10 @@ incoming_bucket_name = "swsoc-incoming"
 # The name of the ECR repository that will be created to store the sorting lambda image
 sorting_function_private_ecr_name = "sdc_aws_sorting_lambda"
 
+# S3 Artifacts Lambda ECR Repository Name
+# The name of the ECR repository that will be created to store the artifacts lambda image
+artifacts_function_private_ecr_name = "sdc_aws_artifacts_lambda"
+
 # S3 Server Access Logs Bucket
 # The name of the bucket that will be created to store the s3 server access logs
 s3_server_access_logs_bucket_name = "swsoc-s3-server-access-logs"

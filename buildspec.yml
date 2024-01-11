@@ -27,21 +27,21 @@ phases:
       # Deployment commands
       - echo "Deploying Bootstrap Architecture..."
       - |
+        PF_ECR_REPO=sdc_aws_processing_lambda
+        SF_ECR_REPO=sdc_aws_sorting_lambda
+        AF_ECR_REPO=sdc_aws_artifacts_lambda
         if git describe --tags --exact-match > /dev/null 2>&1; then
           echo "This is a tag push event"
-          PF_ECR_REPO=sdc_aws_processing_lambda
           CDK_ENVIRONMENT=PRODUCTION
-          SF_ECR_REPO=sdc_aws_sorting_lambda
           terraform workspace select prod
         elif [ "${CDK_ENVIRONMENT}" = "PRODUCTION" ]; then
           echo "This is a production environment"
-          PF_ECR_REPO=sdc_aws_processing_lambda
-          SF_ECR_REPO=sdc_aws_sorting_lambda
           terraform workspace select prod
         else
           echo "This is a development environment"
           PF_ECR_REPO=dev-sdc_aws_processing_lambda
           SF_ECR_REPO=dev-sdc_aws_sorting_lambda
+          AF_ECR_REPO=sdc_aws_artifacts_lambda
           terraform workspace select dev
         fi
 
@@ -53,9 +53,11 @@ phases:
         SF_IMAGE_TAG=$(aws ecr describe-images --repository-name $SF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
         echo $SF_IMAGE_TAG
 
+        AF_IMAGE_TAG=$(aws ecr describe-images --repository-name $AF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
+        echo $AF_IMAGE_TAG
 
       # Run Terraform apply
-      - terraform apply -auto-approve -var "pf_image_tag=$PF_IMAGE_TAG" -var "sf_image_tag=$SF_IMAGE_TAG"
+      - terraform apply -auto-approve -var "pf_image_tag=$PF_IMAGE_TAG" -var "sf_image_tag=$SF_IMAGE_TAG" -var "af_image_tag=$AF_IMAGE_TAG"
 
       # Completion message
       - echo "Build completed on $(date)"

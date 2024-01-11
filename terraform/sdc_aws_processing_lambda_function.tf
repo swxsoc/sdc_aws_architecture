@@ -17,12 +17,6 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
   environment {
     variables = {
       LAMBDA_ENVIRONMENT    = upper(local.environment_full_name)
-      RDS_SECRET_ARN        = aws_secretsmanager_secret.rds_secret.arn
-      RDS_HOST              = aws_db_instance.rds_instance.address
-      RDS_PORT              = tostring(aws_db_instance.rds_instance.port)
-      RDS_DATABASE          = aws_db_instance.rds_instance.db_name
-      SDC_AWS_SLACK_TOKEN   = var.slack_token
-      SDC_AWS_SLACK_CHANNEL = var.slack_channel
     }
   }
   ephemeral_storage {
@@ -31,14 +25,6 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
 
   tracing_config {
     mode = "PassThrough"
-  }
-
-  lifecycle {
-
-    ignore_changes = [
-      environment["SDC_AWS_SLACK_TOKEN"],   # Ignore changes to this variable
-      environment["SDC_AWS_SLACK_CHANNEL"], # Ignore changes to this variable
-    ]
   }
 
 }
@@ -151,12 +137,6 @@ resource "aws_s3_bucket_notification" "pf_bucket_notification" {
     }
   }
 
-  queue {
-    queue_arn     = aws_sqs_queue.sqs_queue[local.instrument_bucket_names[count.index]].arn
-    events        = ["s3:ObjectCreated:Put", "s3:ObjectCreated:Copy"]
-    filter_prefix = local.last_data_level
-  }
-
   # Add a dependency on the necessary IAM permissions
   depends_on = [aws_lambda_permission.pf_allow_instrument_buckets]
 }
@@ -201,20 +181,12 @@ resource "aws_iam_role_policy_attachment" "pf_s3_bucket_policy_attachment" {
   policy_arn = aws_iam_policy.s3_bucket_access_policy.arn
 }
 
-resource "aws_iam_role_policy_attachment" "pf_timestream_policy_attachment" {
-  role       = aws_iam_role.processing_lambda_exec.name
-  policy_arn = aws_iam_policy.timestream_policy.arn
-}
 
 resource "aws_iam_role_policy_attachment" "pf_logs_policy_attachment" {
   role       = aws_iam_role.processing_lambda_exec.name
   policy_arn = aws_iam_policy.logs_access_policy.arn
 }
 
-resource "aws_iam_role_policy_attachment" "pf_secrets_manager_policy_attachment" {
-  role       = aws_iam_role.processing_lambda_exec.name
-  policy_arn = aws_iam_policy.lambda_secrets_manager_policy.arn
-}
 
 resource "aws_iam_role_policy_attachment" "pf_lambda_kms_policy_attachment" {
   role       = aws_iam_role.processing_lambda_exec.name
