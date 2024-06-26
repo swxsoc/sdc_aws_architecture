@@ -31,23 +31,26 @@ data "aws_caller_identity" "current" {}
 
 // Locals for SDC Pipeline
 locals {
-  is_production = terraform.workspace == "prod"
+  workspace_prefix = split("-", terraform.workspace)[0]
+
+  is_production = local.workspace_prefix == "prod"
 
   environment_short_name = {
     default = "dev-"
     dev     = "dev-"
     prod    = ""
-  }[terraform.workspace]
+  }[local.workspace_prefix]
 
   environment_full_name = {
     default = "Development"
     dev     = "Development"
     prod    = "Production"
-  }[terraform.workspace]
+  }[local.workspace_prefix]
 
   standard_tags = {
     "Environment" = local.environment_full_name
     "Purpose"     = "SWSOC Pipeline"
+    "Project"     = var.mission_name
   }
 
   data_levels     = slice(var.valid_data_levels, 0, length(var.valid_data_levels))

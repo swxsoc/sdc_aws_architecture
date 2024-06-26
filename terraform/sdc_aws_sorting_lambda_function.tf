@@ -7,7 +7,7 @@
 
 // Creates the Sorting Lambda function
 resource "aws_lambda_function" "sorting_lambda_function" {
-  function_name = local.is_production ? "aws_sdc_sorting_lambda_function" : "dev_aws_sdc_sorting_lambda_function"
+  function_name = "${local.environment_short_name}${var.sorting_function_private_ecr_name}_function"
   memory_size   = 128
   timeout       = 600
 
@@ -16,6 +16,8 @@ resource "aws_lambda_function" "sorting_lambda_function" {
       LAMBDA_ENVIRONMENT    = upper(local.environment_full_name)
       SDC_AWS_SLACK_TOKEN   = var.slack_token
       SDC_AWS_SLACK_CHANNEL = var.slack_channel
+      SWXSOC_MISSION   = var.mission_name
+      SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
     }
   }
 
@@ -58,7 +60,7 @@ resource "aws_cloudwatch_event_rule" "lambda_schedule" {
 // Attach the Lambda function as a target of the CloudWatch event rule
 resource "aws_cloudwatch_event_target" "lambda_target" {
   rule      = aws_cloudwatch_event_rule.lambda_schedule.name
-  target_id = "${local.environment_full_name}LambdaTarget"
+  target_id = "${local.environment_full_name}${upper(var.mission_name)}LambdaTarget"
   arn       = aws_lambda_function.sorting_lambda_function.arn
 }
 
@@ -76,7 +78,7 @@ resource "aws_s3_bucket_notification" "bucket_notification" {
 
 // Allow the Lambda function to be invoked by CloudWatch
 resource "aws_lambda_permission" "sf_allow_cloudwatch" {
-  statement_id  = "SF${local.environment_full_name}AllowExecutionFromCloudWatch"
+  statement_id  = "SF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromCloudWatch"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.sorting_lambda_function.function_name
   principal     = "events.amazonaws.com"
@@ -85,7 +87,7 @@ resource "aws_lambda_permission" "sf_allow_cloudwatch" {
 
 // Allow the Lambda function to be invoked by S3
 resource "aws_lambda_permission" "sf_allow_incoming_bucket" {
-  statement_id  = "SF${local.environment_full_name}AllowExecutionFromS3Bucket"
+  statement_id  = "SF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromS3Bucket"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.sorting_lambda_function.function_name
   principal     = "s3.amazonaws.com"
@@ -99,7 +101,7 @@ resource "aws_lambda_permission" "sf_allow_incoming_bucket" {
 
 // Creates the needed Execution Role for the Sorting Lambda function
 resource "aws_iam_role" "sorting_lambda_exec" {
-  name = "${local.environment_short_name}sorting_lambda_exec_role"
+  name = "${local.environment_short_name}${var.mission_name}_sorting_lambda_exec_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",

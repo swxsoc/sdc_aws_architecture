@@ -230,7 +230,7 @@ resource "aws_ecrpublic_repository" "docker_base_public_ecr" {
 
 // Timestream Access Policy
 resource "aws_iam_policy" "timestream_policy" {
-  name        = "${local.environment_full_name}TimestreamAccessPolicy"
+  name        = "${local.environment_full_name}${upper(var.mission_name)}TimestreamAccessPolicy"
   description = "Provides access to Timestream"
 
   policy = jsonencode({
@@ -252,7 +252,7 @@ resource "aws_iam_policy" "timestream_policy" {
 
 // Logs Access Policy
 resource "aws_iam_policy" "logs_access_policy" {
-  name        = "${local.environment_full_name}LogsAccessPolicy"
+  name        = "${local.environment_full_name}${upper(var.mission_name)}LogsAccessPolicy"
   description = "Provides access to CloudWatch Logs"
 
   policy = jsonencode({
@@ -274,7 +274,7 @@ resource "aws_iam_policy" "logs_access_policy" {
 
 // S3 Bucket Access Policy
 resource "aws_iam_policy" "s3_bucket_access_policy" {
-  name        = "${local.environment_full_name}S3BucketAccessPolicy"
+  name        = "${local.environment_full_name}${upper(var.mission_name)}S3BucketAccessPolicy"
   description = "Provides access to specific S3 buckets"
 
   policy = jsonencode({
@@ -305,7 +305,7 @@ resource "aws_iam_policy" "s3_bucket_access_policy" {
 
 // Define a policy that grants Lambda permission to access the secret
 resource "aws_iam_policy" "lambda_secrets_manager_policy" {
-  name_prefix = "${local.environment_short_name}lambda_secrets_manager_policy_"
+  name_prefix = "${local.environment_short_name}_${var.mission_name}_lambda_secrets_manager_policy_"
 
   // Define the permissions for accessing the secret
   policy = jsonencode({
@@ -324,7 +324,7 @@ resource "aws_iam_policy" "lambda_secrets_manager_policy" {
 
 // Define a policy that grants Lambda permission to access the KMS key
 resource "aws_iam_policy" "lambda_kms_policy" {
-  name_prefix = "${local.environment_short_name}lambda_kms_policy_"
+  name_prefix = "${local.environment_short_name}${var.mission_name}_lambda_kms_policy_"
 
   // Define the permissions for accessing the KMS key
   policy = jsonencode({

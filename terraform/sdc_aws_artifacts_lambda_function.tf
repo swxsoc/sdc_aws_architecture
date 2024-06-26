@@ -1,4 +1,4 @@
-// Resources for Processing Artifacts Lambda function, RDS DB for CDFTracker, triggers and the necessary IAM permissions
+# // Resources for Processing Artifacts Lambda function, RDS DB for CDFTracker, triggers and the necessary IAM permissions
 
 
 //////////////////////////////////////////
@@ -6,7 +6,7 @@
 //////////////////////////////////////////
 
 resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
-  function_name = "${local.environment_short_name}aws_sdc_artifacts_lambda_function"
+  function_name = "${local.environment_short_name}${var.artifacts_function_private_ecr_name}_function"
   role          = aws_iam_role.artifacts_lambda_exec.arn
   memory_size   = 128
   timeout       = 900
@@ -23,6 +23,8 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
       RDS_DATABASE          = aws_db_instance.rds_instance.db_name
       SDC_AWS_SLACK_TOKEN   = var.slack_token
       SDC_AWS_SLACK_CHANNEL = var.slack_channel
+      SWXSOC_MISSION   = var.mission_name
+      SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
     }
   }
   ephemeral_storage {
@@ -41,6 +43,9 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
     ]
   }
 
+  tags = local.standard_tags
+
+
 }
 
 
@@ -51,7 +56,7 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
 # Create Lambda permissions for each prefix
 resource "aws_lambda_permission" "af_allow_instrument_buckets" {
   for_each      = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
-  statement_id  = "PF${local.environment_full_name}AllowExecutionFromS3Bucket-${each.key}"
+  statement_id  = "PF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromS3Bucket-${each.key}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.aws_sdc_artifacts_lambda_function.function_name
   principal     = "s3.amazonaws.com"
@@ -61,7 +66,7 @@ resource "aws_lambda_permission" "af_allow_instrument_buckets" {
 # Create Lambda permissions to be invoked by topic
 resource "aws_lambda_permission" "af_allow_sns_topic" {
   for_each      = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
-  statement_id  = "PF${local.environment_full_name}AllowExecutionFromSNSTopic-${each.key}"
+  statement_id  = "PF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromSNSTopic-${each.key}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.aws_sdc_artifacts_lambda_function.function_name
   principal     = "sns.amazonaws.com"
@@ -87,7 +92,7 @@ resource "aws_sns_topic_subscription" "af_sns_topic_subscription" {
 
 // Create an IAM role for the Lambda function
 resource "aws_iam_role" "artifacts_lambda_exec" {
-  name = "${local.environment_short_name}artifacts_lambda_exec_role"
+  name = "${local.environment_short_name}${upper(var.mission_name)}_artifacts_lambda_exec_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",

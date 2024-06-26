@@ -6,7 +6,7 @@
 ///////////////////////////////////////
 
 resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
-  function_name = "${local.environment_short_name}aws_sdc_processing_lambda_function"
+  function_name = "${local.environment_short_name}${var.processing_function_private_ecr_name}_function"
   role          = aws_iam_role.processing_lambda_exec.arn
   memory_size   = 128
   timeout       = 900
@@ -16,7 +16,12 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
 
   environment {
     variables = {
-      LAMBDA_ENVIRONMENT    = upper(local.environment_full_name)
+      LAMBDA_ENVIRONMENT = upper(local.environment_full_name)
+      SPACEPY            = "/tmp"
+      SUNPY_CONFIGDIR    = "/tmp"
+      SUNPY_DOWNLOADDIR  = "/tmp"
+      SWXSOC_MISSION   = var.mission_name
+      SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
     }
   }
   ephemeral_storage {
@@ -27,6 +32,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
     mode = "PassThrough"
   }
 
+  tags = local.standard_tags
 }
 
 
@@ -36,8 +42,13 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
 
 // Generate a random password
 resource "random_password" "password" {
-  length  = 16
-  special = true
+  length  = 32
+  special = false
+
+  # Ignore changes to the special variable
+  lifecycle {
+    ignore_changes = [length, special]
+  }
 }
 
 // KMS key used by Secrets Manager for RDS
@@ -53,7 +64,7 @@ resource "aws_kms_key" "default" {
 // Create a secret in Secrets Manager
 resource "aws_secretsmanager_secret" "rds_secret" {
   kms_key_id              = aws_kms_key.default.key_id
-  name                    = "${local.environment_short_name}rds-credentials"
+  name                    = "${local.environment_short_name}${var.mission_name}-rds-credentials"
   description             = "RDS Credentials"
   recovery_window_in_days = 0
 
@@ -78,9 +89,9 @@ resource "aws_db_instance" "rds_instance" {
   allocated_storage = 30
   storage_type      = "gp2"
   engine            = "postgres"
-  engine_version    = "14.7"
+  engine_version    = "14.10"
   instance_class    = "db.t3.micro"
-  db_name           = local.is_production ? "hermes_db" : "dev_hermes_db"
+  db_name           = local.is_production ? "${var.mission_name}_db" : "dev_${var.mission_name}_db"
 
   username = "cdftracker_user"
   password = random_password.password.result
@@ -105,7 +116,7 @@ resource "aws_db_instance" "rds_instance" {
 # Create Lambda permissions for each prefix
 resource "aws_lambda_permission" "pf_allow_instrument_buckets" {
   for_each      = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
-  statement_id  = "PF${local.environment_full_name}AllowExecutionFromS3Bucket-${each.key}"
+  statement_id  = "PF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromS3Bucket-${each.key}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.aws_sdc_processing_lambda_function.function_name
   principal     = "s3.amazonaws.com"
@@ -115,7 +126,7 @@ resource "aws_lambda_permission" "pf_allow_instrument_buckets" {
 # Create Lambda permissions to be invoked by topic
 resource "aws_lambda_permission" "pf_allow_sns_topic" {
   for_each      = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
-  statement_id  = "PF${local.environment_full_name}AllowExecutionFromSNSTopic-${each.key}"
+  statement_id  = "PF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromSNSTopic-${each.key}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.aws_sdc_processing_lambda_function.function_name
   principal     = "sns.amazonaws.com"
@@ -159,7 +170,7 @@ resource "aws_sns_topic_subscription" "pf_sns_topic_subscription" {
 
 // Create an IAM role for the Lambda function
 resource "aws_iam_role" "processing_lambda_exec" {
-  name = "${local.environment_short_name}processing_lambda_exec_role"
+  name = "${local.environment_short_name}${var.mission_name}_processing_lambda_exec_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
