@@ -65,12 +65,16 @@ class SDCAWSProcessingLambdaStack(Stack):
             code=aws_lambda.DockerImageCode.from_ecr(ecr_repository, tag_or_digest=TAG),
             environment={
                 "LAMBDA_ENVIRONMENT": config["DEPLOYMENT_ENVIRONMENT"],
-                "RDS_SECRET_ARN": rds_credentials_secret.secret_arn
-                if not os.getenv("DRY_RUN")
-                else "",
-                "RDS_HOST": db_instance.db_instance_endpoint_address
-                if not os.getenv("DRY_RUN")
-                else "",
+                "RDS_SECRET_ARN": (
+                    rds_credentials_secret.secret_arn
+                    if not os.getenv("DRY_RUN")
+                    else ""
+                ),
+                "RDS_HOST": (
+                    db_instance.db_instance_endpoint_address
+                    if not os.getenv("DRY_RUN")
+                    else ""
+                ),
                 "RDS_PORT": str(
                     db_instance.db_instance_endpoint_port
                     if not os.getenv("DRY_RUN")
