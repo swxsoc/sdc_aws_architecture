@@ -84,19 +84,19 @@ resource "aws_secretsmanager_secret_version" "secret" {
   })
 }
 
-provider "postgresql" {
-  host            = aws_db_instance.rds_instance.address
-  port            = aws_db_instance.rds_instance.port
-  database        = aws_db_instance.rds_instance.db_name
-  username        = "cdftracker_user"
-  password        = random_password.password.result
-  sslmode         = "require"
-  connect_timeout = 15
-}
+# provider "postgresql" {
+#   host            = aws_db_instance.rds_instance.address
+#   port            = aws_db_instance.rds_instance.port
+#   database        = aws_db_instance.rds_instance.db_name
+#   username        = "cdftracker_user"
+#   password        = random_password.password.result
+#   sslmode         = "require"
+#   connect_timeout = 15
+# }
 
-resource "postgresql_database" "mission_db" {
-  name = local.is_production ? "${var.mission_name}_database" : "dev_${var.mission_name}_database"
-}
+# resource "postgresql_database" "mission_db" {
+#   name = local.is_production ? "${var.mission_name}_database" : "dev_${var.mission_name}_database"
+# }
 
 resource "aws_security_group" "rds_sg" {
   vpc_id = data.aws_vpc.default.id
