@@ -16,14 +16,14 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
 
   environment {
     variables = {
-      LAMBDA_ENVIRONMENT    = upper(local.environment_full_name)
-      RDS_SECRET_ARN        = aws_secretsmanager_secret.rds_secret.arn
-      RDS_HOST              = aws_db_instance.rds_instance.address
-      RDS_PORT              = tostring(aws_db_instance.rds_instance.port)
-      RDS_DATABASE          = aws_db_instance.rds_instance.db_name
-      SDC_AWS_SLACK_TOKEN   = var.slack_token
-      SDC_AWS_SLACK_CHANNEL = var.slack_channel
-      SWXSOC_MISSION   = var.mission_name
+      LAMBDA_ENVIRONMENT     = upper(local.environment_full_name)
+      RDS_SECRET_ARN         = aws_secretsmanager_secret.rds_secret.arn
+      RDS_HOST               = aws_db_instance.rds_instance.address
+      RDS_PORT               = tostring(aws_db_instance.rds_instance.port)
+      RDS_DATABASE           = aws_db_instance.rds_instance.db_name
+      SDC_AWS_SLACK_TOKEN    = var.slack_token
+      SDC_AWS_SLACK_CHANNEL  = var.slack_channel
+      SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
     }
   }
@@ -41,6 +41,12 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
       environment["SDC_AWS_SLACK_TOKEN"],   # Ignore changes to this variable
       environment["SDC_AWS_SLACK_CHANNEL"], # Ignore changes to this variable
     ]
+  }
+
+  vpc_config {
+    subnet_ids = [data.aws_subnet.public_subnet["subnet-0972d4965ef8eb1e8"].id, data.aws_subnet.public_subnet["subnet-0e24325c69b9a1f74"].id]
+
+    security_group_ids = [aws_security_group.lambda_sg.id]
   }
 
   tags = local.standard_tags
@@ -132,4 +138,9 @@ resource "aws_iam_role_policy_attachment" "af_secrets_manager_policy_attachment"
 resource "aws_iam_role_policy_attachment" "af_lambda_kms_policy_attachment" {
   role       = aws_iam_role.artifacts_lambda_exec.name
   policy_arn = aws_iam_policy.lambda_kms_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "af_vpc_policy_attachment" {
+  role       = aws_iam_role.artifacts_lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_vpc_access_policy.arn
 }

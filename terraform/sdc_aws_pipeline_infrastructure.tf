@@ -1,5 +1,24 @@
 // Resource for Infrastructure for the SDC Pipeline
 
+///////////////////////////////////////
+// VPC for SDC Pipeline
+///////////////////////////////////////
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "public_subnets" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+data "aws_subnet" "public_subnet" {
+  for_each = toset(data.aws_subnets.public_subnets.ids)
+  id       = each.value
+}
+
 
 ///////////////////////////////////////
 // Timestream Database for storing logs
@@ -339,4 +358,44 @@ resource "aws_iam_policy" "lambda_kms_policy" {
       },
     ],
   })
+}
+
+// IAM Policy for Lambda VPC Access
+resource "aws_iam_policy" "lambda_vpc_access_policy" {
+  name        = "${local.environment_short_name}${var.mission_name}_lambda_vpc_access_policy"
+  description = "Custom policy for Lambda VPC access"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeSubnets",
+          "ec2:DeleteNetworkInterface",
+          "ec2:AssignPrivateIpAddresses",
+          "ec2:UnassignPrivateIpAddresses"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+
+////////////////////////////////////////////
+// SGs for Lambda Functions for SDC Pipeline
+////////////////////////////////////////////
+
+resource "aws_security_group" "lambda_sg" {
+  vpc_id = data.aws_vpc.default.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }

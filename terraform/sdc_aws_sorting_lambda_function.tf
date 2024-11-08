@@ -13,10 +13,10 @@ resource "aws_lambda_function" "sorting_lambda_function" {
 
   environment {
     variables = {
-      LAMBDA_ENVIRONMENT    = upper(local.environment_full_name)
-      SDC_AWS_SLACK_TOKEN   = var.slack_token
-      SDC_AWS_SLACK_CHANNEL = var.slack_channel
-      SWXSOC_MISSION   = var.mission_name
+      LAMBDA_ENVIRONMENT     = upper(local.environment_full_name)
+      SDC_AWS_SLACK_TOKEN    = var.slack_token
+      SDC_AWS_SLACK_CHANNEL  = var.slack_channel
+      SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
     }
   }
@@ -33,6 +33,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
   }
 
   role = aws_iam_role.sorting_lambda_exec.arn
+
 
   tags = local.standard_tags
 
@@ -133,3 +134,7 @@ resource "aws_iam_role_policy_attachment" "sf_s3_bucket_policy_attachment" {
   policy_arn = aws_iam_policy.s3_bucket_access_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "sf_vpc_policy_attachment" {
+  role       = aws_iam_role.sorting_lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_vpc_access_policy.arn
+}

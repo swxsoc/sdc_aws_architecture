@@ -10,6 +10,11 @@ terraform {
       source  = "hashicorp/random"
       version = "3.5.1"
     }
+    postgresql = {
+      source  = "cyrilgdn/postgresql"
+      version = "1.22.0"
+    }
+
   }
 
   backend "s3" {
@@ -20,11 +25,15 @@ terraform {
   }
 
 
+
+
 }
 
 provider "aws" {
   region = var.deployment_region
 }
+
+
 
 // Identify the current AWS account
 data "aws_caller_identity" "current" {}
