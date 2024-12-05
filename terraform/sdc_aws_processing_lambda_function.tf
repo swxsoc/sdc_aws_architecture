@@ -8,7 +8,7 @@
 resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
   function_name = "${local.environment_short_name}${var.processing_function_private_ecr_name}_function"
   role          = aws_iam_role.processing_lambda_exec.arn
-  memory_size   = 128
+  memory_size   = 4096
   timeout       = 900
 
   image_uri    = "${aws_ecr_repository.processing_function_private_ecr.repository_url}:${var.pf_image_tag}"

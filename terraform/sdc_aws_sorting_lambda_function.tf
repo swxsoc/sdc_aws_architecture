@@ -8,7 +8,7 @@
 // Creates the Sorting Lambda function
 resource "aws_lambda_function" "sorting_lambda_function" {
   function_name = "${local.environment_short_name}${var.sorting_function_private_ecr_name}_function"
-  memory_size   = 128
+  memory_size   = 2048
   timeout       = 600
 
   environment {

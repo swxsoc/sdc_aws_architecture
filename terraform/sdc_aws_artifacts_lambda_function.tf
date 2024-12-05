@@ -8,7 +8,7 @@
 resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
   function_name = "${local.environment_short_name}${var.artifacts_function_private_ecr_name}_function"
   role          = aws_iam_role.artifacts_lambda_exec.arn
-  memory_size   = 128
+  memory_size   = 2048
   timeout       = 900
 
   image_uri    = "${aws_ecr_repository.artifacts_function_private_ecr.repository_url}:${var.af_image_tag}"
