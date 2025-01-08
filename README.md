@@ -1,62 +1,65 @@
-# SWSOC Pipeline Architecture
+# SDC AWS Pipeline Architecture
 
-| **CodeBuild Status** |![Codebuild Status](https://codebuild.us-east-2.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoibjJMSXl1RzBncExCVGdyUGdVTWZPTkN0blhJaWQ3dHVobEtSaUVUdHJ5UnNlTnl5V25MY3NncG9zOVlORTVjQUJKa3lWaDNPa05rYit1MkR5dXZlRWNrPSIsIml2UGFyYW1ldGVyU3BlYyI6ImpzT3E5dW9wRFh1eWdYM0IiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=main)|
-|-|-|
+This repository contains Terraform configurations for managing AWS infrastructure across multiple missions, with separate environments for development and production.
 
-### **Description**:
-This repo contains the CDK Project that sets up all of the infrastructure the file processing pipeline requires. This includes S3 Buckets, Public and Private ECR Repos, Timestream databases, Postgres RDS Servers, as well as Lambda Functions.
-
-
-# Information on working with a CDK Project
-
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
-
-This project is set up like a standard Python project.  The initialization
-process also creates a virtualenv within this project, stored under the `.venv`
-directory.  To create the virtualenv it assumes that there is a `python3`
-(or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
-
-To manually create a virtualenv on MacOS and Linux:
+## Repository Structure
 
 ```
-$ python3 -m venv .venv
+.
+├── base-infrastructure-terraform/    # Base shared infrastructure
+└── pipeline-infrastructure-terraform/  # Mission-specific pipeline infrastructure
 ```
 
-After the init process completes and the virtualenv is created, you can use the following
-step to activate your virtualenv.
+## Infrastructure Management
 
+### Base Infrastructure
+- Managed in `base-infrastructure-terraform/`
+- Uses default Terraform workspace
+- Contains shared resources used across all pipelines
+- Key components:
+  - Base AWS infrastructure setup
+  - Executor Lambda function
+  - Common configuration in `swxsoc.auto.tfvars`
+
+### Pipeline Infrastructure
+- Managed in `pipeline-infrastructure-terraform/`
+- Uses separate workspaces for each mission's environments
+- Two workspaces per mission: development (dev) and production (prod)
+- Components:
+  - Mission-specific configurations (`hermes.tfvars`, `padre.tfvars`)
+  - Lambda functions for artifacts, processing, and sorting
+  - Pipeline-specific infrastructure
+
+## Getting Started
+
+1. Install prerequisites:
+   - Terraform
+   - AWS CLI configured with appropriate credentials
+
+2. Base Infrastructure Deployment:
+```bash
+cd base-infrastructure-terraform
+terraform init
+terraform plan
+terraform apply
 ```
-$ source .venv/bin/activate
+
+3. Pipeline Infrastructure Deployment:
+```bash
+cd pipeline-infrastructure-terraform
+terraform workspace select <environment>-<mission>
+terraform init
+terraform plan -var-file=<mission>.tfvars
+terraform apply -var-file=<mission>.tfvars
 ```
 
-If you are a Windows platform, you would activate the virtualenv like this:
+## Documentation
 
-```
-% .venv\Scripts\activate.bat
-```
+Comprehensive documentation is available in the `docs/` directory:
+- Development Guide: `docs/dev-guide/`
+- User Guide: `docs/user-guide/`
+- Pipeline Diagrams: `docs/images/`
 
-Once the virtualenv is activated, you can install the required dependencies.
+## License
 
-```
-$ pip install -r requirements.txt
-```
-
-At this point you can now synthesize the CloudFormation template for this code.
-
-```
-$ cdk synth
-```
-
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
-
-## Useful commands for CDK
-
- * `cdk ls`          list all stacks in the app
- * `cdk synth`       emits the synthesized CloudFormation template
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk docs`        open CDK documentation
+See [LICENSE](LICENSE) file for details.

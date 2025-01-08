@@ -15,7 +15,7 @@ phases:
 
       # Install Terraform
       - echo "Installing Terraform"
-      - cd terraform
+      - cd pipeline-infrastructure-terraform
       - curl -o terraform.zip https://releases.hashicorp.com/terraform/1.4.6/terraform_1.4.6_linux_amd64.zip
       - unzip -o terraform.zip
       - sudo mv terraform /usr/local/bin/
