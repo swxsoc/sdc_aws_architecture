@@ -25,6 +25,9 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
       SDC_AWS_SLACK_CHANNEL  = var.slack_channel
       SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
+      SPACEPY                = "/tmp"
+      SUNPY_CONFIGDIR        = "/tmp"
+      SUNPY_DOWNLOADDIR      = "/tmp"
     }
   }
   ephemeral_storage {
