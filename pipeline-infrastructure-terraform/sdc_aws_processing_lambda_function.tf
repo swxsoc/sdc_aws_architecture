@@ -5,10 +5,22 @@
 // S3 Processing Lambda Function
 ///////////////////////////////////////
 
+data "aws_secretsmanager_secret" "grafana" {
+  name = "grafana-credentials"
+}
+
+data "aws_secretsmanager_secret_version" "grafana-credentials" {
+  secret_id = data.aws_secretsmanager_secret.grafana.id
+}
+
+locals {
+  grafana = jsondecode(data.aws_secretsmanager_secret_version.grafana-credentials.secret_string)
+}
+
 resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
   function_name = "${local.environment_short_name}${var.processing_function_private_ecr_name}_function"
   role          = aws_iam_role.processing_lambda_exec.arn
-  memory_size   = 4096
+  memory_size   = 8192
   timeout       = 900
 
   image_uri    = "${aws_ecr_repository.processing_function_private_ecr.repository_url}:${var.pf_image_tag}"
@@ -22,6 +34,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
       SUNPY_DOWNLOADDIR      = "/tmp"
       SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
+      GRAFANA_API_KEY        = sensitive(local.grafana["grafana_api_key"])
     }
   }
   ephemeral_storage {
