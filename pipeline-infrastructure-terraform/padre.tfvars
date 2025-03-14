@@ -44,3 +44,7 @@ processing_function_private_ecr_name = "padre_sdc_aws_processing_lambda"
 # Docker Base ECR Repository Name
 # The name of the ECR repository that will be created to store the docker base image
 docker_base_public_ecr_name = "padre-swsoc-docker-lambda-base"
+
+## IAM Role for pushing to S3 Incoming Bucket
+# The name of the IAM role from the other account that will be used to push to the incoming bucket
+optional_s3_uploader_role_arn = "arn:aws:iam::815232357003:role/data-transfer-12321-padre"

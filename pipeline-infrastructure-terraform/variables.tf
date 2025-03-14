@@ -91,3 +91,8 @@ variable "valid_data_levels" {
   type        = list(string)
   description = "The list of valid data levels"
 }
+
+variable "optional_s3_uploader_role_arn" {
+  type    = string
+  default = ""
+}

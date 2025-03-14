@@ -106,6 +106,29 @@ resource "aws_s3_bucket" "sdc_buckets" {
   tags = local.standard_tags
 }
 
+// Attach a bucket policy only if the bucket name contains `incoming_bucket_name` and the IAM role exists
+resource "aws_s3_bucket_policy" "incoming_bucket_policy" {
+  for_each = {
+    for bucket in local.bucket_list :
+    bucket => bucket if strcontains(bucket, var.incoming_bucket_name) && length(var.optional_s3_uploader_role_arn) > 0
+  }
+
+  bucket = aws_s3_bucket.sdc_buckets[each.key].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = var.optional_s3_uploader_role_arn
+        }
+        Action   = ["s3:PutObject"]
+        Resource = "arn:aws:s3:::${aws_s3_bucket.sdc_buckets[each.key].id}/*"
+      }
+    ]
+  })
+}
 
 ////////////////////////////////////////////
 // SNS Topics for SDC Pipeline
