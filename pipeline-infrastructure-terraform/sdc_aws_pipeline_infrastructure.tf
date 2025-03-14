@@ -231,6 +231,9 @@ resource "aws_sqs_queue" "sqs_queue" {
   })
   sqs_managed_sse_enabled = true
   tags                    = local.standard_tags
+  lifecycle {
+    ignore_changes = [policy]
+  }
 }
 
 
