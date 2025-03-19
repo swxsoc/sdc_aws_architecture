@@ -28,7 +28,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
   package_type = "Image"
 
   ephemeral_storage {
-    size = 512
+    size = 2048
   }
 
   tracing_config {

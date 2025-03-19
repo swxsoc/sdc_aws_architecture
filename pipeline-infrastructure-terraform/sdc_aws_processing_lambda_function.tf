@@ -38,7 +38,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
     }
   }
   ephemeral_storage {
-    size = 512
+    size = 2048
   }
 
   tracing_config {
