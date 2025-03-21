@@ -32,6 +32,10 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
       SUNPY_DOWNLOADDIR      = "/tmp"
+      RDS_SECRET_ARN         = aws_secretsmanager_secret.rds_secret.arn
+      RDS_HOST               = aws_db_instance.rds_instance.address
+      RDS_PORT               = tostring(aws_db_instance.rds_instance.port)
+      RDS_DATABASE           = aws_db_instance.rds_instance.db_name
       SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
       GRAFANA_API_KEY        = sensitive(local.grafana["grafana_api_key"])
@@ -43,6 +47,13 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
 
   tracing_config {
     mode = "PassThrough"
+  }
+
+
+  vpc_config {
+    subnet_ids = [data.aws_subnet.public_subnet["subnet-0972d4965ef8eb1e8"].id, data.aws_subnet.public_subnet["subnet-0e24325c69b9a1f74"].id]
+
+    security_group_ids = [aws_security_group.lambda_sg.id]
   }
 
   tags = local.standard_tags
