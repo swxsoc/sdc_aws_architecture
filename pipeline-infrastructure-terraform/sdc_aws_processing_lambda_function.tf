@@ -265,6 +265,16 @@ resource "aws_iam_role_policy_attachment" "pf_logs_policy_attachment" {
   policy_arn = aws_iam_policy.logs_access_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "pf_secrets_manager_policy_attachment" {
+  role       = aws_iam_role.processing_lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_secrets_manager_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "pf_timestream_policy_attachment" {
+  role       = aws_iam_role.processing_lambda_exec.name
+  policy_arn = aws_iam_policy.timestream_policy.arn
+}
+
 
 resource "aws_iam_role_policy_attachment" "pf_lambda_kms_policy_attachment" {
   role       = aws_iam_role.processing_lambda_exec.name
