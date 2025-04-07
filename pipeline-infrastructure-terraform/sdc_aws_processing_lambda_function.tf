@@ -154,7 +154,7 @@ resource "aws_db_instance" "rds_instance" {
   storage_type      = "gp2"
   engine            = "postgres"
   engine_version    = "14.12"
-  instance_class    = "db.t3.micro"
+  instance_class    = "db.t4g.micro"
   db_name           = local.is_production ? "${var.mission_name}_db" : "dev_${var.mission_name}_db"
 
   username = "cdftracker_user"
