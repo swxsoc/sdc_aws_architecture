@@ -32,6 +32,8 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
       SUNPY_DOWNLOADDIR      = "/tmp"
+      ASTROPY_CACHE_DIR      = "/tmp/astropy_cache"
+      MPLCONFIGDIR           = "/tmp/matplotlib"
       RDS_SECRET_ARN         = aws_secretsmanager_secret.rds_secret.arn
       RDS_HOST               = aws_db_instance.rds_instance.address
       RDS_PORT               = tostring(aws_db_instance.rds_instance.port)
