@@ -233,6 +233,7 @@ resource "aws_sns_topic_subscription" "pf_sns_topic_subscription" {
 }
 
 
+
 ///////////////////////////////////////
 // Processing Lambda IAM Permissions
 ///////////////////////////////////////
@@ -254,6 +255,23 @@ resource "aws_iam_role" "processing_lambda_exec" {
     ]
   })
 }
+
+resource "aws_iam_role_policy" "pf_lambda_self_invoke_policy" {
+  name = "${local.environment_short_name}${var.mission_name}_self_invoke"
+  role = aws_iam_role.processing_lambda_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "lambda:InvokeFunction",
+        Effect = "Allow",
+        Resource = aws_lambda_function.aws_sdc_processing_lambda_function.arn
+      }
+    ]
+  })
+}
+
 
 // Attach needed policies to the role
 resource "aws_iam_role_policy_attachment" "pf_s3_bucket_policy_attachment" {
@@ -286,4 +304,9 @@ resource "aws_iam_role_policy_attachment" "pf_lambda_kms_policy_attachment" {
 resource "aws_iam_role_policy_attachment" "pf_vpc_policy_attachment" {
   role       = aws_iam_role.processing_lambda_exec.name
   policy_arn = aws_iam_policy.lambda_vpc_access_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "pf_self_invoke_policy_attachment" {
+  role       = aws_iam_role.processing_lambda_exec.name
+  policy_arn = aws_iam_role_policy.pf_lambda_self_invoke_policy.arn
 }
