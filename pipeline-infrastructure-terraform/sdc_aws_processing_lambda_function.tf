@@ -256,16 +256,15 @@ resource "aws_iam_role" "processing_lambda_exec" {
   })
 }
 
-resource "aws_iam_role_policy" "pf_lambda_self_invoke_policy" {
+resource "aws_iam_policy" "pf_lambda_self_invoke_policy" {
   name = "${local.environment_short_name}${var.mission_name}_self_invoke"
-  role = aws_iam_role.processing_lambda_exec.id
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
-        Action = "lambda:InvokeFunction",
-        Effect = "Allow",
+        Action   = "lambda:InvokeFunction",
+        Effect   = "Allow",
         Resource = aws_lambda_function.aws_sdc_processing_lambda_function.arn
       }
     ]
@@ -308,5 +307,5 @@ resource "aws_iam_role_policy_attachment" "pf_vpc_policy_attachment" {
 
 resource "aws_iam_role_policy_attachment" "pf_self_invoke_policy_attachment" {
   role       = aws_iam_role.processing_lambda_exec.name
-  policy_arn = aws_iam_role_policy.pf_lambda_self_invoke_policy.arn
+  policy_arn = aws_iam_policy.pf_lambda_self_invoke_policy.arn
 }
