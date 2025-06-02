@@ -14,7 +14,7 @@ instrument_names = ["meddea", "sharp"]
 
 # Valid Data Levels
 # This is a list of the valid data levels for the mission
-valid_data_levels = ["l0", "l1", "ql"]
+valid_data_levels = ["raw", "l0", "l1", "ql"]
 
 # Timestream Database and Table Names for Logs
 # The names of the timestream database and table that will be created to store logs
