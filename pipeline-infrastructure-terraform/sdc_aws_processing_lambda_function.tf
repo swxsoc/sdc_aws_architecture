@@ -175,6 +175,13 @@ resource "aws_db_instance" "rds_instance" {
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
 
   tags = local.standard_tags
+
+  lifecycle {
+    ignore_changes = [
+      engine_version, # Ignore changes to the engine version
+      instance_class, # Ignore changes to the instance class
+    ]
+  }
 }
 
 

@@ -81,6 +81,12 @@ variable "pf_image_tag" {
   default     = "latest"
 }
 
+variable "cf_image_tag" {
+  type        = string
+  description = "Processing Function ECR image tag"
+  default     = "latest"
+}
+
 variable "sf_image_tag" {
   type        = string
   description = "Sorting Function ECR image tag"
