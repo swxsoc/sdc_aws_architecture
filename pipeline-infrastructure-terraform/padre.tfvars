@@ -41,6 +41,10 @@ s3_server_access_logs_bucket_name = "padre-swsoc-s3-server-access-logs"
 # The name of the ECR repository that will be created to store the processing lambda image
 processing_function_private_ecr_name = "padre_sdc_aws_processing_lambda"
 
+# Concating Lambda ECR Repository Name
+# The name of the ECR repository that will be created to store the concating lambda image
+concating_function_private_ecr_name = "padre_sdc_aws_concating_lambda"
+
 # Docker Base ECR Repository Name
 # The name of the ECR repository that will be created to store the docker base image
 docker_base_public_ecr_name = "padre-swsoc-docker-lambda-base"

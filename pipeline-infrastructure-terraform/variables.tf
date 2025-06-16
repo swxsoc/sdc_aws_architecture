@@ -45,6 +45,12 @@ variable "processing_function_private_ecr_name" {
   description = "Private ECR repository for the processing function"
 }
 
+variable "concating_function_private_ecr_name" {
+  type        = string
+  description = "Private ECR repository for the concating function"
+}
+
+
 variable "artifacts_function_private_ecr_name" {
   type        = string
   description = "Private ECR repository for the artifacts function"

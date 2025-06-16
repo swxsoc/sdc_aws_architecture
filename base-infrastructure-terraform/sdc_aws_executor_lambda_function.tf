@@ -18,6 +18,7 @@ resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
     variables = {
       LAMBDA_ENVIRONMENT    = upper(local.environment_full_name)
       SECRET_ARN         = aws_secretsmanager_secret.grafana_secret.arn
+      GITHUB_ORGS_USERS = "PADRESat,swxsoc,HERMES-SOC"
     }
   }
   ephemeral_storage {
@@ -58,9 +59,6 @@ resource "aws_secretsmanager_secret" "grafana_secret" {
 ///////////////////////////////////////
 // Executor Lambda Triggers
 ///////////////////////////////////////
-///////////////////////////////////////
-// Executor Lambda Triggers
-///////////////////////////////////////
 
 // Define triggers as a list of maps
 variable "lambda_triggers" {
@@ -76,7 +74,12 @@ variable "lambda_triggers" {
       description   = "CloudWatch event trigger for importing GOES data to Timestream, at noon UTC"
       schedule_expr = "cron(0 12 * * ? *)"
 
-    }
+    }, 
+    {
+      name          = "generate_cloc_report_and_upload"
+      description   = "CloudWatch event trigger to generate CLOC report and upload to S3, every 6 hours"
+      schedule_expr = "cron(0 */6 * * ? *)"
+    }, 
   ]
 }
 
@@ -106,6 +109,7 @@ resource "aws_cloudwatch_event_target" "lambda_targets" {
   target_id = "aws-sdc-executor-target-${each.value.name}"
   arn       = aws_lambda_function.aws_sdc_executor_lambda_function.arn
 }
+
 
 ///////////////////////////////////////
 // Executor Lambda IAM Permissions
