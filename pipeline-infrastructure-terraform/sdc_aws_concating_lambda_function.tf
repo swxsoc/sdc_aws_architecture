@@ -58,56 +58,25 @@ resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
 // Concating Lambda Triggers
 ///////////////////////////////////////
 
-# # Create Lambda permissions for each prefix
-# resource "aws_lambda_permission" "cf_allow_instrument_buckets" {
-#   for_each      = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
-#   statement_id  = "CF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromS3Bucket-${each.key}"
-#   action        = "lambda:InvokeFunction"
-#   function_name = aws_lambda_function.aws_sdc_concating_lambda_function.function_name
-#   principal     = "s3.amazonaws.com"
-#   source_arn    = aws_s3_bucket.sdc_buckets[each.value].arn
-# }
+resource "aws_cloudwatch_event_rule" "concating_lambda_daily_1am" {
+  name                = "${local.environment_short_name}${var.mission_name}_concating_lambda_daily_1am"
+  description         = "Triggers the concating Lambda at 1am UTC every day"
+  schedule_expression = "cron(0 1 * * ? *)"
+}
 
-# # Create Lambda permissions to be invoked by topic
-# resource "aws_lambda_permission" "cf_allow_sns_topic" {
-#   for_each      = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
-#   statement_id  = "CF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromSNSTopic-${each.key}"
-#   action        = "lambda:InvokeFunction"
-#   function_name = aws_lambda_function.aws_sdc_concating_lambda_function.function_name
-#   principal     = "sns.amazonaws.com"
-#   source_arn    = aws_sns_topic.sns_topics[each.key].arn
-# }
+resource "aws_cloudwatch_event_target" "concating_lambda_target" {
+  rule      = aws_cloudwatch_event_rule.concating_lambda_daily_1am.name
+  target_id = "concatingLambda"
+  arn       = aws_lambda_function.aws_sdc_concating_lambda_function.arn
+}
 
-# // Create S3 bucket notification to trigger the Lambda function when a file is processed
-# resource "aws_s3_bucket_notification" "cf_bucket_notification" {
-#   count = length(local.instrument_bucket_names)
-
-#   bucket = aws_s3_bucket.sdc_buckets[local.instrument_bucket_names[count.index]].id
-
-#   dynamic "topic" {
-#     for_each = local.data_levels
-#     content {
-#       topic_arn     = aws_sns_topic.sns_topics[local.instrument_bucket_names[count.index]].arn
-#       events        = ["s3:ObjectCreated:*"]
-#       filter_prefix = local.data_levels[topic.key]
-#     }
-#   }
-
-#   # Add a dependency on the necessary IAM permissions
-#   depends_on = [aws_lambda_permission.cf_allow_instrument_buckets]
-# }
-
-# // Invoke Concating Lambda from SNS
-# resource "aws_sns_topic_subscription" "cf_sns_topic_subscription" {
-#   for_each = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
-
-#   topic_arn = aws_sns_topic.sns_topics[each.key].arn
-#   protocol  = "lambda"
-#   endpoint  = aws_lambda_function.aws_sdc_concating_lambda_function.arn
-
-#   depends_on = [aws_lambda_permission.cf_allow_sns_topic]
-# }
-
+resource "aws_lambda_permission" "allow_eventbridge_to_invoke_concating" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.aws_sdc_concating_lambda_function.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.concating_lambda_daily_1am.arn
+}
 
 
 ///////////////////////////////////////
