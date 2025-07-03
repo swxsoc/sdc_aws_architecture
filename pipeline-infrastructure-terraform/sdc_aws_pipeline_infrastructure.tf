@@ -250,6 +250,7 @@ resource "aws_ecr_repository" "processing_function_private_ecr" {
 
 // Private ECR for the concating function
 resource "aws_ecr_repository" "concating_function_private_ecr" {
+  count               = var.needs_concating ? 1 : 0
   name                 = "${local.environment_short_name}${var.concating_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
   tags                 = local.standard_tags
