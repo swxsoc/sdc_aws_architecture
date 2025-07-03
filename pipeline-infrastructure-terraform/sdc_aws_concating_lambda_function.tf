@@ -14,7 +14,7 @@ resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
   memory_size   = 8192
   timeout       = 900
 
-  image_uri    = "${aws_ecr_repository.concating_function_private_ecr.repository_url}:${var.cf_image_tag}"
+  image_uri    = "${aws_ecr_repository.concating_function_private_ecr[0].repository_url}:${var.cf_image_tag}"
   package_type = "Image"
 
 
