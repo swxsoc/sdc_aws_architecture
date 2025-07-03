@@ -48,8 +48,14 @@ variable "processing_function_private_ecr_name" {
 variable "concating_function_private_ecr_name" {
   type        = string
   description = "Private ECR repository for the concating function"
+  default     = ""
 }
 
+variable "needs_concating" {
+  description = "Whether to create the concating Lambda function and related resources"
+  type        = bool
+  default     = false
+}
 
 variable "artifacts_function_private_ecr_name" {
   type        = string

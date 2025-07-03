@@ -25,6 +25,10 @@ timestream_s3_logs_table_name = "padre_sdc_aws_s3_bucket_log_table"
 # The names of the buckets that will be created for the mission
 incoming_bucket_name = "padre-swsoc-incoming"
 
+# Concating Lambda Function Setup?
+# This variable controls whether the concating lambda function and related resources will be created
+needs_concating = true
+
 # S3 Sorting Lambda ECR Repository Name
 # The name of the ECR repository that will be created to store the sorting lambda image
 sorting_function_private_ecr_name = "padre_sdc_aws_sorting_lambda"
@@ -48,6 +52,7 @@ concating_function_private_ecr_name = "padre_sdc_aws_concating_lambda"
 # Docker Base ECR Repository Name
 # The name of the ECR repository that will be created to store the docker base image
 docker_base_public_ecr_name = "padre-swsoc-docker-lambda-base"
+
 
 ## IAM Role for pushing to S3 Incoming Bucket
 # The name of the IAM role from the other account that will be used to push to the incoming bucket

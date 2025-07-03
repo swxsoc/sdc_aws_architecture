@@ -7,8 +7,10 @@
 
 
 resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
+  count = var.needs_concating ? 1 : 0
+
   function_name = "${local.environment_short_name}${var.concating_function_private_ecr_name}_function"
-  role          = aws_iam_role.concating_lambda_exec.arn
+  role          = aws_iam_role.concating_lambda_exec[0].arn
   memory_size   = 8192
   timeout       = 900
 
@@ -59,23 +61,26 @@ resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
 ///////////////////////////////////////
 
 resource "aws_cloudwatch_event_rule" "concating_lambda_daily_1am" {
+  count               = var.needs_concating ? 1 : 0
   name                = "${local.environment_short_name}${var.mission_name}_concating_lambda_daily_1am"
   description         = "Triggers the concating Lambda at 1am UTC every day"
   schedule_expression = "cron(0 1 * * ? *)"
 }
 
 resource "aws_cloudwatch_event_target" "concating_lambda_target" {
-  rule      = aws_cloudwatch_event_rule.concating_lambda_daily_1am.name
+  count     = var.needs_concating ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.concating_lambda_daily_1am[0].name
   target_id = "concatingLambda"
-  arn       = aws_lambda_function.aws_sdc_concating_lambda_function.arn
+  arn       = aws_lambda_function.aws_sdc_concating_lambda_function[0].arn
 }
 
 resource "aws_lambda_permission" "allow_eventbridge_to_invoke_concating" {
+  count         = var.needs_concating ? 1 : 0
   statement_id  = "AllowExecutionFromCloudWatch"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.aws_sdc_concating_lambda_function.function_name
+  function_name = aws_lambda_function.aws_sdc_concating_lambda_function[0].function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.concating_lambda_daily_1am.arn
+  source_arn    = aws_cloudwatch_event_rule.concating_lambda_daily_1am[0].arn
 }
 
 
@@ -85,7 +90,8 @@ resource "aws_lambda_permission" "allow_eventbridge_to_invoke_concating" {
 
 // Create an IAM role for the Lambda function
 resource "aws_iam_role" "concating_lambda_exec" {
-  name = "${local.environment_short_name}${var.mission_name}_concating_lambda_exec_role"
+  count = var.needs_concating ? 1 : 0
+  name  = "${local.environment_short_name}${var.mission_name}_concating_lambda_exec_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -102,6 +108,8 @@ resource "aws_iam_role" "concating_lambda_exec" {
 }
 
 resource "aws_iam_policy" "cf_lambda_self_invoke_policy" {
+  count = var.needs_concating ? 1 : 0
+
   name = "${local.environment_short_name}${var.mission_name}_self"
 
   policy = jsonencode({
@@ -110,7 +118,7 @@ resource "aws_iam_policy" "cf_lambda_self_invoke_policy" {
       {
         Action   = "lambda:InvokeFunction",
         Effect   = "Allow",
-        Resource = aws_lambda_function.aws_sdc_concating_lambda_function.arn
+        Resource = aws_lambda_function.aws_sdc_concating_lambda_function[0].arn
       }
     ]
   })
@@ -119,38 +127,52 @@ resource "aws_iam_policy" "cf_lambda_self_invoke_policy" {
 
 // Attach needed policies to the role
 resource "aws_iam_role_policy_attachment" "cf_s3_bucket_policy_attachment" {
-  role       = aws_iam_role.concating_lambda_exec.name
+  count = var.needs_concating ? 1 : 0
+
+  role       = aws_iam_role.concating_lambda_exec[0].name
   policy_arn = aws_iam_policy.s3_bucket_access_policy.arn
 }
 
 
 resource "aws_iam_role_policy_attachment" "cf_logs_policy_attachment" {
-  role       = aws_iam_role.concating_lambda_exec.name
+  count = var.needs_concating ? 1 : 0
+
+  role       = aws_iam_role.concating_lambda_exec[0].name
   policy_arn = aws_iam_policy.logs_access_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "cf_secrets_manager_policy_attachment" {
-  role       = aws_iam_role.concating_lambda_exec.name
+  count = var.needs_concating ? 1 : 0
+
+  role       = aws_iam_role.concating_lambda_exec[0].name
   policy_arn = aws_iam_policy.lambda_secrets_manager_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "cf_timestream_policy_attachment" {
-  role       = aws_iam_role.concating_lambda_exec.name
+  count = var.needs_concating ? 1 : 0
+
+  role       = aws_iam_role.concating_lambda_exec[0].name
   policy_arn = aws_iam_policy.timestream_policy.arn
 }
 
 
 resource "aws_iam_role_policy_attachment" "cf_lambda_kms_policy_attachment" {
-  role       = aws_iam_role.concating_lambda_exec.name
+  count = var.needs_concating ? 1 : 0
+
+  role       = aws_iam_role.concating_lambda_exec[0].name
   policy_arn = aws_iam_policy.lambda_kms_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "cf_vpc_policy_attachment" {
-  role       = aws_iam_role.concating_lambda_exec.name
+  count = var.needs_concating ? 1 : 0
+
+  role       = aws_iam_role.concating_lambda_exec[0].name
   policy_arn = aws_iam_policy.lambda_vpc_access_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "cf_self_invoke_policy_attachment" {
-  role       = aws_iam_role.concating_lambda_exec.name
-  policy_arn = aws_iam_policy.cf_lambda_self_invoke_policy.arn
+  count = var.needs_concating ? 1 : 0
+
+  role       = aws_iam_role.concating_lambda_exec[0].name
+  policy_arn = aws_iam_policy.cf_lambda_self_invoke_policy[0].arn
 }
