@@ -29,6 +29,7 @@ This repository contains Terraform configurations for managing AWS infrastructur
   - Mission-specific configurations (`hermes.tfvars`, `padre.tfvars`)
   - Lambda functions for artifacts, processing, and sorting
   - Pipeline-specific infrastructure
+  - New general pipeline config: `swxsoc.tfvars` (REACH as the first instrument)
 
 ## Getting Started
 
@@ -52,6 +53,12 @@ terraform init
 terraform plan -var-file=<mission>.tfvars
 terraform apply -var-file=<mission>.tfvars
 ```
+
+### swxsoc Notes
+- `swxsoc.tfvars` uses mission-scoped names and starts with `instrument_names = ["reach"]`.
+- First apply uses public Lambda base images via `*_image_uri_override` so the deploy succeeds before mission images are pushed to ECR. Replace these overrides with real ECR image URIs later.
+- Grafana credentials are optional for `swxsoc` (`enable_grafana_secret = false` by default). Enable it only after the secret exists.
+- Lambda VPC subnets and RDS ingress allowlists are configurable via tfvars to avoid hard-coded IDs when needed.
 
 ## Documentation
 
