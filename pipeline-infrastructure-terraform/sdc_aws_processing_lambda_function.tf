@@ -6,15 +6,18 @@
 ///////////////////////////////////////
 
 data "aws_secretsmanager_secret" "grafana" {
-  name = "grafana-credentials"
+  count = var.enable_grafana_secret ? 1 : 0
+  name  = var.grafana_secret_name
 }
 
-data "aws_secretsmanager_secret_version" "grafana-credentials" {
-  secret_id = data.aws_secretsmanager_secret.grafana.id
+data "aws_secretsmanager_secret_version" "grafana_credentials" {
+  count     = var.enable_grafana_secret ? 1 : 0
+  secret_id = data.aws_secretsmanager_secret.grafana[0].id
 }
 
 locals {
-  grafana = jsondecode(data.aws_secretsmanager_secret_version.grafana-credentials.secret_string)
+  grafana_api_key      = var.enable_grafana_secret ? try(jsondecode(data.aws_secretsmanager_secret_version.grafana_credentials[0].secret_string)["grafana_api_key"], "") : ""
+  processing_image_uri = var.processing_image_uri_override != "" ? var.processing_image_uri_override : "${aws_ecr_repository.processing_function_private_ecr.repository_url}:${var.pf_image_tag}"
 }
 
 resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
@@ -23,7 +26,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
   memory_size   = 8192
   timeout       = 900
 
-  image_uri    = "${aws_ecr_repository.processing_function_private_ecr.repository_url}:${var.pf_image_tag}"
+  image_uri    = local.processing_image_uri
   package_type = "Image"
 
   environment {
@@ -40,7 +43,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
       RDS_DATABASE           = aws_db_instance.rds_instance.db_name
       SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
-      GRAFANA_API_KEY        = sensitive(local.grafana["grafana_api_key"])
+      GRAFANA_API_KEY        = sensitive(local.grafana_api_key)
     }
   }
   ephemeral_storage {
@@ -52,10 +55,12 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
   }
 
 
-  vpc_config {
-    subnet_ids = [data.aws_subnet.public_subnet["subnet-0972d4965ef8eb1e8"].id, data.aws_subnet.public_subnet["subnet-0e24325c69b9a1f74"].id]
-
-    security_group_ids = [aws_security_group.lambda_sg.id]
+  dynamic "vpc_config" {
+    for_each = var.enable_lambda_vpc ? [1] : []
+    content {
+      subnet_ids         = var.lambda_vpc_subnet_ids
+      security_group_ids = [aws_security_group.lambda_sg.id]
+    }
   }
 
   tags = local.standard_tags
@@ -131,15 +136,18 @@ resource "aws_security_group" "rds_sg" {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.lambda_sg.id, "sg-002dbe7887ac759c5"]
+    security_groups = concat([aws_security_group.lambda_sg.id], var.rds_additional_security_group_ids)
   }
 
 
-  ingress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["86.21.42.229/32"]
+  dynamic "ingress" {
+    for_each = length(var.rds_ingress_cidr_blocks) > 0 ? [1] : []
+    content {
+      from_port   = 5432
+      to_port     = 5432
+      protocol    = "tcp"
+      cidr_blocks = var.rds_ingress_cidr_blocks
+    }
   }
 
   egress {

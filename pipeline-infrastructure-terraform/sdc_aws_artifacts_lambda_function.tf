@@ -5,13 +5,17 @@
 // S3 Processing Artifacts Lambda Function
 //////////////////////////////////////////
 
+locals {
+  artifacts_image_uri = var.artifacts_image_uri_override != "" ? var.artifacts_image_uri_override : "${aws_ecr_repository.artifacts_function_private_ecr.repository_url}:${var.af_image_tag}"
+}
+
 resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
   function_name = "${local.environment_short_name}${var.artifacts_function_private_ecr_name}_function"
   role          = aws_iam_role.artifacts_lambda_exec.arn
   memory_size   = 2048
   timeout       = 900
 
-  image_uri    = "${aws_ecr_repository.artifacts_function_private_ecr.repository_url}:${var.af_image_tag}"
+  image_uri    = local.artifacts_image_uri
   package_type = "Image"
 
   environment {
@@ -46,10 +50,12 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
     ]
   }
 
-  vpc_config {
-    subnet_ids = [data.aws_subnet.public_subnet["subnet-0972d4965ef8eb1e8"].id, data.aws_subnet.public_subnet["subnet-0e24325c69b9a1f74"].id]
-
-    security_group_ids = [aws_security_group.lambda_sg.id]
+  dynamic "vpc_config" {
+    for_each = var.enable_lambda_vpc ? [1] : []
+    content {
+      subnet_ids         = var.lambda_vpc_subnet_ids
+      security_group_ids = [aws_security_group.lambda_sg.id]
+    }
   }
 
   tags = local.standard_tags

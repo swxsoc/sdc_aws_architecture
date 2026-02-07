@@ -5,6 +5,10 @@
 // S3 Sorting Lambda Function
 ///////////////////////////////////////
 
+locals {
+  sorting_image_uri = var.sorting_image_uri_override != "" ? var.sorting_image_uri_override : "${aws_ecr_repository.sorting_function_private_ecr.repository_url}:${var.sf_image_tag}"
+}
+
 // Creates the Sorting Lambda function
 resource "aws_lambda_function" "sorting_lambda_function" {
   function_name = "${local.environment_short_name}${var.sorting_function_private_ecr_name}_function"
@@ -24,7 +28,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
     }
   }
 
-  image_uri    = "${aws_ecr_repository.sorting_function_private_ecr.repository_url}:${var.sf_image_tag}"
+  image_uri    = local.sorting_image_uri
   package_type = "Image"
 
   ephemeral_storage {

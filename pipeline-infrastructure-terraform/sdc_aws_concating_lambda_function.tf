@@ -5,6 +5,10 @@
 // S3 Concating Lambda Function
 ///////////////////////////////////////
 
+locals {
+  concating_image_uri = var.needs_concating ? (var.concating_image_uri_override != "" ? var.concating_image_uri_override : "${aws_ecr_repository.concating_function_private_ecr[0].repository_url}:${var.cf_image_tag}") : ""
+}
+
 
 resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
   count = var.needs_concating ? 1 : 0
@@ -14,7 +18,7 @@ resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
   memory_size   = 8192
   timeout       = 900
 
-  image_uri    = "${aws_ecr_repository.concating_function_private_ecr[0].repository_url}:${var.cf_image_tag}"
+  image_uri    = local.concating_image_uri
   package_type = "Image"
 
 
@@ -32,7 +36,7 @@ resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
       RDS_DATABASE           = aws_db_instance.rds_instance.db_name
       SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
-      GRAFANA_API_KEY        = sensitive(local.grafana["grafana_api_key"])
+      GRAFANA_API_KEY        = sensitive(local.grafana_api_key)
     }
   }
   ephemeral_storage {
@@ -44,10 +48,12 @@ resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
   }
 
 
-  vpc_config {
-    subnet_ids = [data.aws_subnet.public_subnet["subnet-0972d4965ef8eb1e8"].id, data.aws_subnet.public_subnet["subnet-0e24325c69b9a1f74"].id]
-
-    security_group_ids = [aws_security_group.lambda_sg.id]
+  dynamic "vpc_config" {
+    for_each = var.enable_lambda_vpc ? [1] : []
+    content {
+      subnet_ids         = var.lambda_vpc_subnet_ids
+      security_group_ids = [aws_security_group.lambda_sg.id]
+    }
   }
 
   tags = local.standard_tags
