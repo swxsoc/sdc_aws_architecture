@@ -11,3 +11,14 @@ Take a look at the user guide for more information on how we use Terraform to ma
 Also to see what each repository is responsible for, take a look at the `Repository Guide <./repo-guide.html>`_.
 
 For more general tips on contributing to our project, see the our other development guide that we host in our seperate repo `Developer's Guide <https://sdc-aws-base-docker-image.readthedocs.io/en/latest/dev-guide/index.html>`_.
+
+CI Checks
+---------
+Pull requests run Terraform and Python lint checks:
+
+* `terraform fmt -check -recursive`
+* `terraform validate` (base and pipeline, with `-backend=false`)
+* `tflint` (base and pipeline)
+* `black` and `flake8` on the `docs/` directory
+
+No `terraform apply` runs in CI.

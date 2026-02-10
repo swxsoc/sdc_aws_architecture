@@ -21,11 +21,16 @@ This guide assumes you have an AWS account with permissions to create and manage
 Step 1: Download the Code
 -------------------------
 Clone the repository:
-    git clone https://github.com/HERMES-SOC/sdc_aws_pipeline_architecture.git && cd sdc_aws_pipeline_architecture
+.. code-block:: bash
+
+    git clone https://github.com/HERMES-SOC/sdc_aws_pipeline_architecture.git
+    cd sdc_aws_pipeline_architecture
 
 Step 2: Configure AWS Credentials
 ---------------------------------
 Make sure the AWS CLI is configured with credentials that can create resources:
+.. code-block:: bash
+
     aws configure
 
 Step 3: Update Terraform Variables
@@ -50,6 +55,8 @@ If you are bootstrapping a new mission before images or secrets exist, you can:
 Optional: Build Docs Locally
 ----------------------------
 If you want to build the documentation locally:
+.. code-block:: bash
+
     python3 -m venv .venv
     source .venv/bin/activate
     python3 -m pip install -r requirements.txt
@@ -58,6 +65,8 @@ If you want to build the documentation locally:
 Step 4: Deploy Base Infrastructure
 ----------------------------------
 Deploy shared resources first:
+.. code-block:: bash
+
     cd base-infrastructure-terraform
     terraform init
     terraform plan
@@ -66,6 +75,8 @@ Deploy shared resources first:
 Step 5: Deploy Pipeline Infrastructure
 --------------------------------------
 Deploy the mission pipeline using workspaces:
+.. code-block:: bash
+
     cd ../pipeline-infrastructure-terraform
     terraform workspace new dev-<mission>
     terraform workspace select dev-<mission>
@@ -80,6 +91,8 @@ Step 6: Build and Push Lambda Images
 The Sorting, Processing, and Artifacts Lambdas are deployed from ECR images. Build and push images to the ECR repos created by Terraform, then re-run `terraform apply` to pick up the new image tags if needed.
 
 A typical flow looks like:
+
+.. code-block:: bash
 
     aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account_id>.dkr.ecr.<region>.amazonaws.com
     docker build -t <repo_name> .
