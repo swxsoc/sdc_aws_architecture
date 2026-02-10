@@ -1,5 +1,5 @@
-# This workflow will install Python dependencies, run tests, run linting, and test building docs
-name: Testing
+# Terraform validation
+name: Terraform Validation
 
 on:
   pull_request:
@@ -11,14 +11,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Install dependencies
+    - uses: hashicorp/setup-terraform@v3
+    - name: Terraform fmt
+      run: terraform fmt -check -recursive
+    - name: Terraform validate (base)
+      working-directory: base-infrastructure-terraform
       run: |
-        python -m pip install --upgrade pip 
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        npm install -g aws-cdk
-    - name: Run tests
+        terraform init -backend=false
+        terraform validate
+    - name: Terraform validate (pipeline)
+      working-directory: pipeline-infrastructure-terraform
       run: |
-        export DRY_RUN=true
-        export ZIP_FILE=aws_sorting_lambda.zip
-        cdk synth
-
+        terraform init -backend=false
+        terraform validate
