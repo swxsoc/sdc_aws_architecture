@@ -3,122 +3,119 @@
 User's Guide
 ================
 
-Welcome to our User Guide. This guide will help you to get started with downloading this code and getting the pipeline set-up and running on your own AWS account. It will walk through each step of the process and provide you with the necessary information to get started.
+Welcome to our User Guide. This guide will help you get the pipeline set up and running on your AWS account using Terraform.
 
 
 Prerequisites
 -------------
 * An AWS account
 * AWS CLI installed and configured
-* AWS Cloud Development Kit (CDK) 2.0 installed on your machine
-* Python 3.7 or higher
-* Node.js 10.3.0 or higher
-* Docker installed on your machine 
+* Terraform 1.x installed
+* Docker installed (for building and pushing Lambda container images)
+* Python 3.8+ (only needed for building docs or running helper scripts)
 
 Getting Started
 ---------------
-This guide assumes that you have already set up an AWS account and have the necessary permissions to create and manage AWS resources. If you do not have an AWS account, you can sign up for one at https://aws.amazon.com/. If you are new to AWS, you can find a number of resources to help you get started at https://aws.amazon.com/getting-started/.
-
-It also walks through the steps that would be handled by CI/CD if you were to set it up as part of your project. If you are not familiar with CI/CD, you can find a number of resources to help you get started at https://aws.amazon.com/devops/continuous-delivery/.
-
-
+This guide assumes you have an AWS account with permissions to create and manage resources. If you are new to AWS, see https://aws.amazon.com/getting-started/.
 
 Step 1: Download the Code
 -------------------------
-The first step is to download the code from GitHub. You can do this by running the following command:
+Clone the repository:
     git clone https://github.com/HERMES-SOC/sdc_aws_pipeline_architecture.git && cd sdc_aws_pipeline_architecture
 
-This will create a directory called sdc_aws_pipeline_architecture in your current directory. This directory contains all of the code that you will need to run the pipeline.
+Step 2: Configure AWS Credentials
+---------------------------------
+Make sure the AWS CLI is configured with credentials that can create resources:
+    aws configure
 
+Step 3: Update Terraform Variables
+----------------------------------
+There are two sets of Terraform configs:
 
-Step 2: Install dependencies for project
-----------------------------------------
-The next step is to install the dependencies for the project. You can do this by running the following command:
-    pip install -r requirements.txt
+* **Base infrastructure**: `base-infrastructure-terraform/`
+* **Pipeline infrastructure**: `pipeline-infrastructure-terraform/`
 
-.. Note:: 
-    As defined in the Prerequisites, it is assumed you have set-up your AWS CLI with the appropriate keys and installed CDK via npm:
-        npm install -g aws-cdk
+Edit the mission-specific tfvars file in `pipeline-infrastructure-terraform/` (for example, `padre.tfvars` or `hermes.tfvars`) and ensure:
 
+* `mission_name` is correct
+* `instrument_names` is correct
+* S3 bucket names are globally unique
+* Any optional values (e.g., uploader roles, secrets, image tags) match your environment
 
-Step 3: Modify config file to fit your naming scheme
---------------------------------------------------------
-This is an important step because S3 Buckets are unique, so if you try to deploy using the default names it will fail because they have already been created. Go into the the **config.yaml** file, and at the minimum modify the Mission Name (because it is used to generate the intrument bucket names) and the different Bucket Names variables to fit your needs. S3 Bucket names are unique across AWS so the names you configure must be unique as well, it will fail on deployment if there is already a bucket that exists with the same name. 
+If you are bootstrapping a new mission before images or secrets exist, you can:
 
+* Set `enable_*_lambda = false` to skip creating Lambdas until images are pushed
+* Set `enable_grafana_secret = false` if the Grafana secret does not exist yet
 
-Step 4: Deploy the **SDCAWSPipelineArchitectureStack** Stack using CDK
------------------------------------------------------------------------
-Deploy the **SDCAWSPipelineArchitectureStack** with CDK.
-    cdk deploy SDCAWSPipelineArchitectureStack
+Optional: Build Docs Locally
+----------------------------
+If you want to build the documentation locally:
+    python3 -m venv .venv
+    source .venv/bin/activate
+    python3 -m pip install -r requirements.txt
+    make html
 
-.. Warning::
-    If the deployment fails for some reason, and S3 Buckets and the Private ECR repo has been deployed already you will need to go into AWS and manually delete the created resources before redeploying. We have set those resources to be retained on CloudFormation Stack deletion to prevent any accidental deletions in the future.
+Step 4: Deploy Base Infrastructure
+----------------------------------
+Deploy shared resources first:
+    cd base-infrastructure-terraform
+    terraform init
+    terraform plan
+    terraform apply
 
+Step 5: Deploy Pipeline Infrastructure
+--------------------------------------
+Deploy the mission pipeline using workspaces:
+    cd ../pipeline-infrastructure-terraform
+    terraform workspace new dev-<mission>
+    terraform workspace select dev-<mission>
+    terraform init
+    terraform plan -var-file=<mission>.tfvars
+    terraform apply -var-file=<mission>.tfvars
 
-Step 5: Build and Push the Lambda Function into the S3 Bucket
----------------------------------------------------------------
-First clone the Sorting Lambda Function repo,
-    cd .. && git clone git@github.com:HERMES-SOC/sdc_aws_sorting_lambda.git && cd sdc_aws_sorting_lambda
+Use `dev-<mission>` for development and `prod-<mission>` for production. The workspace prefix controls resource naming.
 
-Then install the dependencies into the lambda function folder
-    pip install     --platform manylinux2014_x86_64     --target=lambda_function     --implementation cp     --python 3.9     --only-binary=:all: --upgrade     -r requirements.txt 
+Step 6: Build and Push Lambda Images
+------------------------------------
+The Sorting, Processing, and Artifacts Lambdas are deployed from ECR images. Build and push images to the ECR repos created by Terraform, then re-run `terraform apply` to pick up the new image tags if needed.
 
-Then zip and push to the S3 Sorting Lambda Function Bucket
-    export ZIP_NAME=sorting_function_$(date +%s).zip && cd lambda_function && zip -r $ZIP_NAME .
+A typical flow looks like:
 
-Then push to the S3 Sorting Lambda Sorting Bucket
-    aws s3 cp $ZIP_NAME s3://{sorting lambda bucket}
+    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account_id>.dkr.ecr.<region>.amazonaws.com
+    docker build -t <repo_name> .
+    docker tag <repo_name>:latest <account_id>.dkr.ecr.<region>.amazonaws.com/<repo_name>:latest
+    docker push <account_id>.dkr.ecr.<region>.amazonaws.com/<repo_name>:latest
 
-
-Step 6: Deploy the **SDCAWSSortingLambdaStack** Stack using CDK
-------------------------------------------------------------------
-Go back into the sdc_aws_pipeline_architecture repository you have cloned
-    cd ../../sdc_aws_pipeline_architecture
-
-Now that you've created the lambda function build artifact and uploaded it to the correct S3 bucket, you can now deploy it with
-    cdk deploy SDCAWSSortingLambdaStack
-
-
-Step 7: Build and Push Processing Lambda Function into ECR Repo
----------------------------------------------------------------------
-First clone the Processing Lambda Function repo,
-    cd .. && git clone git@github.com:HERMES-SOC/sdc_aws_processing_lambda.git && cd sdc_aws_processing_lambda/lambda_function
-
-Then login to your Private ECR Repo
-    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin {your_aws_account_number}.dkr.ecr.{DEPLOYMENT_REGION}.amazonaws.com
-
-Build the docker image
-    docker build -t sdc_aws_processing_lambda .
-
-Tag the image
-    docker tag sdc_aws_processing_lambda:latest {your_aws_account_number}.dkr.ecr.{DEPLOYMENT_REGION}.amazonaws.com/sdc_aws_processing_lambda:latest
-
-Push to ECR
-    docker push {your_aws_account_number}.dkr.ecr.{DEPLOYMENT_REGION}.amazonaws.com/sdc_aws_processing_lambda:latest
-
-
-Step 8: Deploy the **SDCAWSProcessingLambdaStack** Stack using CDK
-------------------------------------------------------------------
-Go back into the sdc_aws_pipeline_architecture repository you have cloned
-    cd ../../sdc_aws_pipeline_architecture
-
-Now that you've created the lambda function image and uploaded it to the ECR, you can now deploy it with
-    cdk deploy SDCAWSProcessingLambdaStack
-
-
-Step 9: Verify the three different Stacks that compose the pipeline are up and running
-------------------------------------------------------------------------------------------------
-In your AWS console you can go into the CloudFormation service, in the deployment region you specified you should see the 3 different stacks were created successfully. You can click on each stack to view the different resources that were deployed successfully. You can now make use of the pipeline as long as you have valid mission core and instrument packages configured correctly. Check out how we've set-up our `hermes_core <https://github.com/HERMES-SOC/hermes_core>`_ and one of our `heremes_instrument <https://github.com/HERMES-SOC/hermes_eea>`_ packages here for refernce.
+Step 7: Verify Resources
+------------------------
+Use the AWS Console or Terraform state to confirm buckets, topics/queues, Lambdas, and databases are created.
 
 .. Note::
-    The only other indirect part of the pipeline that is not included is the support systems that helps show the visibility of the pipeline. Which is mostly the Grafana and Loki deployment.
+    If you want to bootstrap infrastructure before images exist, you can disable Lambda creation using `enable_*_lambda` variables and enable them after images are pushed.
+
+.. Note::
+    Grafana/Loki and other observability systems are not managed by this repo.
+
+Mission Deploy Checklist
+------------------------
+Use this checklist for each new mission deployment:
+
+* Confirm AWS credentials and target account/region
+* Create or update the mission tfvars file with unique S3 bucket names
+* Create/select the correct workspace (`dev-<mission>` or `prod-<mission>`)
+* Run `terraform plan -var-file=<mission>.tfvars` and confirm only mission resources are changing
+* Apply base infrastructure (first time only)
+* Apply pipeline infrastructure for the mission
+* Push Lambda images to the mission ECR repos
+* Enable Lambdas (`enable_*_lambda = true`) and re-apply if they were initially disabled
+* Verify S3 buckets, SNS/SQS, Lambdas, Timestream, and RDS in AWS
 
 Where to go from here:
 ----------------------
 .. toctree::
    :maxdepth: 6
 
-   cdk-overview
+   terraform-overview
    timestream-overview
    docker-overview
    iam-overview
