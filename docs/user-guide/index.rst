@@ -33,6 +33,13 @@ Make sure the AWS CLI is configured with credentials that can create resources:
 
     aws configure
 
+If you use AWS SSO, configure and log in before running Terraform:
+.. code-block:: bash
+
+    aws configure sso
+    aws sso login --profile <profile-name>
+    aws sts get-caller-identity --profile <profile-name>
+
 Step 3: Update Terraform Variables
 ----------------------------------
 There are two sets of Terraform configs:
