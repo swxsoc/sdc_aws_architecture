@@ -18,6 +18,7 @@ Pull requests run Terraform and Python lint checks:
 
 * `terraform fmt -check -recursive`
 * `terraform validate` (base and pipeline, with `-backend=false`)
+* `terraform test` (base and pipeline, when tests are present)
 * `tflint` (base and pipeline)
 * `black` and `flake8` on the `docs/` directory
 

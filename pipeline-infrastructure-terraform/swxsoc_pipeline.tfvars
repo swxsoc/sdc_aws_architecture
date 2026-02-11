@@ -27,7 +27,7 @@ incoming_bucket_name = "swxsoc-pipeline-incoming"
 
 # Concating Lambda Function Setup?
 # This variable controls whether the concating lambda function and related resources will be created
-needs_concating = false
+needs_concating = true
 
 # S3 Sorting Lambda ECR Repository Name
 # The name of the ECR repository that will be created to store the sorting lambda image
@@ -55,11 +55,12 @@ docker_base_public_ecr_name = "swxsoc-pipeline-docker-lambda-base"
 
 ## IAM Role for pushing to S3 Incoming Bucket
 # The name of the IAM role from the other account that will be used to push to the incoming bucket
-optional_s3_uploader_role_arn = ""
+optional_s3_uploader_role_arn  = ""
+optional_s3_uploader_role_arns = []
 
 # Grafana Secret (optional for swxsoc_pipeline)
 enable_grafana_secret = false
-grafana_secret_name   = "grafana-credentials"
+grafana_secret_name   = "swxsoc-pipeline-grafana-credentials"
 
 # Lambda VPC settings (match existing default subnets; update if needed)
 lambda_vpc_subnet_ids = ["subnet-0972d4965ef8eb1e8", "subnet-0e24325c69b9a1f74"]

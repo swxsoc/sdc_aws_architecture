@@ -17,8 +17,24 @@ jobs:
       run: |
         terraform init -backend=false
         terraform validate
+    - name: Terraform test (base)
+      working-directory: base-infrastructure-terraform
+      run: |
+        if find . -name '*.tftest.hcl' -print -quit | grep -q .; then
+          TF_CLI_ARGS_init="-backend=false" terraform test
+        else
+          echo "No Terraform tests found."
+        fi
     - name: Terraform validate (pipeline)
       working-directory: pipeline-infrastructure-terraform
       run: |
         terraform init -backend=false
         terraform validate
+    - name: Terraform test (pipeline)
+      working-directory: pipeline-infrastructure-terraform
+      run: |
+        if find . -name '*.tftest.hcl' -print -quit | grep -q .; then
+          TF_CLI_ARGS_init="-backend=false" terraform test
+        else
+          echo "No Terraform tests found."
+        fi

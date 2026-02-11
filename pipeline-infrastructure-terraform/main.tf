@@ -65,8 +65,14 @@ locals {
   data_levels     = slice(var.valid_data_levels, 0, length(var.valid_data_levels))
   last_data_level = element(var.valid_data_levels, length(var.valid_data_levels) - 1)
 
+  optional_s3_uploader_role_arns = compact(
+    concat(
+      var.optional_s3_uploader_role_arns,
+      var.optional_s3_uploader_role_arn != "" ? [var.optional_s3_uploader_role_arn] : []
+    )
+  )
+
   mission_bucket_prefix   = replace(var.mission_name, "_", "-")
   instrument_bucket_names = [for bucket in var.instrument_names : "${local.mission_bucket_prefix}-${bucket}"]
   bucket_list             = concat([var.incoming_bucket_name], local.instrument_bucket_names)
 }
-

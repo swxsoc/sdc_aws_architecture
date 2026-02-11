@@ -121,7 +121,7 @@ resource "aws_s3_bucket_versioning" "sdc_buckets" {
 resource "aws_s3_bucket_policy" "incoming_bucket_policy" {
   for_each = {
     for bucket in local.bucket_list :
-    bucket => bucket if strcontains(bucket, var.incoming_bucket_name) && length(var.optional_s3_uploader_role_arn) > 0
+    bucket => bucket if strcontains(bucket, var.incoming_bucket_name) && length(local.optional_s3_uploader_role_arns) > 0
   }
 
   bucket = aws_s3_bucket.sdc_buckets[each.key].id
@@ -132,7 +132,7 @@ resource "aws_s3_bucket_policy" "incoming_bucket_policy" {
       {
         Effect = "Allow"
         Principal = {
-          AWS = var.optional_s3_uploader_role_arn
+          AWS = local.optional_s3_uploader_role_arns
         }
         Action   = ["s3:PutObject"]
         Resource = "arn:aws:s3:::${aws_s3_bucket.sdc_buckets[each.key].id}/*"

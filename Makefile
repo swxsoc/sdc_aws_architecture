@@ -49,14 +49,16 @@ tf-workspace:
 	$(call require-mission)
 	@cd "$(TF_PIPELINE_DIR)" && terraform workspace select "$(WORKSPACE)" || terraform workspace new "$(WORKSPACE)"
 
-tf-init-pipeline: tf-workspace
-	@cd "$(TF_PIPELINE_DIR)" && terraform init
+tf-init-pipeline:
+	$(call require-mission)
+	@cd "$(TF_PIPELINE_DIR)" && terraform init -reconfigure
+	@cd "$(TF_PIPELINE_DIR)" && terraform workspace select "$(WORKSPACE)" || terraform workspace new "$(WORKSPACE)"
 
-tf-plan-pipeline: tf-workspace
+tf-plan-pipeline: tf-init-pipeline
 	$(call require-mission)
 	@cd "$(TF_PIPELINE_DIR)" && terraform plan -var-file="$(TFVARS)"
 
-tf-apply-pipeline: tf-workspace
+tf-apply-pipeline: tf-init-pipeline
 	$(call require-mission)
 	@cd "$(TF_PIPELINE_DIR)" && terraform apply -var-file="$(TFVARS)"
 

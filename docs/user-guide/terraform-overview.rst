@@ -58,4 +58,4 @@ Notes
 -----
 Terraform state uses an S3 backend configured in each `main.tf`. You will need access to that bucket for real deployments.
 
-CI runs formatting and lint checks only: `terraform fmt`, `terraform validate` (with `-backend=false`), `tflint`, and Python `black`/`flake8` for docs. We do not run `terraform apply` in CI.
+CI runs formatting and lint checks only: `terraform fmt`, `terraform validate` (with `-backend=false`), `terraform test` (when tests are present), `tflint`, and Python `black`/`flake8` for docs. We do not run `terraform apply` in CI.

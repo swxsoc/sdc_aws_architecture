@@ -151,6 +151,12 @@ variable "optional_s3_uploader_role_arn" {
   default = ""
 }
 
+variable "optional_s3_uploader_role_arns" {
+  type        = list(string)
+  description = "Optional IAM role ARNs allowed to upload to incoming bucket"
+  default     = []
+}
+
 variable "enable_lambda_vpc" {
   type        = bool
   description = "Whether to attach Lambdas to a VPC"
