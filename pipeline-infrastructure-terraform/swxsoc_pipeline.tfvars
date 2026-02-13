@@ -62,6 +62,12 @@ optional_s3_uploader_role_arns = []
 enable_grafana_secret = false
 grafana_secret_name   = "swxsoc-pipeline-grafana-credentials"
 
+# Lambda creation flags (enable once images exist)
+enable_processing_lambda = false
+enable_sorting_lambda    = false
+enable_artifacts_lambda  = false
+enable_concating_lambda  = false
+
 # Lambda VPC settings (match existing default subnets; update if needed)
 lambda_vpc_subnet_ids = ["subnet-0972d4965ef8eb1e8", "subnet-0e24325c69b9a1f74"]
 

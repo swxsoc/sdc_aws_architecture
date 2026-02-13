@@ -93,6 +93,30 @@ variable "grafana_secret_name" {
   default     = "grafana-credentials"
 }
 
+variable "enable_processing_lambda" {
+  type        = bool
+  description = "Whether to create the processing Lambda and related resources"
+  default     = true
+}
+
+variable "enable_sorting_lambda" {
+  type        = bool
+  description = "Whether to create the sorting Lambda and related resources"
+  default     = true
+}
+
+variable "enable_artifacts_lambda" {
+  type        = bool
+  description = "Whether to create the artifacts Lambda and related resources"
+  default     = true
+}
+
+variable "enable_concating_lambda" {
+  type        = bool
+  description = "Whether to create the concating Lambda and related resources"
+  default     = true
+}
+
 variable "pf_image_tag" {
   type        = string
   description = "Processing Function ECR image tag"
