@@ -4,10 +4,10 @@ run "plan_base" {
   command = plan
 
   providers = {
-    aws = mock_provider.aws
+    aws = mock.aws
   }
 
-  variables = {
+  variables {
     deployment_region             = "us-east-1"
     soc_name                      = "swxsoc"
     timestream_database_name      = "swxsoc_sdc_aws_logs"
