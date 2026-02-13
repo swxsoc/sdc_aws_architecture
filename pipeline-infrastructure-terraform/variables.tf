@@ -204,3 +204,9 @@ variable "rds_ingress_cidr_blocks" {
   description = "Additional CIDR blocks allowed to access RDS"
   default     = ["86.21.42.229/32"]
 }
+
+variable "rds_engine_version" {
+  type        = string
+  description = "Postgres engine version for the RDS instance"
+  default     = "14.12"
+}

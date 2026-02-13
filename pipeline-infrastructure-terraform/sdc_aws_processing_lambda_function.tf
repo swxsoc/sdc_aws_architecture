@@ -165,7 +165,7 @@ resource "aws_db_instance" "rds_instance" {
   allocated_storage = 30
   storage_type      = "gp2"
   engine            = "postgres"
-  engine_version    = "14.12"
+  engine_version    = var.rds_engine_version
   instance_class    = "db.t4g.micro"
   db_name           = local.is_production ? "${var.mission_name}_db" : "dev_${var.mission_name}_db"
 

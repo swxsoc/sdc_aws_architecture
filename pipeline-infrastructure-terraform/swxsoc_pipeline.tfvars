@@ -75,6 +75,9 @@ lambda_vpc_subnet_ids = ["subnet-0972d4965ef8eb1e8", "subnet-0e24325c69b9a1f74"]
 rds_additional_security_group_ids = []
 rds_ingress_cidr_blocks           = []
 
+# RDS engine version (must exist in target region)
+rds_engine_version = "14.21"
+
 # Safe placeholder images so first apply succeeds before mission images are pushed
 processing_image_uri_override = "public.ecr.aws/lambda/python:3.11"
 sorting_image_uri_override    = "public.ecr.aws/lambda/python:3.11"
