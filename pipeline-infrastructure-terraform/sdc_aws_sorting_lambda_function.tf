@@ -64,7 +64,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
 resource "aws_cloudwatch_event_rule" "lambda_schedule" {
   count               = local.enable_sorting_lambda ? 1 : 0
   name                = "${aws_lambda_function.sorting_lambda_function[0].function_name}-rule"
-  description         = "CloudWatch event trigger for the AWS Sorting Lambda, runs every hour"
+  description         = "CloudWatch event trigger for the AWS Sorting Lambda, runs every 12 hours"
   schedule_expression = "cron(0 0/12 * * ? *)"
 }
 
