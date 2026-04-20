@@ -27,7 +27,7 @@ incoming_bucket_name = "swxsoc-pipeline-incoming"
 
 # Concating Lambda Function Setup?
 # This variable controls whether the concating lambda function and related resources will be created
-needs_concating = true
+needs_concating = false
 
 # S3 Sorting Lambda ECR Repository Name
 # The name of the ECR repository that will be created to store the sorting lambda image
