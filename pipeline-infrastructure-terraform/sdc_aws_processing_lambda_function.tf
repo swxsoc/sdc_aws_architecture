@@ -6,24 +6,29 @@
 ///////////////////////////////////////
 
 data "aws_secretsmanager_secret" "grafana" {
-  name = "grafana-credentials"
+  count = var.enable_grafana_secret ? 1 : 0
+  name  = var.grafana_secret_name
 }
 
-data "aws_secretsmanager_secret_version" "grafana-credentials" {
-  secret_id = data.aws_secretsmanager_secret.grafana.id
+data "aws_secretsmanager_secret_version" "grafana_credentials" {
+  count     = var.enable_grafana_secret ? 1 : 0
+  secret_id = data.aws_secretsmanager_secret.grafana[0].id
 }
 
 locals {
-  grafana = jsondecode(data.aws_secretsmanager_secret_version.grafana-credentials.secret_string)
+  grafana_api_key          = var.enable_grafana_secret ? try(jsondecode(data.aws_secretsmanager_secret_version.grafana_credentials[0].secret_string)["grafana_api_key"], "") : ""
+  processing_image_uri     = var.processing_image_uri_override != "" ? var.processing_image_uri_override : "${aws_ecr_repository.processing_function_private_ecr.repository_url}:${var.pf_image_tag}"
+  enable_processing_lambda = var.enable_processing_lambda
 }
 
 resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
+  count         = local.enable_processing_lambda ? 1 : 0
   function_name = "${local.environment_short_name}${var.processing_function_private_ecr_name}_function"
   role          = aws_iam_role.processing_lambda_exec.arn
   memory_size   = 8192
   timeout       = 900
 
-  image_uri    = "${aws_ecr_repository.processing_function_private_ecr.repository_url}:${var.pf_image_tag}"
+  image_uri    = local.processing_image_uri
   package_type = "Image"
 
   environment {
@@ -40,7 +45,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
       RDS_DATABASE           = aws_db_instance.rds_instance.db_name
       SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
-      GRAFANA_API_KEY        = sensitive(local.grafana["grafana_api_key"])
+      GRAFANA_API_KEY        = sensitive(local.grafana_api_key)
     }
   }
   ephemeral_storage {
@@ -52,10 +57,12 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
   }
 
 
-  vpc_config {
-    subnet_ids = [data.aws_subnet.public_subnet["subnet-0972d4965ef8eb1e8"].id, data.aws_subnet.public_subnet["subnet-0e24325c69b9a1f74"].id]
-
-    security_group_ids = [aws_security_group.lambda_sg.id]
+  dynamic "vpc_config" {
+    for_each = var.enable_lambda_vpc ? [1] : []
+    content {
+      subnet_ids         = var.lambda_vpc_subnet_ids
+      security_group_ids = [aws_security_group.lambda_sg.id]
+    }
   }
 
   tags = local.standard_tags
@@ -131,15 +138,18 @@ resource "aws_security_group" "rds_sg" {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.lambda_sg.id, "sg-002dbe7887ac759c5"]
+    security_groups = concat([aws_security_group.lambda_sg.id], var.rds_additional_security_group_ids)
   }
 
 
-  ingress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["86.21.42.229/32"]
+  dynamic "ingress" {
+    for_each = length(var.rds_ingress_cidr_blocks) > 0 ? [1] : []
+    content {
+      from_port   = 5432
+      to_port     = 5432
+      protocol    = "tcp"
+      cidr_blocks = var.rds_ingress_cidr_blocks
+    }
   }
 
   egress {
@@ -155,7 +165,7 @@ resource "aws_db_instance" "rds_instance" {
   allocated_storage = 30
   storage_type      = "gp2"
   engine            = "postgres"
-  engine_version    = "14.12"
+  engine_version    = var.rds_engine_version
   instance_class    = "db.t4g.micro"
   db_name           = local.is_production ? "${var.mission_name}_db" : "dev_${var.mission_name}_db"
 
@@ -191,27 +201,27 @@ resource "aws_db_instance" "rds_instance" {
 
 # Create Lambda permissions for each prefix
 resource "aws_lambda_permission" "pf_allow_instrument_buckets" {
-  for_each      = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
+  for_each      = local.enable_processing_lambda ? toset(local.instrument_bucket_names) : toset([]) # Convert to a set to ensure unique permissions
   statement_id  = "PF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromS3Bucket-${each.key}"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.aws_sdc_processing_lambda_function.function_name
+  function_name = aws_lambda_function.aws_sdc_processing_lambda_function[0].function_name
   principal     = "s3.amazonaws.com"
   source_arn    = aws_s3_bucket.sdc_buckets[each.value].arn
 }
 
 # Create Lambda permissions to be invoked by topic
 resource "aws_lambda_permission" "pf_allow_sns_topic" {
-  for_each      = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
+  for_each      = local.enable_processing_lambda ? toset(local.instrument_bucket_names) : toset([]) # Convert to a set to ensure unique permissions
   statement_id  = "PF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromSNSTopic-${each.key}"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.aws_sdc_processing_lambda_function.function_name
+  function_name = aws_lambda_function.aws_sdc_processing_lambda_function[0].function_name
   principal     = "sns.amazonaws.com"
   source_arn    = aws_sns_topic.sns_topics[each.key].arn
 }
 
 // Create S3 bucket notification to trigger the Lambda function when a file is processed
 resource "aws_s3_bucket_notification" "pf_bucket_notification" {
-  count = length(local.instrument_bucket_names)
+  count = local.enable_processing_lambda ? length(local.instrument_bucket_names) : 0
 
   bucket = aws_s3_bucket.sdc_buckets[local.instrument_bucket_names[count.index]].id
 
@@ -230,11 +240,11 @@ resource "aws_s3_bucket_notification" "pf_bucket_notification" {
 
 // Invoke Processing Lambda from SNS
 resource "aws_sns_topic_subscription" "pf_sns_topic_subscription" {
-  for_each = toset(local.instrument_bucket_names) # Convert to a set to ensure unique permissions
+  for_each = local.enable_processing_lambda ? toset(local.instrument_bucket_names) : toset([]) # Convert to a set to ensure unique permissions
 
   topic_arn = aws_sns_topic.sns_topics[each.key].arn
   protocol  = "lambda"
-  endpoint  = aws_lambda_function.aws_sdc_processing_lambda_function.arn
+  endpoint  = aws_lambda_function.aws_sdc_processing_lambda_function[0].arn
 
   depends_on = [aws_lambda_permission.pf_allow_sns_topic]
 }
@@ -264,6 +274,7 @@ resource "aws_iam_role" "processing_lambda_exec" {
 }
 
 resource "aws_iam_policy" "pf_lambda_self_invoke_policy" {
+  count = local.enable_processing_lambda ? 1 : 0
   name = "${local.environment_short_name}${var.mission_name}_self_invoke"
 
   policy = jsonencode({
@@ -272,7 +283,7 @@ resource "aws_iam_policy" "pf_lambda_self_invoke_policy" {
       {
         Action   = "lambda:InvokeFunction",
         Effect   = "Allow",
-        Resource = aws_lambda_function.aws_sdc_processing_lambda_function.arn
+        Resource = aws_lambda_function.aws_sdc_processing_lambda_function[0].arn
       }
     ]
   })
@@ -313,6 +324,7 @@ resource "aws_iam_role_policy_attachment" "pf_vpc_policy_attachment" {
 }
 
 resource "aws_iam_role_policy_attachment" "pf_self_invoke_policy_attachment" {
+  count      = local.enable_processing_lambda ? 1 : 0
   role       = aws_iam_role.processing_lambda_exec.name
-  policy_arn = aws_iam_policy.pf_lambda_self_invoke_policy.arn
+  policy_arn = aws_iam_policy.pf_lambda_self_invoke_policy[0].arn
 }

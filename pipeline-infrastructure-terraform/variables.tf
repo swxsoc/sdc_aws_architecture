@@ -81,6 +81,42 @@ variable "slack_channel" {
   sensitive   = true
 }
 
+variable "enable_grafana_secret" {
+  type        = bool
+  description = "Whether to read Grafana credentials from Secrets Manager"
+  default     = true
+}
+
+variable "grafana_secret_name" {
+  type        = string
+  description = "Secrets Manager secret name for Grafana credentials"
+  default     = "grafana-credentials"
+}
+
+variable "enable_processing_lambda" {
+  type        = bool
+  description = "Whether to create the processing Lambda and related resources"
+  default     = true
+}
+
+variable "enable_sorting_lambda" {
+  type        = bool
+  description = "Whether to create the sorting Lambda and related resources"
+  default     = true
+}
+
+variable "enable_artifacts_lambda" {
+  type        = bool
+  description = "Whether to create the artifacts Lambda and related resources"
+  default     = true
+}
+
+variable "enable_concating_lambda" {
+  type        = bool
+  description = "Whether to create the concating Lambda and related resources"
+  default     = true
+}
+
 variable "pf_image_tag" {
   type        = string
   description = "Processing Function ECR image tag"
@@ -105,6 +141,30 @@ variable "af_image_tag" {
   default     = "latest"
 }
 
+variable "processing_image_uri_override" {
+  type        = string
+  description = "Optional full image URI to use for the processing Lambda (overrides repo/tag)"
+  default     = ""
+}
+
+variable "sorting_image_uri_override" {
+  type        = string
+  description = "Optional full image URI to use for the sorting Lambda (overrides repo/tag)"
+  default     = ""
+}
+
+variable "concating_image_uri_override" {
+  type        = string
+  description = "Optional full image URI to use for the concating Lambda (overrides repo/tag)"
+  default     = ""
+}
+
+variable "artifacts_image_uri_override" {
+  type        = string
+  description = "Optional full image URI to use for the artifacts Lambda (overrides repo/tag)"
+  default     = ""
+}
+
 variable "valid_data_levels" {
   type        = list(string)
   description = "The list of valid data levels"
@@ -113,4 +173,40 @@ variable "valid_data_levels" {
 variable "optional_s3_uploader_role_arn" {
   type    = string
   default = ""
+}
+
+variable "optional_s3_uploader_role_arns" {
+  type        = list(string)
+  description = "Optional IAM role ARNs allowed to upload to incoming bucket"
+  default     = []
+}
+
+variable "enable_lambda_vpc" {
+  type        = bool
+  description = "Whether to attach Lambdas to a VPC"
+  default     = true
+}
+
+variable "lambda_vpc_subnet_ids" {
+  type        = list(string)
+  description = "Subnet IDs for Lambda VPC config"
+  default     = ["subnet-0972d4965ef8eb1e8", "subnet-0e24325c69b9a1f74"]
+}
+
+variable "rds_additional_security_group_ids" {
+  type        = list(string)
+  description = "Additional security groups allowed to access RDS"
+  default     = ["sg-002dbe7887ac759c5"]
+}
+
+variable "rds_ingress_cidr_blocks" {
+  type        = list(string)
+  description = "Additional CIDR blocks allowed to access RDS"
+  default     = ["86.21.42.229/32"]
+}
+
+variable "rds_engine_version" {
+  type        = string
+  description = "Postgres engine version for the RDS instance"
+  default     = "14.12"
 }

@@ -5,8 +5,14 @@
 // S3 Sorting Lambda Function
 ///////////////////////////////////////
 
+locals {
+  sorting_image_uri     = var.sorting_image_uri_override != "" ? var.sorting_image_uri_override : "${aws_ecr_repository.sorting_function_private_ecr.repository_url}:${var.sf_image_tag}"
+  enable_sorting_lambda = var.enable_sorting_lambda
+}
+
 // Creates the Sorting Lambda function
 resource "aws_lambda_function" "sorting_lambda_function" {
+  count         = local.enable_sorting_lambda ? 1 : 0
   function_name = "${local.environment_short_name}${var.sorting_function_private_ecr_name}_function"
   memory_size   = 2048
   timeout       = 600
@@ -24,7 +30,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
     }
   }
 
-  image_uri    = "${aws_ecr_repository.sorting_function_private_ecr.repository_url}:${var.sf_image_tag}"
+  image_uri    = local.sorting_image_uri
   package_type = "Image"
 
   ephemeral_storage {
@@ -56,23 +62,26 @@ resource "aws_lambda_function" "sorting_lambda_function" {
 
 // Create a CloudWatch event rule to trigger the Lambda function every 12 hours
 resource "aws_cloudwatch_event_rule" "lambda_schedule" {
-  name                = "${aws_lambda_function.sorting_lambda_function.function_name}-rule"
-  description         = "CloudWatch event trigger for the AWS Sorting Lambda, runs every hour"
+  count               = local.enable_sorting_lambda ? 1 : 0
+  name                = "${aws_lambda_function.sorting_lambda_function[0].function_name}-rule"
+  description         = "CloudWatch event trigger for the AWS Sorting Lambda, runs every 12 hours"
   schedule_expression = "cron(0 0/12 * * ? *)"
 }
 
 // Attach the Lambda function as a target of the CloudWatch event rule
 resource "aws_cloudwatch_event_target" "lambda_target" {
-  rule      = aws_cloudwatch_event_rule.lambda_schedule.name
+  count     = local.enable_sorting_lambda ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.lambda_schedule[0].name
   target_id = "${local.environment_full_name}${upper(var.mission_name)}LambdaTarget"
-  arn       = aws_lambda_function.sorting_lambda_function.arn
+  arn       = aws_lambda_function.sorting_lambda_function[0].arn
 }
 
 // Create S3 bucket notification to trigger the Lambda function when a file is uploaded
 resource "aws_s3_bucket_notification" "bucket_notification" {
+  count  = local.enable_sorting_lambda ? 1 : 0
   bucket = aws_s3_bucket.sdc_buckets["${var.incoming_bucket_name}"].id
   lambda_function {
-    lambda_function_arn = aws_lambda_function.sorting_lambda_function.arn
+    lambda_function_arn = aws_lambda_function.sorting_lambda_function[0].arn
     events              = ["s3:ObjectCreated:*"]
   }
 
@@ -82,18 +91,20 @@ resource "aws_s3_bucket_notification" "bucket_notification" {
 
 // Allow the Lambda function to be invoked by CloudWatch
 resource "aws_lambda_permission" "sf_allow_cloudwatch" {
+  count         = local.enable_sorting_lambda ? 1 : 0
   statement_id  = "SF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromCloudWatch"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.sorting_lambda_function.function_name
+  function_name = aws_lambda_function.sorting_lambda_function[0].function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.lambda_schedule.arn
+  source_arn    = aws_cloudwatch_event_rule.lambda_schedule[0].arn
 }
 
 // Allow the Lambda function to be invoked by S3
 resource "aws_lambda_permission" "sf_allow_incoming_bucket" {
+  count         = local.enable_sorting_lambda ? 1 : 0
   statement_id  = "SF${local.environment_full_name}${upper(var.mission_name)}AllowExecutionFromS3Bucket"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.sorting_lambda_function.function_name
+  function_name = aws_lambda_function.sorting_lambda_function[0].function_name
   principal     = "s3.amazonaws.com"
   source_arn    = aws_s3_bucket.sdc_buckets["${var.incoming_bucket_name}"].arn
 }

@@ -1,5 +1,5 @@
-# This workflow will install Python dependencies, run tests, run linting, and test building docs
-name: Codestyle and Linting
+# Terraform linting and formatting
+name: Terraform Linting and Formatting
 
 on:
   pull_request:
@@ -12,14 +12,32 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Install dependencies
+    - uses: hashicorp/setup-terraform@v3
+    - uses: terraform-linters/setup-tflint@v4
+      with:
+        tflint_version: latest
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - name: Terraform fmt
+      run: terraform fmt -check -recursive
+    - name: TFLint (base)
+      working-directory: base-infrastructure-terraform
+      run: |
+        tflint --init
+        tflint
+    - name: TFLint (pipeline)
+      working-directory: pipeline-infrastructure-terraform
+      run: |
+        tflint --init
+        tflint
+    - name: Install Python lint tools
       run: |
         python -m pip install --upgrade pip
-        python -m pip install flake8 black
-    - name: Lint  Code with Black
+        python -m pip install black flake8
+    - name: Black
       run: |
-        black --check --diff app.py util.py cdk_deployment
-    - name: Lint Code with Flake
+        black --check --diff docs
+    - name: Flake8
       run: |
-        flake8 --count --max-line-length 88 app.py util.py cdk_deployment
-
+        flake8 --count --max-line-length 88 docs

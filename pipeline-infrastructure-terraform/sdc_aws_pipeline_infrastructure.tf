@@ -54,11 +54,16 @@ resource "aws_s3_bucket" "access_logs" {
   count  = local.is_production ? 1 : 0
   bucket = var.s3_server_access_logs_bucket_name
 
-  versioning {
-    enabled = true
-  }
-
   tags = local.standard_tags
+}
+
+resource "aws_s3_bucket_versioning" "access_logs" {
+  count  = local.is_production ? 1 : 0
+  bucket = aws_s3_bucket.access_logs[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
 // Creates the access policy for the access logs bucket if this is the production environment
@@ -90,9 +95,6 @@ resource "aws_s3_bucket" "sdc_buckets" {
   }
 
   bucket = "${local.environment_short_name}${each.value}"
-  versioning {
-    enabled = true
-  }
 
   // Enable server access logging if this is the production environment
   dynamic "logging" {
@@ -106,11 +108,20 @@ resource "aws_s3_bucket" "sdc_buckets" {
   tags = local.standard_tags
 }
 
+resource "aws_s3_bucket_versioning" "sdc_buckets" {
+  for_each = aws_s3_bucket.sdc_buckets
+  bucket   = each.value.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 // Attach a bucket policy only if the bucket name contains `incoming_bucket_name` and the IAM role exists
 resource "aws_s3_bucket_policy" "incoming_bucket_policy" {
   for_each = {
     for bucket in local.bucket_list :
-    bucket => bucket if strcontains(bucket, var.incoming_bucket_name) && length(var.optional_s3_uploader_role_arn) > 0
+    bucket => bucket if strcontains(bucket, var.incoming_bucket_name) && length(local.optional_s3_uploader_role_arns) > 0
   }
 
   bucket = aws_s3_bucket.sdc_buckets[each.key].id
@@ -121,7 +132,7 @@ resource "aws_s3_bucket_policy" "incoming_bucket_policy" {
       {
         Effect = "Allow"
         Principal = {
-          AWS = var.optional_s3_uploader_role_arn
+          AWS = local.optional_s3_uploader_role_arns
         }
         Action   = ["s3:PutObject"]
         Resource = "arn:aws:s3:::${aws_s3_bucket.sdc_buckets[each.key].id}/*"

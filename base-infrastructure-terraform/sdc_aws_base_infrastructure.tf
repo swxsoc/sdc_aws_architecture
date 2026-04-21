@@ -170,6 +170,7 @@ resource "aws_iam_policy" "lambda_vpc_access_policy" {
 
 # Policy to allow access to the S3 bucket swxsoc-github
 resource "aws_iam_policy" "s3_access_policy" {
+  count       = var.s3_access_bucket_name != "" ? 1 : 0
   name        = "${local.environment_short_name}${var.soc_name}_s3_access_policy"
   description = "Custom policy for S3 access"
 
@@ -177,16 +178,16 @@ resource "aws_iam_policy" "s3_access_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        Effect   = "Allow",
-        Action   = [
+        Effect = "Allow",
+        Action = [
           "s3:ListBucket",
           "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject"
         ],
         Resource = [
-          "${aws_s3_bucket.swsoc_github.arn}",
-          "${aws_s3_bucket.swsoc_github.arn}/*"
+          "arn:aws:s3:::${var.s3_access_bucket_name}",
+          "arn:aws:s3:::${var.s3_access_bucket_name}/*"
         ]
       }
     ]

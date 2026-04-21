@@ -6,12 +6,11 @@ AWS IAM is a service that helps you securely control access to AWS resources. Yo
 
 How we manage IAM via the Pipeline
 ----------------------------------
-We have set up the pipeline so that it automatically configures the necessary permissions for each resource to interact with each other. Each CDK resource starts out with the bare minimum amount of permissions that is needed and then is granted access to the required resources via CDK 'grant' helper functions. 
+The pipeline defines IAM roles and policies directly in Terraform. Each Lambda or service role starts with the minimum required permissions and is then granted access to specific resources (S3 buckets, Timestream, Secrets Manager, etc.) via explicit policy attachments.
 
-The only IAM policy that is defined without a helper function is the policy that grants read/write access to the Timestream database. This is because the CDK does not currently have a 'grant' helper function for Timestream.
+Timestream access is handled via a dedicated IAM policy resource that is attached to the relevant roles.
 
 Learn More
 ----------
 For more information about IAM, see `What Is IAM? <http://docs.aws.amazon.com/IAM/latest/UserGuide/Welcome.html>`__.
-
 
