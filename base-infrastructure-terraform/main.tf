@@ -1,6 +1,8 @@
 // Main Terraform configuration for the SDC Pipeline
 
 terraform {
+  required_version = ">= 1.7.0"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
