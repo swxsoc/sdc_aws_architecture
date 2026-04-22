@@ -22,12 +22,13 @@ phases:
       - terraform --version
       - make tf-validate-base
       - make tf-validate-pipeline
-      - cd pipeline-infrastructure-terraform
 
   build:
     commands:
       # Deployment commands
       - echo "Deploying Bootstrap Architecture..."
+      - cd pipeline-infrastructure-terraform
+      - terraform init -reconfigure -input=false
       - |
         PF_ECR_REPO=sdc_aws_processing_lambda
         SF_ECR_REPO=sdc_aws_sorting_lambda
