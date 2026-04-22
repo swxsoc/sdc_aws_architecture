@@ -1,7 +1,7 @@
 // Main Terraform configuration for the SDC Pipeline
 
 terraform {
-  required_version = ">= 1.7.0"
+  required_version = "~> 1.14.0"
 
   required_providers {
     aws = {
