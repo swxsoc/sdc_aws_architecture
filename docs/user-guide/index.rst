@@ -21,6 +21,7 @@ This guide assumes you have an AWS account with permissions to create and manage
 Step 1: Download the Code
 -------------------------
 Clone the repository:
+
 .. code-block:: bash
 
     git clone https://github.com/HERMES-SOC/sdc_aws_pipeline_architecture.git
@@ -29,11 +30,13 @@ Clone the repository:
 Step 2: Configure AWS Credentials
 ---------------------------------
 Make sure the AWS CLI is configured with credentials that can create resources:
+
 .. code-block:: bash
 
     aws configure
 
 If you use AWS SSO, configure and log in before running Terraform:
+
 .. code-block:: bash
 
     aws configure sso
@@ -62,6 +65,7 @@ If you are bootstrapping a new mission before images or secrets exist, you can:
 Optional: Build Docs Locally
 ----------------------------
 If you want to build the documentation locally:
+
 .. code-block:: bash
 
     python3 -m venv .venv
@@ -72,6 +76,7 @@ If you want to build the documentation locally:
 Step 4: Deploy Base Infrastructure
 ----------------------------------
 Deploy shared resources first:
+
 .. code-block:: bash
 
     cd base-infrastructure-terraform
@@ -82,6 +87,7 @@ Deploy shared resources first:
 Step 5: Deploy Pipeline Infrastructure
 --------------------------------------
 Deploy the mission pipeline using workspaces:
+
 .. code-block:: bash
 
     cd ../pipeline-infrastructure-terraform
