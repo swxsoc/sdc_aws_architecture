@@ -3,6 +3,7 @@ version: 0.2
 phases:
   pre_build:
     commands:
+      - cd "${CODEBUILD_SRC_DIR:-.}"
       # Install dependencies
       - echo "Installing dev dependencies"
       - apt-get update
@@ -25,6 +26,7 @@ phases:
 
   build:
     commands:
+      - cd "${CODEBUILD_SRC_DIR:-.}"
       # Deployment commands
       - echo "Deploying Bootstrap Architecture..."
       - cd pipeline-infrastructure-terraform
