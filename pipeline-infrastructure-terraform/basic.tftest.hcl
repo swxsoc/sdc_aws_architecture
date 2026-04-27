@@ -3,10 +3,6 @@ mock_provider "aws" {}
 run "plan_pipeline" {
   command = plan
 
-  providers = {
-    aws = mock.aws
-  }
-
   variables {
     deployment_region                   = "us-east-1"
     mission_name                        = "swxsoc_pipeline"

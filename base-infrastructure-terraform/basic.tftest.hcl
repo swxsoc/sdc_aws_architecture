@@ -3,10 +3,6 @@ mock_provider "aws" {}
 run "plan_base" {
   command = plan
 
-  providers = {
-    aws = mock.aws
-  }
-
   variables {
     deployment_region             = "us-east-1"
     soc_name                      = "swxsoc"
