@@ -4,10 +4,10 @@ run "plan_base" {
   command = plan
 
   variables {
-    deployment_region             = "us-east-1"
-    soc_name                      = "swxsoc"
-    timestream_database_name      = "swxsoc_sdc_aws_logs"
-    timestream_measures_table_name = "swxsoc_measures_table"
+    deployment_region                  = "us-east-1"
+    soc_name                           = "swxsoc"
+    timestream_database_name           = "swxsoc_sdc_aws_logs"
+    timestream_measures_table_name     = "swxsoc_measures_table"
     executor_function_private_ecr_name = "swxsoc_sdc_aws_executor_lambda"
   }
 

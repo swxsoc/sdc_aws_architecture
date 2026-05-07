@@ -1,68 +1,56 @@
 version: 0.2
 
+# Babystep CI for sdc_aws_architecture: validate-only smoke test.
+#
+# Goal of this stage: green build on every push so the chained
+# `aws codebuild start-build --project-name build_sdc_aws_pipeline_architecture`
+# from the Lambda repos stops failing. This intentionally does NOT run
+# `terraform init` against the real S3 backend, does NOT select a workspace,
+# and does NOT apply. A follow-up change will introduce plan/apply once we
+# decide on the multi-mission strategy (per-mission CodeBuild project vs.
+# loop-in-build).
+
+env:
+  variables:
+    TERRAFORM_VERSION: 1.14.4
+
 phases:
+  install:
+    commands:
+      - cd "${CODEBUILD_SRC_DIR:-.}"
+      - echo "Installing OS dependencies..."
+      - apt-get update
+      - apt-get install -y --no-install-recommends make graphviz unzip curl ca-certificates
+
+      - echo "Installing Python dependencies..."
+      - pip3 install --no-cache-dir -r requirements.txt
+
+      - echo "Installing Terraform ${TERRAFORM_VERSION}..."
+      - curl -fsSL -o /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+      - unzip -oq /tmp/terraform.zip -d /tmp
+      - install -m 0755 /tmp/terraform /usr/local/bin/terraform
+      - terraform version
+
   pre_build:
     commands:
       - cd "${CODEBUILD_SRC_DIR:-.}"
-      # Install dependencies
-      - echo "Installing dev dependencies"
-      - apt-get update
-      - apt-get install -y python3-pip make graphviz unzip
-      - pip3 install -r requirements.txt
-
-      # Documentation Test
-      - echo "Generating documentation"
-      - make html
-
-      # Install Terraform
-      - echo "Installing Terraform"
-      - export TERRAFORM_VERSION=1.14.4
-      - curl -o terraform.zip https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
-      - unzip -o terraform.zip
-      - sudo mv terraform /usr/local/bin/
-      - terraform --version
+      - echo "Checking Terraform formatting..."
+      - make tf-fmt-check
+      - echo "Validating base infrastructure..."
       - make tf-validate-base
+      - echo "Validating pipeline infrastructure..."
       - make tf-validate-pipeline
 
   build:
     commands:
       - cd "${CODEBUILD_SRC_DIR:-.}"
-      # Deployment commands
-      - echo "Deploying Bootstrap Architecture..."
-      - cd pipeline-infrastructure-terraform
-      - terraform init -reconfigure -input=false
-      - |
-        PF_ECR_REPO=sdc_aws_processing_lambda
-        SF_ECR_REPO=sdc_aws_sorting_lambda
-        AF_ECR_REPO=sdc_aws_artifacts_lambda
-        if git describe --tags --exact-match > /dev/null 2>&1; then
-          echo "This is a tag push event"
-          CDK_ENVIRONMENT=PRODUCTION
-          terraform workspace select prod
-        elif [ "${CDK_ENVIRONMENT}" = "PRODUCTION" ]; then
-          echo "This is a production environment"
-          terraform workspace select prod
-        else
-          echo "This is a development environment"
-          PF_ECR_REPO=dev-sdc_aws_processing_lambda
-          SF_ECR_REPO=dev-sdc_aws_sorting_lambda
-          AF_ECR_REPO=sdc_aws_artifacts_lambda
-          terraform workspace select dev
-        fi
+      - echo "Running Terraform tests (mocked providers, no AWS calls)..."
+      - make tf-test-base
+      - make tf-test-pipeline
 
-      # Fetch latest image and SF image tag
-      - |
-        PF_IMAGE_TAG=$(aws ecr describe-images --repository-name $PF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $PF_IMAGE_TAG
+      - echo "Building documentation..."
+      - make html
 
-        SF_IMAGE_TAG=$(aws ecr describe-images --repository-name $SF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $SF_IMAGE_TAG
-
-        AF_IMAGE_TAG=$(aws ecr describe-images --repository-name $AF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $AF_IMAGE_TAG
-
-      # Run Terraform apply
-      - terraform apply -auto-approve -var "pf_image_tag=$PF_IMAGE_TAG" -var "sf_image_tag=$SF_IMAGE_TAG" -var "af_image_tag=$AF_IMAGE_TAG"
-
-      # Completion message
-      - echo "Build completed on $(date)"
+  post_build:
+    commands:
+      - echo "Validate-only smoke test completed on $(date)"

@@ -275,7 +275,7 @@ resource "aws_iam_role" "processing_lambda_exec" {
 
 resource "aws_iam_policy" "pf_lambda_self_invoke_policy" {
   count = local.enable_processing_lambda ? 1 : 0
-  name = "${local.environment_short_name}${var.mission_name}_self_invoke"
+  name  = "${local.environment_short_name}${var.mission_name}_self_invoke"
 
   policy = jsonencode({
     Version = "2012-10-17",
