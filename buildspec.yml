@@ -23,7 +23,7 @@ phases:
       - cd "${CODEBUILD_SRC_DIR:-.}"
       - echo "Installing OS dependencies..."
       - apt-get update
-      - apt-get install -y --no-install-recommends make graphviz unzip curl ca-certificates
+      - apt-get install -y --no-install-recommends python3 python3-pip make graphviz unzip curl ca-certificates
 
       - echo "Installing Python dependencies..."
       - pip3 install --no-cache-dir -r requirements.txt

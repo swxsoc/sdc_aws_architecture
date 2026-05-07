@@ -41,11 +41,15 @@ tf-validate-pipeline:
 
 # Native `terraform test` against the basic.tftest.hcl files. Mocked
 # providers, no real backend, no AWS calls — safe to run in CI on every push.
+# The prior `terraform init -backend=false` populates `.terraform/providers/`
+# (which `terraform test` requires); the TF_CLI_ARGS_init env var ensures any
+# internal `init` that `terraform test` performs per run block also skips the
+# real backend.
 tf-test-base:
-	@cd "$(TF_BASE_DIR)" && terraform init -backend=false && terraform test
+	@cd "$(TF_BASE_DIR)" && terraform init -backend=false && TF_CLI_ARGS_init="-backend=false" terraform test
 
 tf-test-pipeline:
-	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false && terraform test
+	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false && TF_CLI_ARGS_init="-backend=false" terraform test
 
 # One-shot smoke test for CI: fmt-check, validate, and run terraform tests
 # on both roots. No init against the real S3 backend, no apply.
