@@ -1,18 +1,21 @@
 version: 0.2
 
-# CI for sdc_aws_architecture: validate-only smoke test.
+# CI for sdc_aws_architecture.
 #
-# Goal of this stage: green build on every push so the chained
-# `aws codebuild start-build --project-name build_sdc_aws_pipeline_architecture`
-# from the Lambda repos stops failing. This intentionally does NOT run
-# `terraform init` against the real AWS backend, does NOT select a workspace,
-# and does NOT apply. A follow-up change will introduce plan/apply once we
-# decide on the multi-mission strategy (per-mission CodeBuild project vs.
-# loop-in-build).
+# Pre-build runs a validate-only gate (fmt-check, validate, terraform test
+# against mocked providers) on both Terraform roots. Build then runs the
+# real apply for the pipeline root using the latest Lambda images in ECR.
+#
+# Mission is hardcoded to hermes for now: the Lambda repos that chain in
+# (sdc_aws_processing_lambda, sdc_aws_sorting_lambda, sdc_aws_artifacts_lambda)
+# push to ECR repos that match hermes.tfvars (no mission prefix). Multi-mission
+# (padre, swxsoc_pipeline) is a follow-up.
 
 env:
   variables:
     TERRAFORM_VERSION: 1.14.4
+    MISSION: hermes
+    TFVARS: hermes.tfvars
 
 phases:
   install:
@@ -40,17 +43,53 @@ phases:
       - make tf-validate-base
       - echo "Validating pipeline infrastructure..."
       - make tf-validate-pipeline
-
-  build:
-    commands:
-      - cd "${CODEBUILD_SRC_DIR:-.}"
       - echo "Running Terraform tests (mocked providers, no AWS calls)..."
       - make tf-test-base
       - make tf-test-pipeline
 
+  build:
+    commands:
+      - cd "${CODEBUILD_SRC_DIR:-.}"
       - echo "Building documentation..."
       - make html
 
+      - echo "Initializing pipeline Terraform against real backend..."
+      - cd pipeline-infrastructure-terraform
+      - terraform init -reconfigure -input=false
+
+      - |
+        PF_ECR_REPO=sdc_aws_processing_lambda
+        SF_ECR_REPO=sdc_aws_sorting_lambda
+        AF_ECR_REPO=sdc_aws_artifacts_lambda
+        if git describe --tags --exact-match > /dev/null 2>&1; then
+          echo "This is a tag push event"
+          CDK_ENVIRONMENT=PRODUCTION
+          WORKSPACE=prod-${MISSION}
+        elif [ "${CDK_ENVIRONMENT}" = "PRODUCTION" ]; then
+          echo "This is a production environment"
+          WORKSPACE=prod-${MISSION}
+        else
+          echo "This is a development environment"
+          PF_ECR_REPO=dev-sdc_aws_processing_lambda
+          SF_ECR_REPO=dev-sdc_aws_sorting_lambda
+          AF_ECR_REPO=sdc_aws_artifacts_lambda
+          WORKSPACE=dev-${MISSION}
+        fi
+        echo "Selecting workspace ${WORKSPACE}..."
+        terraform workspace select "${WORKSPACE}" || terraform workspace new "${WORKSPACE}"
+
+      - |
+        PF_IMAGE_TAG=$(aws ecr describe-images --repository-name $PF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
+        echo "PF_IMAGE_TAG=$PF_IMAGE_TAG"
+
+        SF_IMAGE_TAG=$(aws ecr describe-images --repository-name $SF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
+        echo "SF_IMAGE_TAG=$SF_IMAGE_TAG"
+
+        AF_IMAGE_TAG=$(aws ecr describe-images --repository-name $AF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
+        echo "AF_IMAGE_TAG=$AF_IMAGE_TAG"
+
+      - terraform apply -auto-approve -var-file="${TFVARS}" -var "pf_image_tag=$PF_IMAGE_TAG" -var "sf_image_tag=$SF_IMAGE_TAG" -var "af_image_tag=$AF_IMAGE_TAG"
+
   post_build:
     commands:
-      - echo "Validate-only smoke test completed on $(date)"
+      - echo "Build completed on $(date)"
