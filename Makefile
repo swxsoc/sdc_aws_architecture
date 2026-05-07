@@ -24,17 +24,36 @@ endef
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-.PHONY: help Makefile tf-fmt tf-validate-base tf-validate-pipeline tf-init-base tf-plan-base tf-apply-base tf-workspace tf-init-pipeline tf-plan-pipeline tf-apply-pipeline
+.PHONY: help Makefile tf-fmt tf-fmt-check tf-validate-base tf-validate-pipeline tf-test-base tf-test-pipeline tf-smoke tf-init-base tf-plan-base tf-apply-base tf-workspace tf-init-pipeline tf-plan-pipeline tf-apply-pipeline
 
 # Terraform targets
 tf-fmt:
 	terraform fmt -recursive
+
+tf-fmt-check:
+	terraform fmt -check -recursive
 
 tf-validate-base:
 	@cd "$(TF_BASE_DIR)" && terraform init -backend=false && terraform validate
 
 tf-validate-pipeline:
 	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false && terraform validate
+
+# Native `terraform test` against the basic.tftest.hcl files. Mocked
+# providers, no real backend, no AWS calls — safe to run in CI on every push.
+# The prior `terraform init -backend=false` populates `.terraform/providers/`
+# (which `terraform test` requires); the TF_CLI_ARGS_init env var ensures any
+# internal `init` that `terraform test` performs per run block also skips the
+# real backend.
+tf-test-base:
+	@cd "$(TF_BASE_DIR)" && terraform init -backend=false && TF_CLI_ARGS_init="-backend=false" terraform test
+
+tf-test-pipeline:
+	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false && TF_CLI_ARGS_init="-backend=false" terraform test
+
+# One-shot smoke test for CI: fmt-check, validate, and run terraform tests
+# on both roots. No init against the real S3 backend, no apply.
+tf-smoke: tf-fmt-check tf-validate-base tf-validate-pipeline tf-test-base tf-test-pipeline
 
 tf-init-base:
 	@cd "$(TF_BASE_DIR)" && terraform init

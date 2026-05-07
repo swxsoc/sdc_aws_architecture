@@ -1,36 +1,62 @@
 version: 0.2
 
+# CI for sdc_aws_architecture.
+#
+# Pre-build runs a validate-only gate (fmt-check, validate, terraform test
+# against mocked providers) on both Terraform roots. Build then runs the
+# real apply for the pipeline root using the latest Lambda images in ECR.
+#
+# Mission is hardcoded to hermes for now: the Lambda repos that chain in
+# (sdc_aws_processing_lambda, sdc_aws_sorting_lambda, sdc_aws_artifacts_lambda)
+# push to ECR repos that match hermes.tfvars (no mission prefix). Multi-mission
+# (padre, swxsoc_pipeline) is a follow-up.
+
+env:
+  variables:
+    TERRAFORM_VERSION: 1.14.4
+    MISSION: hermes
+    TFVARS: hermes.tfvars
+
 phases:
+  install:
+    commands:
+      - cd "${CODEBUILD_SRC_DIR:-.}"
+      - echo "Installing OS dependencies..."
+      - apt-get update
+      - apt-get install -y --no-install-recommends python3 python3-pip make graphviz unzip curl ca-certificates
+
+      - echo "Installing Python dependencies..."
+      - pip3 install --no-cache-dir -r requirements.txt
+
+      - echo "Installing Terraform ${TERRAFORM_VERSION}..."
+      - curl -fsSL -o /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+      - unzip -oq /tmp/terraform.zip -d /tmp
+      - install -m 0755 /tmp/terraform /usr/local/bin/terraform
+      - terraform version
+
   pre_build:
     commands:
       - cd "${CODEBUILD_SRC_DIR:-.}"
-      # Install dependencies
-      - echo "Installing dev dependencies"
-      - apt-get update
-      - apt-get install -y python3-pip make graphviz unzip
-      - pip3 install -r requirements.txt
-
-      # Documentation Test
-      - echo "Generating documentation"
-      - make html
-
-      # Install Terraform
-      - echo "Installing Terraform"
-      - export TERRAFORM_VERSION=1.14.4
-      - curl -o terraform.zip https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
-      - unzip -o terraform.zip
-      - sudo mv terraform /usr/local/bin/
-      - terraform --version
+      - echo "Checking Terraform formatting..."
+      - make tf-fmt-check
+      - echo "Validating base infrastructure..."
       - make tf-validate-base
+      - echo "Validating pipeline infrastructure..."
       - make tf-validate-pipeline
+      - echo "Running Terraform tests (mocked providers, no AWS calls)..."
+      - make tf-test-base
+      - make tf-test-pipeline
 
   build:
     commands:
       - cd "${CODEBUILD_SRC_DIR:-.}"
-      # Deployment commands
-      - echo "Deploying Bootstrap Architecture..."
+      - echo "Building documentation..."
+      - make html
+
+      - echo "Initializing pipeline Terraform against real backend..."
       - cd pipeline-infrastructure-terraform
       - terraform init -reconfigure -input=false
+
       - |
         PF_ECR_REPO=sdc_aws_processing_lambda
         SF_ECR_REPO=sdc_aws_sorting_lambda
@@ -38,31 +64,32 @@ phases:
         if git describe --tags --exact-match > /dev/null 2>&1; then
           echo "This is a tag push event"
           CDK_ENVIRONMENT=PRODUCTION
-          terraform workspace select prod
+          WORKSPACE=prod-${MISSION}
         elif [ "${CDK_ENVIRONMENT}" = "PRODUCTION" ]; then
           echo "This is a production environment"
-          terraform workspace select prod
+          WORKSPACE=prod-${MISSION}
         else
           echo "This is a development environment"
           PF_ECR_REPO=dev-sdc_aws_processing_lambda
           SF_ECR_REPO=dev-sdc_aws_sorting_lambda
           AF_ECR_REPO=sdc_aws_artifacts_lambda
-          terraform workspace select dev
+          WORKSPACE=dev-${MISSION}
         fi
+        echo "Selecting workspace ${WORKSPACE}..."
+        terraform workspace select "${WORKSPACE}" || terraform workspace new "${WORKSPACE}"
 
-      # Fetch latest image and SF image tag
       - |
         PF_IMAGE_TAG=$(aws ecr describe-images --repository-name $PF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $PF_IMAGE_TAG
+        echo "PF_IMAGE_TAG=$PF_IMAGE_TAG"
 
         SF_IMAGE_TAG=$(aws ecr describe-images --repository-name $SF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $SF_IMAGE_TAG
+        echo "SF_IMAGE_TAG=$SF_IMAGE_TAG"
 
         AF_IMAGE_TAG=$(aws ecr describe-images --repository-name $AF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $AF_IMAGE_TAG
+        echo "AF_IMAGE_TAG=$AF_IMAGE_TAG"
 
-      # Run Terraform apply
-      - terraform apply -auto-approve -var "pf_image_tag=$PF_IMAGE_TAG" -var "sf_image_tag=$SF_IMAGE_TAG" -var "af_image_tag=$AF_IMAGE_TAG"
+      - terraform apply -auto-approve -var-file="${TFVARS}" -var "pf_image_tag=$PF_IMAGE_TAG" -var "sf_image_tag=$SF_IMAGE_TAG" -var "af_image_tag=$AF_IMAGE_TAG"
 
-      # Completion message
+  post_build:
+    commands:
       - echo "Build completed on $(date)"
