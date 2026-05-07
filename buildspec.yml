@@ -1,11 +1,11 @@
 version: 0.2
 
-# Babystep CI for sdc_aws_architecture: validate-only smoke test.
+# CI for sdc_aws_architecture: validate-only smoke test.
 #
 # Goal of this stage: green build on every push so the chained
 # `aws codebuild start-build --project-name build_sdc_aws_pipeline_architecture`
 # from the Lambda repos stops failing. This intentionally does NOT run
-# `terraform init` against the real S3 backend, does NOT select a workspace,
+# `terraform init` against the real AWS backend, does NOT select a workspace,
 # and does NOT apply. A follow-up change will introduce plan/apply once we
 # decide on the multi-mission strategy (per-mission CodeBuild project vs.
 # loop-in-build).
