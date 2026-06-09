@@ -9,8 +9,8 @@ deployment_region = "us-east-1"
 mission_name = "impax"
 
 # Instrument Names Used in the Mission.
-# The names are used to dynamically create the instrument bucket
-instrument_names = ["impax"]
+# The names are used to dynamically create the instrument buckets
+instrument_names = ["craft", "iaxis", "ifire"]
 
 # Valid Data Levels
 # This is a list of the valid data levels for the mission
