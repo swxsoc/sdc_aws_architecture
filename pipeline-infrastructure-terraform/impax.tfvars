@@ -8,6 +8,10 @@ deployment_region = "us-east-1"
 # This is the name of the mission that will be used to dynamically create the instrument buckets
 mission_name = "impax"
 
+# Resource Purpose
+# This is used for the Purpose tag on mission resources
+resource_purpose = "Imaging Microburst Precipitation with Atmospheric X-ray Emissions (IMPAX) mission"
+
 # Instrument Names Used in the Mission.
 # The names are used to dynamically create the instrument buckets
 instrument_names = ["craft", "iaxis", "ifire"]

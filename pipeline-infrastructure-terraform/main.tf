@@ -60,7 +60,7 @@ locals {
 
   standard_tags = {
     "Environment" = local.environment_full_name
-    "Purpose"     = "SWSOC Pipeline"
+    "Purpose"     = var.resource_purpose
     "Project"     = var.mission_name
   }
 

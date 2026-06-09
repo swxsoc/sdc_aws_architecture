@@ -30,6 +30,12 @@ variable "mission_name" {
   description = "The list of missions"
 }
 
+variable "resource_purpose" {
+  type        = string
+  description = "Purpose tag applied to mission resources"
+  default     = "SWSOC Pipeline"
+}
+
 variable "s3_server_access_logs_bucket_name" {
   type        = string
   description = "The name of the S3 bucket to create for storing access logs"
