@@ -10,7 +10,7 @@ mission_name = "impax"
 
 # Resource Purpose
 # This is used for the Purpose tag on mission resources
-resource_purpose = "Imaging Microburst Precipitation with Atmospheric X-ray Emissions (IMPAX) mission"
+resource_purpose = "Imaging Microburst Precipitation with Atmospheric X-ray Emissions IMPAX mission"
 
 # Instrument Names Used in the Mission.
 # The names are used to dynamically create the instrument buckets
