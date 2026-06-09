@@ -1,4 +1,4 @@
-// This file contains the configuration for the iMPAX SDC AWS Pipeline
+// This file contains the configuration for the SDC AWS Pipeline
 
 # AWS Deployment Region
 # Region that the pipeline will be deployed to
@@ -9,8 +9,8 @@ deployment_region = "us-east-1"
 mission_name = "impax"
 
 # Instrument Names Used in the Mission.
-# The names are used to dynamically create the instrument buckets
-instrument_names = ["craft", "iaxis", "ifire"]
+# The names are used to dynamically create the instrument bucket
+instrument_names = ["impax"]
 
 # Valid Data Levels
 # This is a list of the valid data levels for the mission
@@ -27,7 +27,7 @@ incoming_bucket_name = "impax-swsoc-incoming"
 
 # Concating Lambda Function Setup?
 # This variable controls whether the concating lambda function and related resources will be created
-needs_concating = false
+needs_concating = true
 
 # S3 Sorting Lambda ECR Repository Name
 # The name of the ECR repository that will be created to store the sorting lambda image
