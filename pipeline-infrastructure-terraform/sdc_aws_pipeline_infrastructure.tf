@@ -109,8 +109,10 @@ resource "aws_s3_bucket" "sdc_buckets" {
 }
 
 resource "aws_s3_bucket_versioning" "sdc_buckets" {
-  for_each = aws_s3_bucket.sdc_buckets
-  bucket   = each.value.id
+  for_each = {
+    for bucket in local.bucket_list : bucket => bucket
+  }
+  bucket = aws_s3_bucket.sdc_buckets[each.key].id
 
   versioning_configuration {
     status = "Enabled"
