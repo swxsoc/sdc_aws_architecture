@@ -15,5 +15,5 @@ executor_function_private_ecr_name = "swxsoc_sdc_aws_executor_lambda"
 
 # Timestream Database and Table Names for Logs
 # The names of the timestream database and table that will be created to store logs
-timestream_database_name      = "swxsoc_sdc_aws_logs"
+timestream_database_name       = "swxsoc_sdc_aws_logs"
 timestream_measures_table_name = "swxsoc_measures_table"

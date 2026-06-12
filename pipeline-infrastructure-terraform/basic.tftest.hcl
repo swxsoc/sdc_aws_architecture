@@ -4,25 +4,25 @@ run "plan_pipeline" {
   command = plan
 
   variables {
-    deployment_region                   = "us-east-1"
-    mission_name                        = "swxsoc_pipeline"
-    instrument_names                    = ["reach"]
-    valid_data_levels                   = ["raw", "l0", "l1"]
-    timestream_database_name            = "swxsoc_pipeline_sdc_aws_logs"
-    timestream_s3_logs_table_name       = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
-    incoming_bucket_name                = "swxsoc-pipeline-incoming"
-    s3_server_access_logs_bucket_name   = "swxsoc-pipeline-s3-server-access-logs"
-    sorting_function_private_ecr_name   = "swxsoc_pipeline_sdc_aws_sorting_lambda"
-    artifacts_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["reach"]
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
     processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
     concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
-    docker_base_public_ecr_name         = "swxsoc-pipeline-docker-lambda-base"
-    needs_concating                     = false
-    enable_grafana_secret               = false
-    enable_processing_lambda            = false
-    enable_sorting_lambda               = false
-    enable_artifacts_lambda             = false
-    enable_concating_lambda             = false
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = false
+    enable_grafana_secret                = false
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = false
+    enable_artifacts_lambda              = false
+    enable_concating_lambda              = false
   }
 
   override_data {

@@ -16,9 +16,9 @@ resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
 
   environment {
     variables = {
-      LAMBDA_ENVIRONMENT    = upper(local.environment_full_name)
+      LAMBDA_ENVIRONMENT = upper(local.environment_full_name)
       SECRET_ARN         = aws_secretsmanager_secret.grafana_secret.arn
-      GITHUB_ORGS_USERS = "PADRESat,swxsoc,HERMES-SOC"
+      GITHUB_ORGS_USERS  = "PADRESat,swxsoc,HERMES-SOC"
     }
   }
   ephemeral_storage {
@@ -64,8 +64,8 @@ resource "aws_secretsmanager_secret" "grafana_secret" {
 variable "lambda_triggers" {
   default = [
     {
-      name          = "create_GOES_data_annotations"
-      description   = "CloudWatch event trigger for creating GOES data annotations, at noon UTC"
+      name        = "create_GOES_data_annotations"
+      description = "CloudWatch event trigger for creating GOES data annotations, at noon UTC"
       # Schedule for noon UTC
       schedule_expr = "cron(0 12 * * ? *)"
     },
@@ -74,12 +74,12 @@ variable "lambda_triggers" {
       description   = "CloudWatch event trigger for importing GOES data to Timestream, at noon UTC"
       schedule_expr = "cron(0 12 * * ? *)"
 
-    }, 
+    },
     {
       name          = "generate_cloc_report_and_upload"
       description   = "CloudWatch event trigger to generate CLOC report and upload to S3, every 6 hours"
       schedule_expr = "cron(0 */6 * * ? *)"
-    }, 
+    },
   ]
 }
 
@@ -94,7 +94,7 @@ resource "aws_cloudwatch_event_rule" "lambda_rules" {
 
 # Lambda Permissions
 resource "aws_lambda_permission" "lambda_permissions" {
-  for_each    = { for trigger in var.lambda_triggers : trigger.name => trigger }
+  for_each      = { for trigger in var.lambda_triggers : trigger.name => trigger }
   statement_id  = "AllowCloudWatchToInvoke-${each.value.name}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.aws_sdc_executor_lambda_function.arn
@@ -104,7 +104,7 @@ resource "aws_lambda_permission" "lambda_permissions" {
 
 # CloudWatch Event Targets
 resource "aws_cloudwatch_event_target" "lambda_targets" {
-  for_each = { for trigger in var.lambda_triggers : trigger.name => trigger }
+  for_each  = { for trigger in var.lambda_triggers : trigger.name => trigger }
   rule      = aws_cloudwatch_event_rule.lambda_rules[each.key].name
   target_id = "aws-sdc-executor-target-${each.value.name}"
   arn       = aws_lambda_function.aws_sdc_executor_lambda_function.arn
@@ -137,7 +137,7 @@ resource "aws_iam_role" "executor_lambda_exec" {
 resource "aws_iam_role_policy_attachment" "ef_timestream_policy_attachment" {
   role       = aws_iam_role.executor_lambda_exec.name
   policy_arn = aws_iam_policy.timestream_policy.arn
-  
+
 }
 
 resource "aws_iam_role_policy_attachment" "ef_logs_policy_attachment" {
@@ -154,7 +154,7 @@ resource "aws_iam_role_policy_attachment" "ef_lambda_kms_policy_attachment" {
 resource "aws_iam_role_policy_attachment" "ef_lambda_secrets_manager_policy_attachment" {
   role       = aws_iam_role.executor_lambda_exec.name
   policy_arn = aws_iam_policy.lambda_secrets_manager_policy.arn
-  
+
 }
 
 
