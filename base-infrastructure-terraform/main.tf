@@ -12,6 +12,14 @@ terraform {
       source  = "hashicorp/random"
       version = "3.5.1"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "2.7.0"
+    }
+    null = {
+      source  = "hashicorp/null"
+      version = "3.2.4"
+    }
   }
 
   backend "s3" {
@@ -27,9 +35,6 @@ terraform {
 provider "aws" {
   region = var.deployment_region
 }
-
-// Identify the current AWS account
-data "aws_caller_identity" "current" {}
 
 locals {
   workspace_prefix = split("-", terraform.workspace)[0]

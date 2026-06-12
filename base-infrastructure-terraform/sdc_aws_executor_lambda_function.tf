@@ -62,6 +62,12 @@ resource "aws_secretsmanager_secret" "grafana_secret" {
 
 // Define triggers as a list of maps
 variable "lambda_triggers" {
+  type = list(object({
+    name          = string
+    description   = string
+    schedule_expr = string
+  }))
+
   default = [
     {
       name        = "create_GOES_data_annotations"
@@ -156,7 +162,6 @@ resource "aws_iam_role_policy_attachment" "ef_lambda_secrets_manager_policy_atta
   policy_arn = aws_iam_policy.lambda_secrets_manager_policy.arn
 
 }
-
 
 
 

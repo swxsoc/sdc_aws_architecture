@@ -18,20 +18,6 @@ run "plan_base" {
     }
   }
 
-  override_data {
-    target = data.aws_caller_identity.current
-    values = {
-      account_id = "123456789012"
-    }
-  }
-
-  override_data {
-    target = data.aws_subnets.public_subnets
-    values = {
-      ids = []
-    }
-  }
-
   assert {
     condition     = resource.aws_ecr_repository.executor_function_private_ecr.name == "swxsoc_sdc_aws_executor_lambda"
     error_message = "Executor ECR repo name should match the provided variable."
