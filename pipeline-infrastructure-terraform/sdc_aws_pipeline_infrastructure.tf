@@ -98,7 +98,7 @@ resource "aws_s3_bucket" "sdc_buckets" {
 
   // Enable server access logging if this is the production environment
   dynamic "logging" {
-    for_each = local.environment_short_name == "prod" ? [1] : []
+    for_each = local.is_production ? [1] : []
     content {
       target_bucket = aws_s3_bucket.access_logs[0].id
       target_prefix = "${each.value}/"
