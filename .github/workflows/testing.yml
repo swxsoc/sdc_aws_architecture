@@ -12,6 +12,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.14.4
     - name: Terraform validate (base)
       working-directory: base-infrastructure-terraform
       run: |
