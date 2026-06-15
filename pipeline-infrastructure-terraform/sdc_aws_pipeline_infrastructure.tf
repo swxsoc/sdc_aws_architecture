@@ -7,19 +7,6 @@ data "aws_vpc" "default" {
   default = true
 }
 
-data "aws_subnets" "public_subnets" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-}
-
-data "aws_subnet" "public_subnet" {
-  for_each = toset(data.aws_subnets.public_subnets.ids)
-  id       = each.value
-}
-
-
 ///////////////////////////////////////
 // Timestream Database for storing logs
 ///////////////////////////////////////

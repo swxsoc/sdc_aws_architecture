@@ -1,68 +1,105 @@
 version: 0.2
 
+# This project validates both Terraform roots, then deploys the selected
+# mission pipeline. Lambda image builds invoke it with CDK_ENVIRONMENT and,
+# where available, LAMBDA_PIPELINE/TAG for a deterministic image update.
+env:
+  variables:
+    TERRAFORM_VERSION: 1.14.4
+    MISSION: hermes
+
 phases:
+  install:
+    commands:
+      - cd "${CODEBUILD_SRC_DIR:-.}"
+      - echo "Installing build dependencies"
+      - apt-get update
+      - apt-get install -y --no-install-recommends python3 python3-pip make graphviz unzip curl ca-certificates
+      - pip3 install --no-cache-dir -r requirements.txt
+      - curl -fsSL -o /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+      - unzip -oq /tmp/terraform.zip -d /tmp
+      - install -m 0755 /tmp/terraform /usr/local/bin/terraform
+      - terraform version
+
   pre_build:
     commands:
       - cd "${CODEBUILD_SRC_DIR:-.}"
-      # Install dependencies
-      - echo "Installing dev dependencies"
-      - apt-get update
-      - apt-get install -y python3-pip make graphviz unzip
-      - pip3 install -r requirements.txt
-
-      # Documentation Test
-      - echo "Generating documentation"
+      - make tf-smoke
       - make html
-
-      # Install Terraform
-      - echo "Installing Terraform"
-      - export TERRAFORM_VERSION=1.14.4
-      - curl -o terraform.zip https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
-      - unzip -o terraform.zip
-      - sudo mv terraform /usr/local/bin/
-      - terraform --version
-      - make tf-validate-base
-      - make tf-validate-pipeline
 
   build:
     commands:
       - cd "${CODEBUILD_SRC_DIR:-.}"
-      # Deployment commands
-      - echo "Deploying Bootstrap Architecture..."
       - cd pipeline-infrastructure-terraform
       - terraform init -reconfigure -input=false
       - |
+        TFVARS="${MISSION}.tfvars"
+        if [ ! -f "${TFVARS}" ]; then
+          echo "Mission tfvars file not found: ${TFVARS}"
+          exit 1
+        fi
+
         PF_ECR_REPO=sdc_aws_processing_lambda
         SF_ECR_REPO=sdc_aws_sorting_lambda
         AF_ECR_REPO=sdc_aws_artifacts_lambda
         if git describe --tags --exact-match > /dev/null 2>&1; then
           echo "This is a tag push event"
-          CDK_ENVIRONMENT=PRODUCTION
-          terraform workspace select prod
+          DEPLOY_ENV=prod
         elif [ "${CDK_ENVIRONMENT}" = "PRODUCTION" ]; then
           echo "This is a production environment"
-          terraform workspace select prod
+          DEPLOY_ENV=prod
         else
           echo "This is a development environment"
+          DEPLOY_ENV=dev
           PF_ECR_REPO=dev-sdc_aws_processing_lambda
           SF_ECR_REPO=dev-sdc_aws_sorting_lambda
-          AF_ECR_REPO=sdc_aws_artifacts_lambda
-          terraform workspace select dev
+          AF_ECR_REPO=dev-sdc_aws_artifacts_lambda
         fi
 
-      # Fetch latest image and SF image tag
+        WORKSPACE="${DEPLOY_ENV}-${MISSION}"
+        echo "Selecting existing workspace ${WORKSPACE}"
+        terraform workspace select "${WORKSPACE}"
+
       - |
-        PF_IMAGE_TAG=$(aws ecr describe-images --repository-name $PF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $PF_IMAGE_TAG
+        latest_tag() {
+          aws ecr describe-images \
+            --repository-name "$1" \
+            --region us-east-1 \
+            --query "reverse(sort_by(imageDetails[?imageTags != null], &imagePushedAt))[].imageTags[]" \
+            --output text | tr '\t' '\n' | awk '$0 != "latest" { print; exit }'
+        }
 
-        SF_IMAGE_TAG=$(aws ecr describe-images --repository-name $SF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $SF_IMAGE_TAG
+        PF_IMAGE_TAG=$(latest_tag "${PF_ECR_REPO}")
+        SF_IMAGE_TAG=$(latest_tag "${SF_ECR_REPO}")
+        AF_IMAGE_TAG=$(latest_tag "${AF_ECR_REPO}")
 
-        AF_IMAGE_TAG=$(aws ecr describe-images --repository-name $AF_ECR_REPO --region us-east-1 --query "sort_by(imageDetails,& imagePushedAt)[-1].imageTags[]" --output text | awk '{for(i=1;i<=NF;i++) if($i!="latest") print $i; exit}')
-        echo $AF_IMAGE_TAG
+        if [ -n "${TAG}" ]; then
+          case "$(printf '%s' "${LAMBDA_PIPELINE}" | tr '[:lower:]' '[:upper:]')" in
+            PROCESSING) PF_IMAGE_TAG="${TAG}" ;;
+            SORTING) SF_IMAGE_TAG="${TAG}" ;;
+            ARTIFACTS) AF_IMAGE_TAG="${TAG}" ;;
+          esac
+        fi
 
-      # Run Terraform apply
-      - terraform apply -auto-approve -var "pf_image_tag=$PF_IMAGE_TAG" -var "sf_image_tag=$SF_IMAGE_TAG" -var "af_image_tag=$AF_IMAGE_TAG"
+        for IMAGE_TAG in "${PF_IMAGE_TAG}" "${SF_IMAGE_TAG}" "${AF_IMAGE_TAG}"; do
+          if [ -z "${IMAGE_TAG}" ] || [ "${IMAGE_TAG}" = "None" ]; then
+            echo "Unable to resolve all Lambda image tags"
+            exit 1
+          fi
+        done
 
-      # Completion message
+        echo "Processing image tag: ${PF_IMAGE_TAG}"
+        echo "Sorting image tag: ${SF_IMAGE_TAG}"
+        echo "Artifacts image tag: ${AF_IMAGE_TAG}"
+
+        terraform apply \
+          -input=false \
+          -auto-approve \
+          -var-file="${TFVARS}" \
+          -var "pf_image_tag=${PF_IMAGE_TAG}" \
+          -var "sf_image_tag=${SF_IMAGE_TAG}" \
+          -var "af_image_tag=${AF_IMAGE_TAG}"
+
+  post_build:
+    commands:
       - echo "Build completed on $(date)"

@@ -39,13 +39,6 @@ run "plan_pipeline" {
     }
   }
 
-  override_data {
-    target = data.aws_subnets.public_subnets
-    values = {
-      ids = []
-    }
-  }
-
   assert {
     condition     = resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-incoming"].bucket == "dev-swxsoc-pipeline-incoming"
     error_message = "Incoming bucket name should be mission-scoped and prefixed for dev."

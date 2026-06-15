@@ -24,43 +24,54 @@ endef
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-.PHONY: help Makefile tf-fmt tf-validate-base tf-validate-pipeline tf-init-base tf-plan-base tf-apply-base tf-workspace tf-init-pipeline tf-plan-pipeline tf-apply-pipeline
+.PHONY: help Makefile tf-fmt tf-fmt-check tf-validate-base tf-validate-pipeline tf-test-base tf-test-pipeline tf-smoke tf-init-base tf-plan-base tf-apply-base tf-workspace tf-init-pipeline tf-plan-pipeline tf-apply-pipeline
 
 # Terraform targets
 tf-fmt:
 	terraform fmt -recursive
 
+tf-fmt-check:
+	terraform fmt -check -recursive
+
 tf-validate-base:
-	@cd "$(TF_BASE_DIR)" && terraform init -backend=false && terraform validate
+	@cd "$(TF_BASE_DIR)" && terraform init -backend=false -input=false && terraform validate
 
 tf-validate-pipeline:
-	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false && terraform validate
+	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false -input=false && terraform validate
+
+tf-test-base:
+	@cd "$(TF_BASE_DIR)" && terraform init -backend=false -input=false && TF_CLI_ARGS_init="-backend=false -input=false" terraform test
+
+tf-test-pipeline:
+	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false -input=false && TF_CLI_ARGS_init="-backend=false -input=false" terraform test
+
+tf-smoke: tf-fmt-check tf-validate-base tf-validate-pipeline tf-test-base tf-test-pipeline
 
 tf-init-base:
-	@cd "$(TF_BASE_DIR)" && terraform init
+	@cd "$(TF_BASE_DIR)" && terraform init -input=false
 
 tf-plan-base:
-	@cd "$(TF_BASE_DIR)" && terraform plan
+	@cd "$(TF_BASE_DIR)" && terraform plan -input=false
 
 tf-apply-base:
-	@cd "$(TF_BASE_DIR)" && terraform apply
+	@cd "$(TF_BASE_DIR)" && terraform apply -input=false
 
 tf-workspace:
 	$(call require-mission)
-	@cd "$(TF_PIPELINE_DIR)" && terraform workspace select "$(WORKSPACE)" || terraform workspace new "$(WORKSPACE)"
+	@cd "$(TF_PIPELINE_DIR)" && terraform workspace select "$(WORKSPACE)"
 
 tf-init-pipeline:
 	$(call require-mission)
-	@cd "$(TF_PIPELINE_DIR)" && terraform init -reconfigure
-	@cd "$(TF_PIPELINE_DIR)" && terraform workspace select "$(WORKSPACE)" || terraform workspace new "$(WORKSPACE)"
+	@cd "$(TF_PIPELINE_DIR)" && terraform init -reconfigure -input=false
+	@cd "$(TF_PIPELINE_DIR)" && terraform workspace select "$(WORKSPACE)"
 
 tf-plan-pipeline: tf-init-pipeline
 	$(call require-mission)
-	@cd "$(TF_PIPELINE_DIR)" && terraform plan -var-file="$(TFVARS)"
+	@cd "$(TF_PIPELINE_DIR)" && terraform plan -input=false -var-file="$(TFVARS)"
 
 tf-apply-pipeline: tf-init-pipeline
 	$(call require-mission)
-	@cd "$(TF_PIPELINE_DIR)" && terraform apply -var-file="$(TFVARS)"
+	@cd "$(TF_PIPELINE_DIR)" && terraform apply -input=false -var-file="$(TFVARS)"
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).

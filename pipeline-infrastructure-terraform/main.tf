@@ -64,8 +64,7 @@ locals {
     "Project"     = var.mission_name
   }
 
-  data_levels     = slice(var.valid_data_levels, 0, length(var.valid_data_levels))
-  last_data_level = element(var.valid_data_levels, length(var.valid_data_levels) - 1)
+  data_levels = slice(var.valid_data_levels, 0, length(var.valid_data_levels))
 
   optional_s3_uploader_role_arns = compact(
     concat(
