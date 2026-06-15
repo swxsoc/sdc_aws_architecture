@@ -79,7 +79,7 @@ resource "aws_cloudwatch_event_target" "lambda_target" {
 // Create S3 bucket notification to trigger the Lambda function when a file is uploaded
 resource "aws_s3_bucket_notification" "bucket_notification" {
   count  = local.enable_sorting_lambda ? 1 : 0
-  bucket = aws_s3_bucket.sdc_buckets["${var.incoming_bucket_name}"].id
+  bucket = aws_s3_bucket.sdc_buckets[var.incoming_bucket_name].id
   lambda_function {
     lambda_function_arn = aws_lambda_function.sorting_lambda_function[0].arn
     events              = ["s3:ObjectCreated:*"]
@@ -106,7 +106,7 @@ resource "aws_lambda_permission" "sf_allow_incoming_bucket" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.sorting_lambda_function[0].function_name
   principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.sdc_buckets["${var.incoming_bucket_name}"].arn
+  source_arn    = aws_s3_bucket.sdc_buckets[var.incoming_bucket_name].arn
 }
 
 

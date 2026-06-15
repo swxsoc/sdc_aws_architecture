@@ -7,19 +7,6 @@ data "aws_vpc" "default" {
   default = true
 }
 
-data "aws_subnets" "public_subnets" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-}
-
-data "aws_subnet" "public_subnet" {
-  for_each = toset(data.aws_subnets.public_subnets.ids)
-  id       = each.value
-}
-
-
 ///////////////////////////////////////
 // Timestream Database for storing logs
 ///////////////////////////////////////
@@ -263,7 +250,7 @@ resource "aws_ecr_repository" "processing_function_private_ecr" {
 
 // Private ECR for the concating function
 resource "aws_ecr_repository" "concating_function_private_ecr" {
-  count               = var.needs_concating ? 1 : 0
+  count                = var.needs_concating ? 1 : 0
   name                 = "${local.environment_short_name}${var.concating_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
   tags                 = local.standard_tags
