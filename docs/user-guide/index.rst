@@ -10,9 +10,9 @@ Prerequisites
 -------------
 * An AWS account
 * AWS CLI installed and configured
-* Terraform 1.x installed
+* Terraform 1.14.x installed
 * Docker installed (for building and pushing Lambda container images)
-* Python 3.8+ (only needed for building docs or running helper scripts)
+* Python 3.12.x (only needed for building docs or running helper scripts)
 
 Getting Started
 ---------------
@@ -24,8 +24,8 @@ Clone the repository:
 
 .. code-block:: bash
 
-    git clone https://github.com/HERMES-SOC/sdc_aws_pipeline_architecture.git
-    cd sdc_aws_pipeline_architecture
+    git clone https://github.com/swxsoc/sdc_aws_architecture.git
+    cd sdc_aws_architecture
 
 Step 2: Configure AWS Credentials
 ---------------------------------
@@ -91,95 +91,12 @@ Deploy the mission pipeline using workspaces:
 .. code-block:: bash
 
     cd ../pipeline-infrastructure-terraform
-    terraform workspace new dev-<mission>
-    terraform workspace select dev-<mission>
     terraform init
+    terraform workspace select dev-<mission>
     terraform plan -var-file=<mission>.tfvars
     terraform apply -var-file=<mission>.tfvars
 
-Use `dev-<mission>` for development and `prod-<mission>` for production. The workspace prefix controls resource naming.
-
-Step 6: Build and Push Lambda Images
-------------------------------------
-The Sorting, Processing, and Artifacts Lambdas are deployed from ECR images. Build and push images to the ECR repos created by Terraform, then re-run `terraform apply` to pick up the new image tags if needed.
-
-A typical flow looks like:
-
-.. code-block:: bash
-
-    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account_id>.dkr.ecr.<region>.amazonaws.com
-    docker build -t <repo_name> .
-    docker tag <repo_name>:latest <account_id>.dkr.ecr.<region>.amazonaws.com/<repo_name>:latest
-    docker push <account_id>.dkr.ecr.<region>.amazonaws.com/<repo_name>:latest
-
-Step 7: Verify Resources
-------------------------
-Use the AWS Console or Terraform state to confirm buckets, topics/queues, Lambdas, and databases are created.
-
-.. code-block:: bash
-
-    aws configure
-
-If you use AWS SSO, configure and log in before running Terraform:
-
-.. code-block:: bash
-
-    aws configure sso
-    aws sso login --profile <profile-name>
-    aws sts get-caller-identity --profile <profile-name>
-
-Step 3: Update Terraform Variables
-----------------------------------
-There are two sets of Terraform configs:
-
-* **Base infrastructure**: `base-infrastructure-terraform/`
-* **Pipeline infrastructure**: `pipeline-infrastructure-terraform/`
-
-Edit the mission-specific tfvars file in `pipeline-infrastructure-terraform/` (for example, `padre.tfvars` or `hermes.tfvars`) and ensure:
-
-* `mission_name` is correct
-* `instrument_names` is correct
-* S3 bucket names are globally unique
-* Any optional values (e.g., uploader roles, secrets, image tags) match your environment
-
-If you are bootstrapping a new mission before images or secrets exist, you can:
-
-* Set `enable_*_lambda = false` to skip creating Lambdas until images are pushed
-* Set `enable_grafana_secret = false` if the Grafana secret does not exist yet
-
-Optional: Build Docs Locally
-----------------------------
-If you want to build the documentation locally:
-.. code-block:: bash
-
-    python3 -m venv .venv
-    source .venv/bin/activate
-    python3 -m pip install -r requirements.txt
-    make html
-
-Step 4: Deploy Base Infrastructure
-----------------------------------
-Deploy shared resources first:
-.. code-block:: bash
-
-    cd base-infrastructure-terraform
-    terraform init
-    terraform plan
-    terraform apply
-
-Step 5: Deploy Pipeline Infrastructure
---------------------------------------
-Deploy the mission pipeline using workspaces:
-.. code-block:: bash
-
-    cd ../pipeline-infrastructure-terraform
-    terraform workspace new dev-<mission>
-    terraform workspace select dev-<mission>
-    terraform init
-    terraform plan -var-file=<mission>.tfvars
-    terraform apply -var-file=<mission>.tfvars
-
-Use `dev-<mission>` for development and `prod-<mission>` for production. The workspace prefix controls resource naming.
+Use `dev-<mission>` for development and `prod-<mission>` for production. The workspace prefix controls resource naming. Create the workspace only when bootstrapping a new mission/environment.
 
 Step 6: Build and Push Lambda Images
 ------------------------------------

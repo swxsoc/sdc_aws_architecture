@@ -34,7 +34,7 @@ This repository contains Terraform configurations for managing AWS infrastructur
 ## Getting Started
 
 1. Install prerequisites:
-   - Terraform
+   - Terraform 1.14.x
    - AWS CLI configured with appropriate credentials
 
 2. Base Infrastructure Deployment:
@@ -48,8 +48,8 @@ terraform apply
 3. Pipeline Infrastructure Deployment:
 ```bash
 cd pipeline-infrastructure-terraform
-terraform workspace select <environment>-<mission>
 terraform init
+terraform workspace select <environment>-<mission>
 terraform plan -var-file=<mission>.tfvars
 terraform apply -var-file=<mission>.tfvars
 ```

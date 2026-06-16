@@ -106,11 +106,11 @@ resource "aws_s3_bucket_versioning" "sdc_buckets" {
   }
 }
 
-// Attach a bucket policy only if the bucket name contains `incoming_bucket_name` and the IAM role exists
+// Attach a bucket policy only to the incoming bucket when uploader roles exist
 resource "aws_s3_bucket_policy" "incoming_bucket_policy" {
   for_each = {
     for bucket in local.bucket_list :
-    bucket => bucket if strcontains(bucket, var.incoming_bucket_name) && length(local.optional_s3_uploader_role_arns) > 0
+    bucket => bucket if bucket == var.incoming_bucket_name && length(local.optional_s3_uploader_role_arns) > 0
   }
 
   bucket = aws_s3_bucket.sdc_buckets[each.key].id

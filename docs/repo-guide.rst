@@ -6,7 +6,7 @@ Repository Guide
 This guide helps navigate the repositories required for the SDC AWS Pipeline. The use of each repository is explained below.
 
 
-.. _sdc_aws_pipeline_architecture:
+.. _sdc_aws_architecture:
 
 SDC AWS Pipeline Architecture
 -----------------------------
@@ -19,7 +19,7 @@ There are two Terraform entry points:
 
 Each mission is configured using a tfvars file (for example, `padre.tfvars`, `hermes.tfvars`) and a workspace per environment (for example, `dev-<mission>` and `prod-<mission>`).
 
-Link to the `GitHub repository for Pipeline <https://github.com/HERMES-SOC/sdc_aws_pipeline_architecture>`_.
+Link to the `GitHub repository for Pipeline <https://github.com/swxsoc/sdc_aws_architecture>`_.
 
 .. Note::
 
@@ -48,7 +48,7 @@ This repo contains the source code for the SDC Sorting Lambda Function. The func
 
 The Lambda is deployed from a container image stored in the mission ECR repository created by Terraform. Build and push the image, then run `terraform apply` in `pipeline-infrastructure-terraform/` to update the Lambda image.
 
-Link to the `GitHub repository for Sorting Function <https://github.com/HERMES-SOC/sdc_aws_sorting_lambda>`_.
+Link to the `GitHub repository for Sorting Function <https://github.com/swxsoc/sdc_aws_sorting_lambda>`_.
 
 **Documentation for this Repo Under Construction**
 
@@ -60,6 +60,6 @@ This repo contains the source code for the SDC Processing Lambda Function. The f
 
 The Lambda is deployed from a container image stored in the mission ECR repository created by Terraform. Build and push the image, then run `terraform apply` in `pipeline-infrastructure-terraform/` to update the Lambda image.
 
-Link to the `GitHub repository for Processing Function <https://github.com/HERMES-SOC/sdc_aws_processing_lambda>`_.
+Link to the `GitHub repository for Processing Function <https://github.com/swxsoc/sdc_aws_processing_lambda>`_.
 
 **Documentation for this Repo Under Construction**

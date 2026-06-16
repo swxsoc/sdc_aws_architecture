@@ -81,5 +81,5 @@ rds_engine_version = "14.21"
 # Use the mission ECR repositories and the default `latest` tags.
 processing_image_uri_override = ""
 sorting_image_uri_override    = ""
-artifacts_image_uri_override  = "public.ecr.aws/lambda/python:3.11"
-concating_image_uri_override  = "public.ecr.aws/lambda/python:3.11"
+artifacts_image_uri_override  = "public.ecr.aws/lambda/python:3.12"
+concating_image_uri_override  = "public.ecr.aws/lambda/python:3.12"
