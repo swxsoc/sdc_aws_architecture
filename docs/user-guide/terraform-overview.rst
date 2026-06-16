@@ -59,3 +59,5 @@ Notes
 Terraform state uses an S3 backend configured in each `main.tf`. You will need access to that bucket for real deployments.
 
 CI runs formatting and lint checks only: `terraform fmt`, `terraform validate` (with `-backend=false`), `terraform test` (when tests are present), `tflint`, and Python `ruff format`/`ruff check` for docs. We do not run `terraform apply` in CI.
+
+The CodeBuild deployment job requires `MISSION` to be set explicitly, for example `MISSION=hermes`, `MISSION=padre`, or `MISSION=swxsoc_pipeline`. It selects the existing `<env>-<mission>` workspace, reads the selected mission's Terraform variables, and resolves ECR image tags only for enabled Lambda functions that are not using an explicit image URI override. The project should use a CodeBuild managed Linux image that supports buildspec runtime selection for Python 3.12.

@@ -8,7 +8,7 @@ How we make use of Docker
 -------------------------
 We use two docker images in a few areas in the pipeline:
 
-- For the base image, which is currently used in the devcontainer environments in the mission core and intrument packages. (Which is currently being maintained by HERMES-SOC in a public repository and is used by the processing lambda function as a base image). `Check out the documentation for the SWSOC Base Image <https://sdc-aws-base-docker-image.readthedocs.io/en/latest/>`_.
+- For the base image, which is currently used in the devcontainer environments in the mission core and instrument packages. The image is maintained in a public repository and is used by the processing lambda function as a base image. `Check out the documentation for the SWSOC Base Image <https://sdc-aws-base-docker-image.readthedocs.io/en/latest/>`_.
 
 - For lambda processing function that is built within the pipeline. It utilizes the base image as a foundation and adds the necessary dependencies for the function to work. If you'd like to change the base image it uses you will need to make a change in the `Dockerfile` in the Processing Lambda Function directory.
 

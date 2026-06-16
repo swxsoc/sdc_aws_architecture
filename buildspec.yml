@@ -2,20 +2,35 @@ version: 0.2
 
 # This project validates both Terraform roots, then deploys the selected
 # mission pipeline. Lambda image builds invoke it with CDK_ENVIRONMENT and,
-# where available, LAMBDA_PIPELINE/TAG for a deterministic image update.
+# where available, LAMBDA_PIPELINE/TAG for a deterministic image update. ECR
+# repositories are resolved from the selected mission's Terraform variables so
+# this logic works across all mission pipelines.
 env:
   variables:
     TERRAFORM_VERSION: 1.14.4
-    MISSION: hermes
 
 phases:
   install:
+    runtime-versions:
+      python: 3.12
     commands:
       - cd "${CODEBUILD_SRC_DIR:-.}"
       - echo "Installing build dependencies"
-      - apt-get update
-      - apt-get install -y --no-install-recommends python3 python3-pip make graphviz unzip curl ca-certificates
-      - pip3 install --no-cache-dir -r requirements.txt
+      - python --version
+      - |
+        if command -v apt-get > /dev/null 2>&1; then
+          apt-get update
+          apt-get install -y --no-install-recommends make graphviz unzip curl ca-certificates
+        elif command -v dnf > /dev/null 2>&1; then
+          dnf install -y make graphviz unzip curl ca-certificates
+        elif command -v yum > /dev/null 2>&1; then
+          yum install -y make graphviz unzip curl ca-certificates
+        else
+          echo "No supported package manager found; expected apt-get, dnf, or yum"
+          exit 1
+        fi
+      - python -m pip install --upgrade pip
+      - python -m pip install --no-cache-dir -r requirements.txt
       - curl -fsSL -o /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
       - unzip -oq /tmp/terraform.zip -d /tmp
       - install -m 0755 /tmp/terraform /usr/local/bin/terraform
@@ -33,72 +48,136 @@ phases:
       - cd pipeline-infrastructure-terraform
       - terraform init -reconfigure -input=false
       - |
-        TFVARS="${MISSION}.tfvars"
+        set -eu
+
+        if [ -z "${MISSION:-}" ]; then
+          echo "MISSION is required, for example MISSION=hermes, MISSION=padre, or MISSION=swxsoc_pipeline"
+          exit 1
+        fi
+
+        TFVARS="${TFVARS:-${MISSION}.tfvars}"
         if [ ! -f "${TFVARS}" ]; then
           echo "Mission tfvars file not found: ${TFVARS}"
           exit 1
         fi
 
-        PF_ECR_REPO=sdc_aws_processing_lambda
-        SF_ECR_REPO=sdc_aws_sorting_lambda
-        AF_ECR_REPO=sdc_aws_artifacts_lambda
         if git describe --tags --exact-match > /dev/null 2>&1; then
           echo "This is a tag push event"
           DEPLOY_ENV=prod
-        elif [ "${CDK_ENVIRONMENT}" = "PRODUCTION" ]; then
+        elif [ "${CDK_ENVIRONMENT:-}" = "PRODUCTION" ]; then
           echo "This is a production environment"
           DEPLOY_ENV=prod
         else
           echo "This is a development environment"
           DEPLOY_ENV=dev
-          PF_ECR_REPO=dev-sdc_aws_processing_lambda
-          SF_ECR_REPO=dev-sdc_aws_sorting_lambda
-          AF_ECR_REPO=dev-sdc_aws_artifacts_lambda
         fi
 
         WORKSPACE="${DEPLOY_ENV}-${MISSION}"
         echo "Selecting existing workspace ${WORKSPACE}"
         terraform workspace select "${WORKSPACE}"
 
-      - |
+        tf_value() {
+          VALUE=$(printf '%s\n' "$1" | terraform console -var-file="${TFVARS}")
+          printf '%s\n' "${VALUE}" | sed -e 's/\r$//' -e 's/^"//' -e 's/"$//'
+        }
+
+        ECR_REGION=$(tf_value 'var.deployment_region')
+        TFVARS_MISSION=$(tf_value 'var.mission_name')
+        if [ "${TFVARS_MISSION}" != "${MISSION}" ]; then
+          echo "MISSION=${MISSION} does not match mission_name=${TFVARS_MISSION} in ${TFVARS}"
+          exit 1
+        fi
+
+        PF_ECR_REPO=$(tf_value 'var.enable_processing_lambda && var.processing_image_uri_override == "" ? format("%s%s", local.environment_short_name, var.processing_function_private_ecr_name) : ""')
+        SF_ECR_REPO=$(tf_value 'var.enable_sorting_lambda && var.sorting_image_uri_override == "" ? format("%s%s", local.environment_short_name, var.sorting_function_private_ecr_name) : ""')
+        AF_ECR_REPO=$(tf_value 'var.enable_artifacts_lambda && var.artifacts_image_uri_override == "" ? format("%s%s", local.environment_short_name, var.artifacts_function_private_ecr_name) : ""')
+        CF_ECR_REPO=$(tf_value 'var.needs_concating && var.enable_concating_lambda && var.concating_image_uri_override == "" ? format("%s%s", local.environment_short_name, var.concating_function_private_ecr_name) : ""')
+
+        TRIGGERED_PIPELINE=$(printf '%s' "${LAMBDA_PIPELINE:-}" | tr '[:lower:]' '[:upper:]')
+        if [ -n "${TAG:-}" ]; then
+          case "${TRIGGERED_PIPELINE}" in
+            PROCESSING)
+              [ -n "${PF_ECR_REPO}" ] || { echo "TAG was provided for PROCESSING, but processing Lambda image resolution is disabled for ${MISSION}"; exit 1; }
+              ;;
+            SORTING)
+              [ -n "${SF_ECR_REPO}" ] || { echo "TAG was provided for SORTING, but sorting Lambda image resolution is disabled for ${MISSION}"; exit 1; }
+              ;;
+            ARTIFACTS)
+              [ -n "${AF_ECR_REPO}" ] || { echo "TAG was provided for ARTIFACTS, but artifacts Lambda image resolution is disabled for ${MISSION}"; exit 1; }
+              ;;
+            CONCATING)
+              [ -n "${CF_ECR_REPO}" ] || { echo "TAG was provided for CONCATING, but concating Lambda image resolution is disabled for ${MISSION}"; exit 1; }
+              ;;
+            *)
+              echo "TAG was provided for unsupported LAMBDA_PIPELINE=${LAMBDA_PIPELINE:-<empty>}"
+              exit 1
+              ;;
+          esac
+        fi
+
         latest_tag() {
           aws ecr describe-images \
             --repository-name "$1" \
-            --region us-east-1 \
+            --region "${ECR_REGION}" \
             --query "reverse(sort_by(imageDetails[?imageTags != null], &imagePushedAt))[].imageTags[]" \
             --output text | tr '\t' '\n' | awk '$0 != "latest" { print; exit }'
         }
 
-        PF_IMAGE_TAG=$(latest_tag "${PF_ECR_REPO}")
-        SF_IMAGE_TAG=$(latest_tag "${SF_ECR_REPO}")
-        AF_IMAGE_TAG=$(latest_tag "${AF_ECR_REPO}")
+        image_tag_for() {
+          LABEL="$1"
+          REPO="$2"
 
-        if [ -n "${TAG}" ]; then
-          case "$(printf '%s' "${LAMBDA_PIPELINE}" | tr '[:lower:]' '[:upper:]')" in
-            PROCESSING) PF_IMAGE_TAG="${TAG}" ;;
-            SORTING) SF_IMAGE_TAG="${TAG}" ;;
-            ARTIFACTS) AF_IMAGE_TAG="${TAG}" ;;
+          if [ -z "${REPO}" ]; then
+            echo ""
+            return
+          fi
+
+          case "${TRIGGERED_PIPELINE}" in
+            "${LABEL}")
+              if [ -n "${TAG:-}" ]; then
+                echo "${TAG}"
+                return
+              fi
+              ;;
           esac
-        fi
 
-        for IMAGE_TAG in "${PF_IMAGE_TAG}" "${SF_IMAGE_TAG}" "${AF_IMAGE_TAG}"; do
-          if [ -z "${IMAGE_TAG}" ] || [ "${IMAGE_TAG}" = "None" ]; then
-            echo "Unable to resolve all Lambda image tags"
+          latest_tag "${REPO}"
+        }
+
+        PF_IMAGE_TAG=$(image_tag_for PROCESSING "${PF_ECR_REPO}")
+        SF_IMAGE_TAG=$(image_tag_for SORTING "${SF_ECR_REPO}")
+        AF_IMAGE_TAG=$(image_tag_for ARTIFACTS "${AF_ECR_REPO}")
+        CF_IMAGE_TAG=$(image_tag_for CONCATING "${CF_ECR_REPO}")
+
+        TF_IMAGE_VARS=""
+        add_image_var() {
+          NAME="$1"
+          REPO="$2"
+          TAG_VALUE="$3"
+
+          if [ -z "${REPO}" ]; then
+            return
+          fi
+
+          if [ -z "${TAG_VALUE}" ] || [ "${TAG_VALUE}" = "None" ]; then
+            echo "Unable to resolve ${NAME} image tag from ECR repo ${REPO}"
             exit 1
           fi
-        done
 
-        echo "Processing image tag: ${PF_IMAGE_TAG}"
-        echo "Sorting image tag: ${SF_IMAGE_TAG}"
-        echo "Artifacts image tag: ${AF_IMAGE_TAG}"
+          echo "${NAME}: ${REPO}:${TAG_VALUE}"
+          TF_IMAGE_VARS="${TF_IMAGE_VARS} -var ${NAME}=${TAG_VALUE}"
+        }
+
+        add_image_var pf_image_tag "${PF_ECR_REPO}" "${PF_IMAGE_TAG}"
+        add_image_var sf_image_tag "${SF_ECR_REPO}" "${SF_IMAGE_TAG}"
+        add_image_var af_image_tag "${AF_ECR_REPO}" "${AF_IMAGE_TAG}"
+        add_image_var cf_image_tag "${CF_ECR_REPO}" "${CF_IMAGE_TAG}"
 
         terraform apply \
           -input=false \
           -auto-approve \
           -var-file="${TFVARS}" \
-          -var "pf_image_tag=${PF_IMAGE_TAG}" \
-          -var "sf_image_tag=${SF_IMAGE_TAG}" \
-          -var "af_image_tag=${AF_IMAGE_TAG}"
+          ${TF_IMAGE_VARS}
 
   post_build:
     commands:

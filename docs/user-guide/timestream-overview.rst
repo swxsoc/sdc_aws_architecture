@@ -28,7 +28,7 @@ How we use Timestream
 ---------------------
 In the pipeline the only thing we currently use Timestream for is to log the information above. We use this information to monitor the pipeline and to ensure that the pipeline is working as expected in our separate support systems configuration. 
 
-Our current support systems configuration (Which is seperate from the SDC Pipeline deployment) is to use Grafana to visualize the data in Timestream. We use Grafana to visualize the data in Timestream because it is a very flexible and powerful tool that allows us to create dashboards and alerts based on the data in Timestream. 
+Our current support systems configuration (which is separate from the SDC Pipeline deployment) is to use Grafana to visualize the data in Timestream. We use Grafana because it is a flexible and powerful tool that allows us to create dashboards and alerts based on the data in Timestream.
 
 Learn More
 ----------

@@ -10,33 +10,33 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.14.4
     - name: Terraform validate (base)
       working-directory: base-infrastructure-terraform
       run: |
-        terraform init -backend=false
+        terraform init -backend=false -input=false
         terraform validate
     - name: Terraform test (base)
       working-directory: base-infrastructure-terraform
       run: |
         if find . -name '*.tftest.hcl' -print -quit | grep -q .; then
-          TF_CLI_ARGS_init="-backend=false" terraform test
+          TF_CLI_ARGS_init="-backend=false -input=false" terraform test
         else
           echo "No Terraform tests found."
         fi
     - name: Terraform validate (pipeline)
       working-directory: pipeline-infrastructure-terraform
       run: |
-        terraform init -backend=false
+        terraform init -backend=false -input=false
         terraform validate
     - name: Terraform test (pipeline)
       working-directory: pipeline-infrastructure-terraform
       run: |
         if find . -name '*.tftest.hcl' -print -quit | grep -q .; then
-          TF_CLI_ARGS_init="-backend=false" terraform test
+          TF_CLI_ARGS_init="-backend=false -input=false" terraform test
         else
           echo "No Terraform tests found."
         fi

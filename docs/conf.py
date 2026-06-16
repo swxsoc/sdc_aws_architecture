@@ -6,9 +6,9 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "Docker Lambda Base Image Repository"
-copyright = "2022, Damian Barrous-Dume (HERMES-SOC)"
-author = "Damian Barrous-Dume (HERMES-SOC)"
+project = "SDC AWS Architecture"
+copyright = "2022, SDC AWS Architecture contributors"
+author = "SDC AWS Architecture contributors"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
