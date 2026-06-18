@@ -65,7 +65,7 @@ grafana_secret_name   = "swxsoc-pipeline-grafana-credentials"
 # Lambda creation flags (enable once images exist)
 enable_processing_lambda = true
 enable_sorting_lambda    = true
-enable_artifacts_lambda  = false
+enable_artifacts_lambda  = true
 enable_concating_lambda  = false
 
 # Lambda VPC settings (match existing default subnets; update if needed)
@@ -78,8 +78,8 @@ rds_ingress_cidr_blocks           = []
 # RDS engine version (must exist in target region)
 rds_engine_version = "14.21"
 
-# Use the mission ECR repositories and the default `latest` tags.
+# Use mission ECR repositories and the default `latest` tags for enabled Lambdas.
 processing_image_uri_override = ""
 sorting_image_uri_override    = ""
-artifacts_image_uri_override  = "public.ecr.aws/lambda/python:3.12"
+artifacts_image_uri_override  = ""
 concating_image_uri_override  = "public.ecr.aws/lambda/python:3.12"
