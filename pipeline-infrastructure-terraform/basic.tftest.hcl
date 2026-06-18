@@ -49,3 +49,54 @@ run "plan_pipeline" {
     error_message = "Instrument bucket name should use hyphenated mission prefix."
   }
 }
+
+run "plan_swxsoc_artifacts_lambda" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["reach"]
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = false
+    enable_grafana_secret                = false
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = false
+    enable_artifacts_lambda              = true
+    enable_concating_lambda              = false
+    artifacts_image_uri_override         = ""
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  assert {
+    condition     = length(resource.aws_lambda_function.aws_sdc_artifacts_lambda_function) == 1
+    error_message = "Artifacts Lambda should be planned when enable_artifacts_lambda is true."
+  }
+
+  assert {
+    condition     = length(resource.aws_sns_topic_subscription.af_sns_topic_subscription) == 1
+    error_message = "Artifacts Lambda should subscribe to each instrument SNS topic."
+  }
+}
