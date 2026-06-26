@@ -17,3 +17,10 @@ executor_function_private_ecr_name = "swxsoc_sdc_aws_executor_lambda"
 # The names of the timestream database and table that will be created to store logs
 timestream_database_name       = "swxsoc_sdc_aws_logs"
 timestream_measures_table_name = "swxsoc_measures_table"
+
+# Buckets where scheduled executor tasks upload generated artifacts.
+# REACH UDL ingest currently writes to both dev and prod incoming buckets.
+s3_access_bucket_names = [
+  "dev-swxsoc-pipeline-incoming",
+  "swxsoc-pipeline-incoming",
+]

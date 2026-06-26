@@ -33,8 +33,14 @@ variable "ef_image_tag" {
 
 variable "s3_access_bucket_name" {
   type        = string
-  description = "Optional S3 bucket name to grant access to"
+  description = "Optional single S3 bucket name to grant access to"
   default     = ""
+}
+
+variable "s3_access_bucket_names" {
+  type        = list(string)
+  description = "Optional S3 bucket names to grant access to"
+  default     = []
 }
 
 variable "name" {

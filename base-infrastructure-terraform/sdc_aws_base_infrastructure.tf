@@ -155,9 +155,16 @@ resource "aws_iam_policy" "lambda_vpc_access_policy" {
   })
 }
 
-# Policy to allow access to the S3 bucket swxsoc-github
+locals {
+  s3_access_bucket_names = toset(compact(concat(
+    var.s3_access_bucket_name != "" ? [var.s3_access_bucket_name] : [],
+    var.s3_access_bucket_names,
+  )))
+}
+
+# Policy to allow access to configured S3 buckets
 resource "aws_iam_policy" "s3_access_policy" {
-  count       = var.s3_access_bucket_name != "" ? 1 : 0
+  count       = length(local.s3_access_bucket_names) > 0 ? 1 : 0
   name        = "${local.environment_short_name}${var.soc_name}_s3_access_policy"
   description = "Custom policy for S3 access"
 
@@ -172,10 +179,10 @@ resource "aws_iam_policy" "s3_access_policy" {
           "s3:PutObject",
           "s3:DeleteObject"
         ],
-        Resource = [
-          "arn:aws:s3:::${var.s3_access_bucket_name}",
-          "arn:aws:s3:::${var.s3_access_bucket_name}/*"
-        ]
+        Resource = concat(
+          [for bucket_name in local.s3_access_bucket_names : "arn:aws:s3:::${bucket_name}"],
+          [for bucket_name in local.s3_access_bucket_names : "arn:aws:s3:::${bucket_name}/*"]
+        )
       }
     ]
   })

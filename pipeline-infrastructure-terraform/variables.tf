@@ -202,13 +202,13 @@ variable "lambda_vpc_subnet_ids" {
 variable "rds_additional_security_group_ids" {
   type        = list(string)
   description = "Additional security groups allowed to access RDS"
-  default     = ["sg-002dbe7887ac759c5"]
+  default     = []
 }
 
 variable "rds_ingress_cidr_blocks" {
   type        = list(string)
   description = "Additional CIDR blocks allowed to access RDS"
-  default     = ["86.21.42.229/32"]
+  default     = []
 }
 
 variable "rds_engine_version" {
