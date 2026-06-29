@@ -156,10 +156,10 @@ resource "aws_iam_policy" "lambda_vpc_access_policy" {
 }
 
 locals {
-  s3_access_bucket_names = toset(compact(concat(
+  s3_access_bucket_names = sort(distinct(compact(concat(
     var.s3_access_bucket_name != "" ? [var.s3_access_bucket_name] : [],
     var.s3_access_bucket_names,
-  )))
+  ))))
 }
 
 # Policy to allow access to configured S3 buckets

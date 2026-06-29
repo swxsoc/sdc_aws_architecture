@@ -44,3 +44,7 @@ processing_function_private_ecr_name = "sdc_aws_processing_lambda"
 # Docker Base ECR Repository Name
 # The name of the ECR repository that will be created to store the docker base image
 docker_base_public_ecr_name = "swsoc-docker-lambda-base"
+
+# RDS ingress allowlists
+rds_additional_security_group_ids = ["sg-002dbe7887ac759c5"] # Grafana EC2 webDMZ
+rds_ingress_cidr_blocks           = []
