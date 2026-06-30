@@ -907,9 +907,9 @@ def pt_on(pts, frac):
     segs = []
     total = 0
     for i in range(len(pts) - 1):
-        l = ((pts[i + 1][0] - pts[i][0]) ** 2 + (pts[i + 1][1] - pts[i][1]) ** 2) ** 0.5
-        segs.append(l)
-        total += l
+        length = ((pts[i + 1][0] - pts[i][0]) ** 2 + (pts[i + 1][1] - pts[i][1]) ** 2) ** 0.5
+        segs.append(length)
+        total += length
     target = total * frac
     acc = 0
     for i in range(len(pts) - 1):
