@@ -699,6 +699,6 @@ print("Canvas:", W, "x", H)
 
 here = os.path.dirname(os.path.abspath(__file__))
 path = os.path.join(here, "swxsoc_aws_architecture.svg")
-with open(path, "w") as f:
+with open(path, "w", encoding="utf-8") as f:
     f.write(svg)
 print("Wrote", path, len(svg), "bytes")
