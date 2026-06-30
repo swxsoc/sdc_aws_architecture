@@ -605,7 +605,7 @@ def draw_fleet():
         x=px, y=FLEET_TOP, w=pw, h=FLEET_H))
     add('<rect x="{x}" y="{y}" width="334" height="34" rx="8" fill="{ink}"/>'.format(x=px + 26, y=FLEET_TOP + 20, ink=INK))
     add('<text x="{x}" y="{y}" font-size="17" font-weight="700" fill="#ffffff">Deployment Fleet &amp; Inventory</text>'.format(x=px + 42, y=FLEET_TOP + 43))
-    add('<text x="{x}" y="{y}" font-size="14" fill="{sub}">the logical pipeline above is realized by this fleet — account smdc-aws-swsoc (351967858401) · us-east-1</text>'.format(
+    add('<text x="{x}" y="{y}" font-size="14" fill="{sub}">the logical pipeline above is realized by this fleet — runtime account · us-east-1</text>'.format(
         x=px + 380, y=FLEET_TOP + 43, sub=TX_SUB))
 
     cy = FLEET_TOP + 78
