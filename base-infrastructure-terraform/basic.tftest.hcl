@@ -9,6 +9,7 @@ run "plan_base" {
     timestream_database_name           = "swxsoc_sdc_aws_logs"
     timestream_measures_table_name     = "swxsoc_measures_table"
     executor_function_private_ecr_name = "swxsoc_sdc_aws_executor_lambda"
+    s3_access_bucket_names             = ["dev-swxsoc-pipeline-incoming", "swxsoc-pipeline-incoming"]
   }
 
   override_data {
@@ -26,5 +27,10 @@ run "plan_base" {
   assert {
     condition     = resource.aws_security_group.lambda_sg.vpc_id == "vpc-123456"
     error_message = "Lambda SG should use the default VPC id."
+  }
+
+  assert {
+    condition     = resource.aws_iam_role_policy_attachment.ef_s3_access_policy_attachment[0].role == "swxsoc_executor_lambda_exec_role"
+    error_message = "Executor role should receive the configured S3 access policy."
   }
 }

@@ -71,8 +71,8 @@ enable_concating_lambda  = false
 # Lambda VPC settings (match existing default subnets; update if needed)
 lambda_vpc_subnet_ids = ["subnet-0972d4965ef8eb1e8", "subnet-0e24325c69b9a1f74"]
 
-# RDS ingress allowlists (empty for swxsoc_pipeline to avoid missing SG/CIDR)
-rds_additional_security_group_ids = []
+# RDS ingress allowlists
+rds_additional_security_group_ids = ["sg-002dbe7887ac759c5"] # Grafana EC2 webDMZ
 rds_ingress_cidr_blocks           = []
 
 # RDS engine version (must exist in target region)

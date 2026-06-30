@@ -163,5 +163,11 @@ resource "aws_iam_role_policy_attachment" "ef_lambda_secrets_manager_policy_atta
 
 }
 
+resource "aws_iam_role_policy_attachment" "ef_s3_access_policy_attachment" {
+  count = length(local.s3_access_bucket_names) > 0 ? 1 : 0
+
+  role       = aws_iam_role.executor_lambda_exec.name
+  policy_arn = aws_iam_policy.s3_access_policy[0].arn
+}
 
 
