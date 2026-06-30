@@ -59,8 +59,8 @@ Grafana visualizes the metric, log, and GOES signals.
 
 **Deployment footprint.** The bottom section of the diagram summarizes what the
 logical pipeline actually runs as in the account: three EC2 instances —
-including ``swsoc-webserver-grafana-1`` (a ``t3a.medium`` that hosts the four
-Grafana containers plus Loki, Telegraf, and web services) — alongside 32 Lambda
+including the Grafana host (an EC2 instance that runs the Grafana containers
+plus Loki, Telegraf, and web services) — alongside 32 Lambda
 functions (the seven roles deployed per mission and per environment) and 33
 private ECR repositories (one image per function/mission/environment) plus the
 shared public base image. On the source side the system is built from
