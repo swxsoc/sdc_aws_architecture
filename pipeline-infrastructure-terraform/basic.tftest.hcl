@@ -17,7 +17,7 @@ run "plan_pipeline" {
     processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
     concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
     docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
-    needs_concating                      = false
+    needs_concating                      = true
     enable_grafana_secret                = false
     enable_processing_lambda             = false
     enable_sorting_lambda                = false
@@ -47,6 +47,16 @@ run "plan_pipeline" {
   assert {
     condition     = resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].bucket == "dev-swxsoc-pipeline-reach"
     error_message = "Instrument bucket name should use hyphenated mission prefix."
+  }
+
+  assert {
+    condition = alltrue([
+      jsondecode(resource.aws_ecr_lifecycle_policy.processing_function_private_ecr.policy).rules[0].selection.countNumber == 15,
+      jsondecode(resource.aws_ecr_lifecycle_policy.concating_function_private_ecr[0].policy).rules[0].selection.countNumber == 15,
+      jsondecode(resource.aws_ecr_lifecycle_policy.sorting_function_private_ecr.policy).rules[0].selection.countNumber == 15,
+      jsondecode(resource.aws_ecr_lifecycle_policy.artifacts_function_private_ecr.policy).rules[0].selection.countNumber == 15
+    ])
+    error_message = "Pipeline ECR lifecycle policies should retain the newest 15 images."
   }
 }
 

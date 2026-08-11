@@ -76,4 +76,21 @@ locals {
   mission_bucket_prefix   = replace(var.mission_name, "_", "-")
   instrument_bucket_names = [for bucket in var.instrument_names : "${local.mission_bucket_prefix}-${bucket}"]
   bucket_list             = concat([var.incoming_bucket_name], local.instrument_bucket_names)
+
+  ecr_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Retain only the newest 15 images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 15
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
 }

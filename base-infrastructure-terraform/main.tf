@@ -57,4 +57,21 @@ locals {
     "Project"     = var.soc_name
   }
 
+  ecr_lifecycle_policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Retain only the newest 15 images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 15
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+
 }
