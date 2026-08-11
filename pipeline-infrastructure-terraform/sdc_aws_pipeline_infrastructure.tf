@@ -248,12 +248,23 @@ resource "aws_ecr_repository" "processing_function_private_ecr" {
   tags                 = local.standard_tags
 }
 
+resource "aws_ecr_lifecycle_policy" "processing_function_private_ecr" {
+  repository = aws_ecr_repository.processing_function_private_ecr.name
+  policy     = local.ecr_lifecycle_policy
+}
+
 // Private ECR for the concating function
 resource "aws_ecr_repository" "concating_function_private_ecr" {
   count                = var.needs_concating ? 1 : 0
   name                 = "${local.environment_short_name}${var.concating_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
   tags                 = local.standard_tags
+}
+
+resource "aws_ecr_lifecycle_policy" "concating_function_private_ecr" {
+  count      = var.needs_concating ? 1 : 0
+  repository = aws_ecr_repository.concating_function_private_ecr[0].name
+  policy     = local.ecr_lifecycle_policy
 }
 
 // Private ECR for the sorting function
@@ -263,11 +274,21 @@ resource "aws_ecr_repository" "sorting_function_private_ecr" {
   tags                 = local.standard_tags
 }
 
+resource "aws_ecr_lifecycle_policy" "sorting_function_private_ecr" {
+  repository = aws_ecr_repository.sorting_function_private_ecr.name
+  policy     = local.ecr_lifecycle_policy
+}
+
 // Private ECR for the processing artifacts function
 resource "aws_ecr_repository" "artifacts_function_private_ecr" {
   name                 = "${local.environment_short_name}${var.artifacts_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
   tags                 = local.standard_tags
+}
+
+resource "aws_ecr_lifecycle_policy" "artifacts_function_private_ecr" {
+  repository = aws_ecr_repository.artifacts_function_private_ecr.name
+  policy     = local.ecr_lifecycle_policy
 }
 
 // Public ECR for the docker base image

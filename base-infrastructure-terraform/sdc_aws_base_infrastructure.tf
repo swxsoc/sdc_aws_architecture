@@ -43,6 +43,11 @@ resource "aws_ecr_repository" "executor_function_private_ecr" {
   tags                 = local.standard_tags
 }
 
+resource "aws_ecr_lifecycle_policy" "executor_function_private_ecr" {
+  repository = aws_ecr_repository.executor_function_private_ecr.name
+  policy     = local.ecr_lifecycle_policy
+}
+
 
 
 ///////////////////////////////////////

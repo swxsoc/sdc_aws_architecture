@@ -48,6 +48,15 @@ run "plan_pipeline" {
     condition     = resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].bucket == "dev-swxsoc-pipeline-reach"
     error_message = "Instrument bucket name should use hyphenated mission prefix."
   }
+
+  assert {
+    condition = alltrue([
+      jsondecode(resource.aws_ecr_lifecycle_policy.processing_function_private_ecr.policy).rules[0].selection.countNumber == 15,
+      jsondecode(resource.aws_ecr_lifecycle_policy.sorting_function_private_ecr.policy).rules[0].selection.countNumber == 15,
+      jsondecode(resource.aws_ecr_lifecycle_policy.artifacts_function_private_ecr.policy).rules[0].selection.countNumber == 15
+    ])
+    error_message = "Pipeline ECR lifecycle policies should retain the newest 15 images."
+  }
 }
 
 run "plan_swxsoc_artifacts_lambda" {

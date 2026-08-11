@@ -25,6 +25,11 @@ run "plan_base" {
   }
 
   assert {
+    condition     = jsondecode(resource.aws_ecr_lifecycle_policy.executor_function_private_ecr.policy).rules[0].selection.countNumber == 15
+    error_message = "Executor ECR lifecycle policy should retain the newest 15 images."
+  }
+
+  assert {
     condition     = resource.aws_security_group.lambda_sg.vpc_id == "vpc-123456"
     error_message = "Lambda SG should use the default VPC id."
   }
