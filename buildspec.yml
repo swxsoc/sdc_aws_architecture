@@ -50,6 +50,13 @@ phases:
       - |
         set -eu
 
+        case "${CODEBUILD_WEBHOOK_EVENT:-}" in
+          PULL_REQUEST_*)
+            echo "Pull request build: validation complete; skipping Terraform apply"
+            exit 0
+            ;;
+        esac
+
         TRIGGERED_PIPELINE=$(printf '%s' "${LAMBDA_PIPELINE:-}" | tr '[:lower:]' '[:upper:]')
         if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ]; then
           if [ -z "${TAG:-}" ]; then
