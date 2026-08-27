@@ -50,8 +50,29 @@ phases:
       - |
         set -eu
 
-        if [ -z "${MISSION:-}" ]; then
-          echo "MISSION is required, for example MISSION=hermes, MISSION=padre, or MISSION=swxsoc_pipeline"
+        TRIGGERED_PIPELINE=$(printf '%s' "${LAMBDA_PIPELINE:-}" | tr '[:lower:]' '[:upper:]')
+        if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ]; then
+          if [ -z "${TAG:-}" ]; then
+            echo "TAG is required for an EXECUTOR image deployment"
+            exit 1
+          fi
+
+          cd ../base-infrastructure-terraform
+          terraform init -reconfigure -input=false
+          terraform workspace select default
+          terraform apply \
+            -input=false \
+            -auto-approve \
+            -var="ef_image_tag=${TAG}"
+          exit 0
+        fi
+
+        # Lambda build projects historically used MISSION_NAME, while this
+        # project used MISSION. Accept both names so image builds can trigger a
+        # Terraform deployment without relying on project-level defaults.
+        MISSION="${MISSION:-${MISSION_NAME:-}}"
+        if [ -z "${MISSION}" ]; then
+          echo "MISSION (or MISSION_NAME) is required, for example hermes, padre, or swxsoc_pipeline"
           exit 1
         fi
 
@@ -93,7 +114,6 @@ phases:
         AF_ECR_REPO=$(tf_value 'var.enable_artifacts_lambda && var.artifacts_image_uri_override == "" ? format("%s%s", local.environment_short_name, var.artifacts_function_private_ecr_name) : ""')
         CF_ECR_REPO=$(tf_value 'var.needs_concating && var.enable_concating_lambda && var.concating_image_uri_override == "" ? format("%s%s", local.environment_short_name, var.concating_function_private_ecr_name) : ""')
 
-        TRIGGERED_PIPELINE=$(printf '%s' "${LAMBDA_PIPELINE:-}" | tr '[:lower:]' '[:upper:]')
         if [ -n "${TAG:-}" ]; then
           case "${TRIGGERED_PIPELINE}" in
             PROCESSING)

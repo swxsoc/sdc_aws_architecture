@@ -8,7 +8,7 @@
 resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
   function_name = "${local.environment_short_name}aws_sdc_executor_lambda_function"
   role          = aws_iam_role.executor_lambda_exec.arn
-  memory_size   = 128
+  memory_size   = var.executor_memory_size
   timeout       = 900
 
   image_uri    = "${aws_ecr_repository.executor_function_private_ecr.repository_url}:${var.ef_image_tag}"
@@ -16,19 +16,34 @@ resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
 
   environment {
     variables = {
-      LAMBDA_ENVIRONMENT = upper(local.environment_full_name)
-      SECRET_ARN         = aws_secretsmanager_secret.grafana_secret.arn
-      GITHUB_ORGS_USERS  = "PADRESat,swxsoc,HERMES-SOC"
+      GITHUB_ORGS_USERS             = "PADRESat,swxsoc,HERMES-SOC"
+      LAMBDA_ENVIRONMENT            = upper(local.environment_full_name)
+      REACH_DESTINATION_BUCKET_DEV  = var.reach_destination_bucket_dev
+      REACH_DESTINATION_BUCKET_PROD = var.reach_destination_bucket_prod
+      REACH_FILE_FORMAT             = "csv"
+      REACH_WINDOW_DAYS             = "1"
+      REACH_WINDOW_END_DAYS_AGO     = "1"
+      S3_BUCKET                     = var.github_report_bucket_name
+      SECRET_ARN_GRAFANA            = aws_secretsmanager_secret.grafana_secret.arn
+      SECRET_ARN_UDL                = data.aws_secretsmanager_secret.udl.arn
+      SPACEPY                       = "/tmp"
+      SUNPY_CONFIGDIR               = "/tmp"
+      SUNPY_DOWNLOADDIR             = "/tmp"
+      ccsdspy_CONFIGDIR             = "/tmp/config/ccsdspy/"
     }
   }
   ephemeral_storage {
-    size = 512
+    size = var.executor_ephemeral_storage_size
   }
 
   tracing_config {
     mode = "PassThrough"
   }
 
+}
+
+data "aws_secretsmanager_secret" "udl" {
+  name = var.udl_secret_name
 }
 
 
@@ -77,14 +92,19 @@ variable "lambda_triggers" {
     },
     {
       name          = "import_GOES_data_to_timestream"
-      description   = "CloudWatch event trigger for importing GOES data to Timestream, at noon UTC"
-      schedule_expr = "cron(0 12 * * ? *)"
+      description   = "CloudWatch event trigger for importing GOES data to Timestream hourly"
+      schedule_expr = "rate(1 hour)"
 
     },
     {
       name          = "generate_cloc_report_and_upload"
       description   = "CloudWatch event trigger to generate CLOC report and upload to S3, every 6 hours"
       schedule_expr = "cron(0 */6 * * ? *)"
+    },
+    {
+      name          = "import_UDL_REACH_to_s3"
+      description   = "CloudWatch event trigger for importing the previous complete REACH day"
+      schedule_expr = "cron(0 6 * * ? *)"
     },
   ]
 }
@@ -169,5 +189,4 @@ resource "aws_iam_role_policy_attachment" "ef_s3_access_policy_attachment" {
   role       = aws_iam_role.executor_lambda_exec.name
   policy_arn = aws_iam_policy.s3_access_policy[0].arn
 }
-
 

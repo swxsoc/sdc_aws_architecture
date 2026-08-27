@@ -8,6 +8,22 @@ variable "deployment_region" {
 variable "soc_name" {
   type        = string
   description = "The name of the soc to create base resources"
+
+  validation {
+    condition     = trimspace(var.soc_name) != ""
+    error_message = "soc_name must not be empty."
+  }
+}
+
+variable "service_name" {
+  type        = string
+  description = "Service tag applied to all base infrastructure resources"
+  default     = "sdc-aws-base-infrastructure"
+
+  validation {
+    condition     = trimspace(var.service_name) != ""
+    error_message = "service_name must not be empty."
+  }
 }
 
 variable "timestream_database_name" {
@@ -29,6 +45,42 @@ variable "ef_image_tag" {
   type        = string
   description = "Executor Function ECR image tag"
   default     = "latest"
+}
+
+variable "executor_memory_size" {
+  type        = number
+  description = "Executor Lambda memory in MB"
+  default     = 1024
+}
+
+variable "executor_ephemeral_storage_size" {
+  type        = number
+  description = "Executor Lambda ephemeral storage in MB"
+  default     = 2048
+}
+
+variable "udl_secret_name" {
+  type        = string
+  description = "Name of the existing UDL credentials secret"
+  default     = "udl-credentials"
+}
+
+variable "github_report_bucket_name" {
+  type        = string
+  description = "S3 bucket used for generated repository reports"
+  default     = "swxsoc-github"
+}
+
+variable "reach_destination_bucket_dev" {
+  type        = string
+  description = "Development destination for scheduled REACH downloads"
+  default     = "dev-swxsoc-pipeline-incoming"
+}
+
+variable "reach_destination_bucket_prod" {
+  type        = string
+  description = "Production destination for scheduled REACH downloads"
+  default     = "swxsoc-pipeline-incoming"
 }
 
 variable "s3_access_bucket_name" {
