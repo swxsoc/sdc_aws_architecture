@@ -127,3 +127,8 @@ Create and tag that external secret before enabling Mattermost. At minimum use
 ``swxsoc_pipeline.tfvars`` configuration enables this for both its ``dev`` and
 ``prod`` workspaces; the workspace-derived path keeps their credentials
 separate.
+
+Because Lambda requires the token as an environment variable, Terraform reads
+the secret value during the apply and records it as sensitive data in the
+encrypted remote state. Restrict access to the Terraform state bucket and its
+KMS key accordingly.
