@@ -61,6 +61,11 @@ optional_s3_uploader_role_arns = []
 # Grafana Secret (optional for swxsoc_pipeline)
 enable_grafana_secret = false
 
+# Mattermost notifications for Sorting and Artifacts. The token and channel ID
+# come from swxsoc/<environment>/swxsoc-pipeline/communications/mattermost.
+enable_mattermost = true
+mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
+
 # Lambda creation flags (enable once images exist)
 enable_processing_lambda = true
 enable_sorting_lambda    = true

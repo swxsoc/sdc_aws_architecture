@@ -62,11 +62,12 @@ locals {
     prod    = "Production"
   }[local.workspace_prefix]
 
-  environment_slug    = local.is_production ? "prod" : "dev"
-  mission_slug        = replace(lower(var.mission_name), "_", "-")
-  secret_path_root    = "swxsoc/${local.environment_slug}/${local.mission_slug}"
-  grafana_secret_name = trimspace(var.grafana_secret_name) != "" ? var.grafana_secret_name : "${local.secret_path_root}/processing/grafana"
-  rds_secret_name     = "${local.secret_path_root}/processing/rds"
+  environment_slug       = local.is_production ? "prod" : "dev"
+  mission_slug           = replace(lower(var.mission_name), "_", "-")
+  secret_path_root       = "swxsoc/${local.environment_slug}/${local.mission_slug}"
+  grafana_secret_name    = trimspace(var.grafana_secret_name) != "" ? var.grafana_secret_name : "${local.secret_path_root}/processing/grafana"
+  mattermost_secret_name = trimspace(var.mattermost_secret_name) != "" ? var.mattermost_secret_name : "${local.secret_path_root}/communications/mattermost"
+  rds_secret_name        = "${local.secret_path_root}/processing/rds"
 
   required_tags = {
     "Mission" = var.mission_name
