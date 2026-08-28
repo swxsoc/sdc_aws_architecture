@@ -43,6 +43,16 @@ run "plan_base" {
   }
 
   assert {
+    condition     = resource.aws_secretsmanager_secret.grafana_secret.name == "swxsoc/prod/swxsoc/executor/grafana"
+    error_message = "Base secrets should use the environment/mission/service path convention."
+  }
+
+  assert {
+    condition     = resource.aws_secretsmanager_secret.grafana_secret.tags["Service"] == "executor"
+    error_message = "Base secrets should be tagged with their consuming service."
+  }
+
+  assert {
     condition     = resource.aws_iam_role_policy_attachment.ef_s3_access_policy_attachment[0].role == "swxsoc_executor_lambda_exec_role"
     error_message = "Executor role should receive the configured S3 access policy."
   }

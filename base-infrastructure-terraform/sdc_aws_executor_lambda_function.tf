@@ -46,7 +46,7 @@ resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
 }
 
 data "aws_secretsmanager_secret" "udl" {
-  name = var.udl_secret_name
+  name = local.udl_secret_name
 }
 
 
@@ -58,17 +58,21 @@ resource "aws_kms_key" "default" {
   is_enabled              = true
   enable_key_rotation     = true
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "executor"
+  })
 }
 
 // Create a secret in Secrets Manager
 resource "aws_secretsmanager_secret" "grafana_secret" {
   kms_key_id              = aws_kms_key.default.key_id
-  name                    = "${local.environment_short_name}grafana-credentials"
+  name                    = local.grafana_secret_name
   description             = "Grafana Credentials"
   recovery_window_in_days = 0
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "executor"
+  })
 }
 
 

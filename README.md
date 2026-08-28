@@ -95,6 +95,25 @@ default to `sdc-aws-pipeline`. Override `service_name` when a distinct service
 boundary is required. Explicit resource tags also include `Environment`,
 `Purpose`, and `Project`.
 
+### Secrets Manager names
+
+Secrets use a mission-first hierarchy:
+
+```text
+swxsoc/<environment>/<mission>/<service>/<secret>
+```
+
+Paths are lowercase; mission underscores are normalized to hyphens. Examples
+include `swxsoc/prod/hermes/processing/rds` and
+`swxsoc/dev/swxsoc/executor/udl`. Shared credentials belong under the service
+that consumes them rather than under an unrelated mission. Terraform applies
+the same `Mission`, `Service`, and `Environment` tags to managed secrets.
+
+Changing an existing Secrets Manager name creates a replacement because AWS
+does not support renaming secrets. Before applying a naming migration, copy any
+externally managed secret value to the new path and update its consumers. Never
+put credentials in tfvars or commit them to this repository.
+
 ## Documentation
 
 Comprehensive documentation is available in the `docs/` directory:

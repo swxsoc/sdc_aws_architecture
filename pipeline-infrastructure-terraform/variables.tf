@@ -111,8 +111,8 @@ variable "enable_grafana_secret" {
 
 variable "grafana_secret_name" {
   type        = string
-  description = "Secrets Manager secret name for Grafana credentials"
-  default     = "grafana-credentials"
+  description = "Optional Grafana secret name; defaults to swxsoc/<environment>/<mission>/processing/grafana"
+  default     = ""
 }
 
 variable "enable_processing_lambda" {
