@@ -21,7 +21,7 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
   package_type = "Image"
 
   environment {
-    variables = {
+    variables = merge({
       LAMBDA_ENVIRONMENT     = upper(local.environment_full_name)
       RDS_SECRET_ARN         = aws_secretsmanager_secret.rds_secret.arn
       RDS_HOST               = aws_db_instance.rds_instance.address
@@ -34,7 +34,7 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
       SUNPY_DOWNLOADDIR      = "/tmp"
-    }
+    }, local.mattermost_environment)
   }
   ephemeral_storage {
     size = 2048

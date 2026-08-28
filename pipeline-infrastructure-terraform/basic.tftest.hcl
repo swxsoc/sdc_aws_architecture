@@ -19,8 +19,9 @@ run "plan_pipeline" {
     docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
     needs_concating                      = true
     enable_grafana_secret                = false
+    enable_mattermost                    = true
     enable_processing_lambda             = false
-    enable_sorting_lambda                = false
+    enable_sorting_lambda                = true
     enable_artifacts_lambda              = false
     enable_concating_lambda              = false
   }
@@ -36,6 +37,21 @@ run "plan_pipeline" {
     target = data.aws_caller_identity.current
     values = {
       account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret_version.mattermost
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
     }
   }
 
@@ -97,8 +113,9 @@ run "plan_swxsoc_artifacts_lambda" {
     docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
     needs_concating                      = false
     enable_grafana_secret                = false
+    enable_mattermost                    = true
     enable_processing_lambda             = false
-    enable_sorting_lambda                = false
+    enable_sorting_lambda                = true
     enable_artifacts_lambda              = true
     enable_concating_lambda              = false
     artifacts_image_uri_override         = ""
@@ -118,6 +135,21 @@ run "plan_swxsoc_artifacts_lambda" {
     }
   }
 
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret_version.mattermost
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
   assert {
     condition     = length(resource.aws_lambda_function.aws_sdc_artifacts_lambda_function) == 1
     error_message = "Artifacts Lambda should be planned when enable_artifacts_lambda is true."
@@ -126,6 +158,26 @@ run "plan_swxsoc_artifacts_lambda" {
   assert {
     condition     = length(resource.aws_sns_topic_subscription.af_sns_topic_subscription) == 1
     error_message = "Artifacts Lambda should subscribe to each instrument SNS topic."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["COMMS_PLATFORM"] == "mattermost" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["MATTERMOST_CHANNEL_ID"] == "channel-123" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["MATTERMOST_TOKEN"] == "token-123" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["MATTERMOST_URL"] == "https://mm.sciencecloud.nasa.gov:443"
+    )
+    error_message = "Sorting Lambda should receive the complete Mattermost environment."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].environment[0].variables["COMMS_PLATFORM"] == "mattermost" &&
+      resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].environment[0].variables["MATTERMOST_CHANNEL_ID"] == "channel-123" &&
+      resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].environment[0].variables["MATTERMOST_TOKEN"] == "token-123" &&
+      resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].environment[0].variables["MATTERMOST_URL"] == "https://mm.sciencecloud.nasa.gov:443"
+    )
+    error_message = "Artifacts Lambda should receive the complete Mattermost environment."
   }
 
 }

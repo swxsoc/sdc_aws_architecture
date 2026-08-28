@@ -115,6 +115,29 @@ variable "grafana_secret_name" {
   default     = ""
 }
 
+variable "enable_mattermost" {
+  type        = bool
+  description = "Whether to inject Mattermost configuration into Sorting and Artifacts"
+  default     = false
+}
+
+variable "mattermost_secret_name" {
+  type        = string
+  description = "Optional Mattermost secret name; defaults to swxsoc/<environment>/<mission>/communications/mattermost"
+  default     = ""
+}
+
+variable "mattermost_url" {
+  type        = string
+  description = "Mattermost server URL"
+  default     = "https://mm.sciencecloud.nasa.gov:443"
+
+  validation {
+    condition     = !var.enable_mattermost || startswith(var.mattermost_url, "https://")
+    error_message = "mattermost_url must use HTTPS when Mattermost is enabled."
+  }
+}
+
 variable "enable_processing_lambda" {
   type        = bool
   description = "Whether to create the processing Lambda and related resources"

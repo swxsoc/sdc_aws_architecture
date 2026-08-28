@@ -10,6 +10,26 @@ locals {
   enable_sorting_lambda = var.enable_sorting_lambda
 }
 
+data "aws_secretsmanager_secret" "mattermost" {
+  count = var.enable_mattermost ? 1 : 0
+  name  = local.mattermost_secret_name
+}
+
+data "aws_secretsmanager_secret_version" "mattermost" {
+  count     = var.enable_mattermost ? 1 : 0
+  secret_id = data.aws_secretsmanager_secret.mattermost[0].id
+}
+
+locals {
+  mattermost_credentials = var.enable_mattermost ? jsondecode(data.aws_secretsmanager_secret_version.mattermost[0].secret_string) : {}
+  mattermost_environment = var.enable_mattermost ? {
+    COMMS_PLATFORM        = "mattermost"
+    MATTERMOST_CHANNEL_ID = local.mattermost_credentials.channel_id
+    MATTERMOST_TOKEN      = local.mattermost_credentials.token
+    MATTERMOST_URL        = var.mattermost_url
+  } : {}
+}
+
 // Creates the Sorting Lambda function
 resource "aws_lambda_function" "sorting_lambda_function" {
   count         = local.enable_sorting_lambda ? 1 : 0
@@ -18,7 +38,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
   timeout       = 600
 
   environment {
-    variables = {
+    variables = merge({
       LAMBDA_ENVIRONMENT     = upper(local.environment_full_name)
       SDC_AWS_SLACK_TOKEN    = var.slack_token
       SDC_AWS_SLACK_CHANNEL  = var.slack_channel
@@ -27,7 +47,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
       SUNPY_DOWNLOADDIR      = "/tmp"
-    }
+    }, local.mattermost_environment)
   }
 
   image_uri    = local.sorting_image_uri

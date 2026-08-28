@@ -94,6 +94,7 @@ names are normalized to hyphens. For example:
 * ``swxsoc/prod/hermes/processing/rds``
 * ``swxsoc/dev/impax/processing/grafana``
 * ``swxsoc/prod/swxsoc/executor/udl``
+* ``swxsoc/dev/swxsoc-pipeline/communications/mattermost``
 
 Terraform derives managed RDS and Grafana secret names from the selected
 workspace and mission. The optional ``grafana_secret_name`` and
@@ -104,3 +105,25 @@ AWS Secrets Manager cannot rename a secret. A Terraform name change therefore
 plans a replacement. Before applying a migration, create or copy externally
 managed values at the new path, verify IAM access, and update every consumer.
 Do not store secret values in Terraform variable files or version control.
+
+Mattermost Notifications
+------------------------
+Set ``enable_mattermost = true`` for missions whose Sorting and Artifacts
+Lambdas send Mattermost notifications. Both Lambdas receive
+``COMMS_PLATFORM=mattermost`` and the configured ``MATTERMOST_URL``. Terraform
+reads ``MATTERMOST_TOKEN`` and ``MATTERMOST_CHANNEL_ID`` from the mission and
+environment-specific Mattermost secret, whose JSON value must contain:
+
+.. code-block:: json
+
+    {
+      "token": "<Mattermost token>",
+      "channel_id": "<Mattermost channel ID>"
+    }
+
+Create and tag that external secret before enabling Mattermost. At minimum use
+``Mission=<mission>``, ``Service=communications``,
+``Environment=Development|Production``, and ``ManagedBy=external``. The
+``swxsoc_pipeline.tfvars`` configuration enables this for both its ``dev`` and
+``prod`` workspaces; the workspace-derived path keeps their credentials
+separate.

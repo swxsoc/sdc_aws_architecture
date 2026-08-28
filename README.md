@@ -105,8 +105,9 @@ swxsoc/<environment>/<mission>/<service>/<secret>
 
 Paths are lowercase; mission underscores are normalized to hyphens. Examples
 include `swxsoc/prod/hermes/processing/rds` and
-`swxsoc/dev/swxsoc/executor/udl`. Shared credentials belong under the service
-that consumes them rather than under an unrelated mission. Terraform applies
+`swxsoc/dev/swxsoc/executor/udl`. Credentials shared by multiple Lambda
+services use a purpose-specific service path, such as
+`swxsoc/dev/swxsoc-pipeline/communications/mattermost`. Terraform applies
 the same `Mission`, `Service`, and `Environment` tags to managed secrets.
 
 Changing an existing Secrets Manager name creates a replacement because AWS
