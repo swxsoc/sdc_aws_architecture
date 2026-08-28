@@ -66,6 +66,16 @@ run "plan_pipeline" {
     ])
     error_message = "Pipeline ECR lifecycle policies should retain the newest 15 images."
   }
+
+  assert {
+    condition     = resource.aws_secretsmanager_secret.rds_secret.name == "swxsoc/dev/swxsoc-pipeline/processing/rds"
+    error_message = "Pipeline secrets should use the environment/mission/service path convention."
+  }
+
+  assert {
+    condition     = resource.aws_secretsmanager_secret.rds_secret.tags["Service"] == "processing"
+    error_message = "Pipeline secrets should be tagged with their consuming service."
+  }
 }
 
 run "plan_swxsoc_artifacts_lambda" {

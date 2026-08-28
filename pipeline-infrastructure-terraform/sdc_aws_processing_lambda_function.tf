@@ -7,7 +7,7 @@
 
 data "aws_secretsmanager_secret" "grafana" {
   count = var.enable_grafana_secret ? 1 : 0
-  name  = var.grafana_secret_name
+  name  = local.grafana_secret_name
 }
 
 data "aws_secretsmanager_secret_version" "grafana_credentials" {
@@ -91,17 +91,21 @@ resource "aws_kms_key" "default" {
   is_enabled              = true
   enable_key_rotation     = true
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "processing"
+  })
 }
 
 // Create a secret in Secrets Manager
 resource "aws_secretsmanager_secret" "rds_secret" {
   kms_key_id              = aws_kms_key.default.key_id
-  name                    = "${local.environment_short_name}${var.mission_name}-rds-credentials"
+  name                    = local.rds_secret_name
   description             = "RDS Credentials"
   recovery_window_in_days = 0
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "processing"
+  })
 }
 
 // Store the secret in Secrets Manager

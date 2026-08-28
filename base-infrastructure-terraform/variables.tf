@@ -61,12 +61,12 @@ variable "executor_ephemeral_storage_size" {
 
 variable "udl_secret_name" {
   type        = string
-  description = "Name of the existing UDL credentials secret"
-  default     = "udl-credentials"
+  description = "Optional existing UDL secret name; defaults to swxsoc/<environment>/<mission>/executor/udl"
+  default     = ""
 
   validation {
-    condition     = trimspace(var.udl_secret_name) != ""
-    error_message = "udl_secret_name must not be empty."
+    condition     = var.udl_secret_name == "" || trimspace(var.udl_secret_name) != ""
+    error_message = "udl_secret_name must be empty to use the convention or contain a non-whitespace name."
   }
 }
 

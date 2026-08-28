@@ -60,7 +60,6 @@ optional_s3_uploader_role_arns = []
 
 # Grafana Secret (optional for swxsoc_pipeline)
 enable_grafana_secret = false
-grafana_secret_name   = "swxsoc-pipeline-grafana-credentials"
 
 # Lambda creation flags (enable once images exist)
 enable_processing_lambda = true

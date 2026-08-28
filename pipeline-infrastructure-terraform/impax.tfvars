@@ -64,7 +64,6 @@ optional_s3_uploader_role_arns = []
 
 # Grafana Secret
 enable_grafana_secret = false
-grafana_secret_name   = "impax-grafana-credentials"
 
 # Lambda creation flags
 enable_processing_lambda = true

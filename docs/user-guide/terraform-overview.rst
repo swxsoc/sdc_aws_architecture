@@ -83,3 +83,24 @@ private-ECR Lambda (``pf_image_tag``, ``sf_image_tag``, ``af_image_tag``,
 mutable ``latest`` defaults. Review every plan before applying it. The project
 should use a CodeBuild managed Linux image that supports buildspec runtime
 selection for Python 3.12.
+
+Secrets Manager Naming
+----------------------
+Secrets use the predictable mission-first path
+``swxsoc/<environment>/<mission>/<service>/<secret>``. Path components are
+lowercase, environments are ``dev`` or ``prod``, and underscores in mission
+names are normalized to hyphens. For example:
+
+* ``swxsoc/prod/hermes/processing/rds``
+* ``swxsoc/dev/impax/processing/grafana``
+* ``swxsoc/prod/swxsoc/executor/udl``
+
+Terraform derives managed RDS and Grafana secret names from the selected
+workspace and mission. The optional ``grafana_secret_name`` and
+``udl_secret_name`` variables are escape hatches for an existing externally
+managed secret; leave them empty to use the convention.
+
+AWS Secrets Manager cannot rename a secret. A Terraform name change therefore
+plans a replacement. Before applying a migration, create or copy externally
+managed values at the new path, verify IAM access, and update every consumer.
+Do not store secret values in Terraform variable files or version control.
