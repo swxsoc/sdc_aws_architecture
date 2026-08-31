@@ -24,12 +24,15 @@ resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
       REACH_WINDOW_DAYS             = "1"
       REACH_WINDOW_END_DAYS_AGO     = "1"
       S3_BUCKET                     = var.github_report_bucket_name
-      SECRET_ARN_GRAFANA            = aws_secretsmanager_secret.grafana_secret.arn
-      SECRET_ARN_UDL                = data.aws_secretsmanager_secret.udl.arn
-      SPACEPY                       = "/tmp"
-      SUNPY_CONFIGDIR               = "/tmp"
-      SUNPY_DOWNLOADDIR             = "/tmp"
-      ccsdspy_CONFIGDIR             = "/tmp/config/ccsdspy/"
+      # These exact names are the executor image's current runtime contract;
+      # the legacy SECRET_ARN name is no longer consumed by the application.
+      SECRET_ARN_GRAFANA = aws_secretsmanager_secret.grafana_secret.arn
+      SECRET_ARN_UDL     = data.aws_secretsmanager_secret.udl.arn
+      SPACEPY            = "/tmp"
+      SUNPY_CONFIGDIR    = "/tmp"
+      SUNPY_DOWNLOADDIR  = "/tmp"
+      # ccsdspy intentionally defines this mixed-case environment variable.
+      ccsdspy_CONFIGDIR = "/tmp/config/ccsdspy/"
     }
   }
   ephemeral_storage {
@@ -189,4 +192,3 @@ resource "aws_iam_role_policy_attachment" "ef_s3_access_policy_attachment" {
   role       = aws_iam_role.executor_lambda_exec.name
   policy_arn = aws_iam_policy.s3_access_policy[0].arn
 }
-

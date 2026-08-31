@@ -82,7 +82,9 @@ rds_ingress_cidr_blocks           = []
 # RDS engine version (must exist in target region)
 rds_engine_version = "14.21"
 
-# Mission images are available in the private ECR repositories.
+# Mission images are available in the private ECR repositories. CodeBuild
+# supplies immutable *_image_tag values. A manual apply must pass those tag
+# variables explicitly; do not deploy the mutable `latest` defaults.
 processing_image_uri_override = ""
 sorting_image_uri_override    = ""
 artifacts_image_uri_override  = ""

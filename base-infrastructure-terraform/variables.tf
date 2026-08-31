@@ -63,6 +63,11 @@ variable "udl_secret_name" {
   type        = string
   description = "Name of the existing UDL credentials secret"
   default     = "udl-credentials"
+
+  validation {
+    condition     = trimspace(var.udl_secret_name) != ""
+    error_message = "udl_secret_name must not be empty."
+  }
 }
 
 variable "github_report_bucket_name" {
