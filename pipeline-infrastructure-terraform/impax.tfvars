@@ -65,6 +65,12 @@ optional_s3_uploader_role_arns = []
 # Grafana Secret
 enable_grafana_secret = false
 
+# Adopt the existing iMPAX Mattermost runtime configuration. Credentials come
+# from swxsoc/<environment>/impax/communications/mattermost.
+comms_platform    = "mattermost"
+enable_mattermost = true
+mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
+
 # Lambda creation flags
 enable_processing_lambda = true
 enable_sorting_lambda    = true

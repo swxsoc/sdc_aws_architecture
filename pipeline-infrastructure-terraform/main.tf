@@ -51,6 +51,13 @@ data "aws_caller_identity" "current" {
   }
 }
 
+check "mattermost_platform" {
+  assert {
+    condition     = var.enable_mattermost == (lower(trimspace(var.comms_platform)) == "mattermost")
+    error_message = "enable_mattermost must be true exactly when comms_platform is mattermost."
+  }
+}
+
 // Locals for SDC Pipeline
 locals {
   workspace_prefix = split("-", terraform.workspace)[0]

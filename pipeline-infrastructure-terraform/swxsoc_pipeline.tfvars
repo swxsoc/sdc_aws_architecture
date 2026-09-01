@@ -63,6 +63,7 @@ enable_grafana_secret = false
 
 # Mattermost notifications for Sorting and Artifacts. The token and channel ID
 # come from swxsoc/<environment>/swxsoc-pipeline/communications/mattermost.
+comms_platform    = "mattermost"
 enable_mattermost = true
 mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
 

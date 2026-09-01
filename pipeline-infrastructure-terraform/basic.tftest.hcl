@@ -19,6 +19,7 @@ run "plan_pipeline" {
     docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
     needs_concating                      = true
     enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
     enable_mattermost                    = true
     enable_processing_lambda             = false
     enable_sorting_lambda                = true
@@ -154,6 +155,7 @@ run "plan_swxsoc_artifacts_lambda" {
     docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
     needs_concating                      = false
     enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
     enable_mattermost                    = true
     enable_processing_lambda             = false
     enable_sorting_lambda                = true

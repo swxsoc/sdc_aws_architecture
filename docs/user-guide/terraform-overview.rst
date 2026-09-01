@@ -119,8 +119,10 @@ those safeguards do not populate externally managed values at a new path.
 
 Mattermost Notifications
 ------------------------
-Set ``enable_mattermost = true`` for missions whose Sorting and Artifacts
-Lambdas send Mattermost notifications. Both Lambdas receive
+Set ``comms_platform`` explicitly when a mission's application selects a
+communications backend. PADRE uses ``slack``; HERMES keeps legacy auto-detection;
+iMPAX and SWxSOC Pipeline use ``mattermost``. For Mattermost, also set
+``enable_mattermost = true``. Both Lambdas receive
 ``COMMS_PLATFORM=mattermost`` and the configured ``MATTERMOST_URL``. Terraform
 reads ``MATTERMOST_TOKEN`` and ``MATTERMOST_CHANNEL_ID`` from the mission and
 environment-specific Mattermost secret, whose JSON value must contain:
@@ -135,9 +137,9 @@ environment-specific Mattermost secret, whose JSON value must contain:
 Create and tag that external secret before enabling Mattermost. At minimum use
 ``Mission=<mission>``, ``Service=communications``,
 ``Environment=Development|Production``, and ``ManagedBy=external``. The
-``swxsoc_pipeline.tfvars`` configuration enables this for both its ``dev`` and
-``prod`` workspaces; the workspace-derived path keeps their credentials
-separate.
+The iMPAX and ``swxsoc_pipeline`` configurations enable this for both their
+``dev`` and ``prod`` workspaces; workspace-derived paths keep mission and
+environment credentials separate.
 
 Because Lambda requires the token as an environment variable, Terraform reads
 the secret value during the apply and records it as sensitive data in the

@@ -121,6 +121,17 @@ variable "enable_mattermost" {
   default     = false
 }
 
+variable "comms_platform" {
+  type        = string
+  description = "Explicit communications platform exposed to Sorting and Artifacts; empty preserves legacy platform auto-detection"
+  default     = ""
+
+  validation {
+    condition     = contains(["", "slack", "mattermost"], lower(trimspace(var.comms_platform)))
+    error_message = "comms_platform must be empty, slack, or mattermost."
+  }
+}
+
 variable "mattermost_secret_name" {
   type        = string
   description = "Optional Mattermost secret name; defaults to swxsoc/<environment>/<mission>/communications/mattermost"
