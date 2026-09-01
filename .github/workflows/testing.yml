@@ -40,3 +40,16 @@ jobs:
         else
           echo "No Terraform tests found."
         fi
+    - name: Terraform validate (deployment)
+      working-directory: deployment-infrastructure-terraform
+      run: |
+        terraform init -backend=false -input=false
+        terraform validate
+    - name: Terraform test (deployment)
+      working-directory: deployment-infrastructure-terraform
+      run: |
+        if find . -name '*.tftest.hcl' -print -quit | grep -q .; then
+          TF_CLI_ARGS_init="-backend=false -input=false" terraform test
+        else
+          echo "No Terraform tests found."
+        fi

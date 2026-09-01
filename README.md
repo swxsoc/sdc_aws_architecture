@@ -1,13 +1,14 @@
 # SDC AWS Pipeline Architecture
 
-This repository contains Terraform configurations for managing AWS infrastructure across multiple missions, with separate environments for development and production.
+This repository contains Terraform configurations for managing AWS infrastructure and image deployment pipelines across multiple missions, with separate environments for development and production.
 
 ## Repository Structure
 
 ```
 .
-├── base-infrastructure-terraform/    # Base shared infrastructure
-└── pipeline-infrastructure-terraform/  # Mission-specific pipeline infrastructure
+├── base-infrastructure-terraform/        # Base shared infrastructure
+├── pipeline-infrastructure-terraform/    # Mission-specific pipeline infrastructure
+└── deployment-infrastructure-terraform/  # Shared CodeBuild deployment fleet
 ```
 
 ## Infrastructure Management
@@ -30,6 +31,13 @@ This repository contains Terraform configurations for managing AWS infrastructur
   - Lambda functions for artifacts, processing, and sorting
   - Pipeline-specific infrastructure
   - New general pipeline config: `swxsoc_pipeline.tfvars` (REACH as the first instrument, mission name `swxsoc_pipeline`)
+
+### Deployment Infrastructure
+- Managed in `deployment-infrastructure-terraform/`
+- Uses a dedicated S3 state key and the default workspace
+- Declaratively imports the 22 existing CodeBuild projects
+- Owns their predictable service roles, policies, webhooks, and tags
+- Generates a mission's standard projects from one entry in `local.missions`
 
 ## Getting Started
 
@@ -86,15 +94,26 @@ pass an immutable `ef_image_tag`. Terraform rejects missing image selections
 and the mutable `latest` tag before a Lambda can be changed. Always review the
 plan, and never apply an unexpected delete or replacement.
 
+The CodeBuild fleet is managed by `deployment-infrastructure-terraform/`.
+Image projects use each repository's `buildspec.yml`, Docker privileged mode,
+the current standard build image, a predictable Terraform-managed role, and
+uniform `Mission`, `Service`, `Environment=Shared`, `Purpose`, `Project`, and
+`ManagedBy=terraform` tags. Architecture projects accept pull-request webhooks
+for validation only; image builds invoke them explicitly for targeted deploys.
+This prevents an architecture merge from applying unrelated infrastructure.
+
+All three S3 backends use native lockfiles. Terraform execution roles need
+access to both the state object and its `.tflock` object.
+
 ### Resource tags
 
-Both Terraform roots enforce `Mission`, `Service`, `Environment`, `Purpose`,
-`Project`, and `ManagedBy=terraform` through AWS provider default tags, so
-every AWS resource type that supports tags receives them. Shared pipeline
-resources use `Service=sdc-aws-pipeline`; component Lambdas, ECR repositories,
-secrets, KMS keys, and RDS resources override that with `executor`,
-`processing`, `sorting`, `artifacts`, `concating`, or `container-base` as
-appropriate.
+The base and pipeline roots enforce `Mission`, `Service`, `Environment`,
+`Purpose`, `Project`, and `ManagedBy=terraform` through AWS provider default
+tags. The deployment root applies the same complete map to every taggable
+CodeBuild and IAM resource. Shared pipeline resources use
+`Service=sdc-aws-pipeline`; component resources override that with `executor`,
+`processing`, `sorting`, `artifacts`, `concating`, `container-base`, or
+`terraform-deployment` as appropriate.
 
 ### Secrets Manager names
 
@@ -132,6 +151,18 @@ reserved for base infrastructure because the two roots currently share a
 backend key. RDS instances use the deterministic identifier
 `<environment>-<mission>-cdftracker-db`; review the first migration plan before
 applying it to an existing database.
+
+### Adding a mission
+
+1. Copy an existing mission tfvars file and set its unique buckets,
+   instruments, feature flags, and mission name.
+2. Add one entry to `deployment-infrastructure-terraform/codebuild.tf` under
+   `local.missions`, selecting the base-image repository, source connection,
+   and enabled Lambda components.
+3. Create `dev-<mission>` and `prod-<mission>` workspaces, seed external secrets
+   at the mission-first paths, and plan each workspace before applying.
+4. Merge the mission's base/Lambda repository support before applying the
+   generated CodeBuild project changes.
 
 ## Documentation
 
