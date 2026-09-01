@@ -10,6 +10,8 @@ run "plan_base" {
     timestream_measures_table_name     = "swxsoc_measures_table"
     executor_function_private_ecr_name = "swxsoc_sdc_aws_executor_lambda"
     ef_image_tag                       = "test-immutable-sha"
+    grafana_secret_name                = ""
+    udl_secret_name                    = ""
     s3_access_bucket_names             = ["dev-swxsoc-pipeline-incoming", "swxsoc-pipeline-incoming"]
   }
 

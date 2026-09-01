@@ -75,6 +75,17 @@ variable "udl_secret_name" {
   }
 }
 
+variable "grafana_secret_name" {
+  type        = string
+  description = "Optional existing Grafana secret name; defaults to swxsoc/<environment>/<mission>/executor/grafana"
+  default     = ""
+
+  validation {
+    condition     = var.grafana_secret_name == "" || trimspace(var.grafana_secret_name) != ""
+    error_message = "grafana_secret_name must be empty to use the convention or contain a non-whitespace name."
+  }
+}
+
 variable "github_report_bucket_name" {
   type        = string
   description = "S3 bucket used for generated repository reports"

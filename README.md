@@ -116,6 +116,11 @@ does not support renaming secrets. Before applying a naming migration, copy any
 externally managed secret value to the new path and update its consumers. Never
 put credentials in tfvars or commit them to this repository.
 
+The base tfvars intentionally pins `grafana-credentials` and `udl-credentials`
+during the migration. Remove each override only after its value-bearing
+mission-first target exists and the Grafana Terraform state move has been
+planned. This keeps executor image deployments working during the transition.
+
 Pipeline deployments must use an explicit `dev-<mission>` or `prod-<mission>`
 workspace. Terraform refuses to plan the pipeline root in `default`, which is
 reserved for base infrastructure because the two roots currently share a

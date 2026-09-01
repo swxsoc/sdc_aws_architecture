@@ -57,7 +57,7 @@ locals {
 
   environment_slug    = local.workspace_prefix == "dev" ? "dev" : "prod"
   secret_path_root    = "swxsoc/${local.environment_slug}/${replace(lower(var.soc_name), "_", "-")}"
-  grafana_secret_name = "${local.secret_path_root}/executor/grafana"
+  grafana_secret_name = trimspace(var.grafana_secret_name) != "" ? var.grafana_secret_name : "${local.secret_path_root}/executor/grafana"
   udl_secret_name     = trimspace(var.udl_secret_name) != "" ? var.udl_secret_name : "${local.secret_path_root}/executor/udl"
 
   required_tags = {
