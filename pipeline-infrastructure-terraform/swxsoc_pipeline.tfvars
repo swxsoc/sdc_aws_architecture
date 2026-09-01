@@ -82,7 +82,8 @@ rds_ingress_cidr_blocks           = []
 # RDS engine version (must exist in target region)
 rds_engine_version = "14.21"
 
-# Use mission ECR repositories and the default `latest` tags for enabled Lambdas.
+# Use mission ECR repositories. CodeBuild supplies immutable image tags; manual
+# plans/applies must pass a tag for every enabled private-ECR Lambda.
 processing_image_uri_override = ""
 sorting_image_uri_override    = ""
 artifacts_image_uri_override  = ""

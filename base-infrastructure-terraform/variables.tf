@@ -43,8 +43,13 @@ variable "executor_function_private_ecr_name" {
 
 variable "ef_image_tag" {
   type        = string
-  description = "Executor Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Executor Function ECR image tag"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.ef_image_tag) != "" && lower(trimspace(var.ef_image_tag)) != "latest"
+    error_message = "ef_image_tag is required and must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "executor_memory_size" {

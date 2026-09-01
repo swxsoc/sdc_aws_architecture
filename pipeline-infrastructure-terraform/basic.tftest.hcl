@@ -24,6 +24,7 @@ run "plan_pipeline" {
     enable_sorting_lambda                = true
     enable_artifacts_lambda              = false
     enable_concating_lambda              = false
+    sf_image_tag                         = "test-immutable-sha"
   }
 
   override_data {
@@ -158,6 +159,8 @@ run "plan_swxsoc_artifacts_lambda" {
     enable_sorting_lambda                = true
     enable_artifacts_lambda              = true
     enable_concating_lambda              = false
+    sf_image_tag                         = "test-immutable-sha"
+    af_image_tag                         = "test-immutable-sha"
     artifacts_image_uri_override         = ""
   }
 

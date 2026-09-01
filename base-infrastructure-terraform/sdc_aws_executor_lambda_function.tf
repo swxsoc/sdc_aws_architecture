@@ -46,6 +46,13 @@ resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
   tags = merge(local.standard_tags, {
     "Service" = "executor"
   })
+
+  lifecycle {
+    precondition {
+      condition     = trimspace(var.ef_image_tag) != ""
+      error_message = "An immutable ef_image_tag is required for the executor Lambda."
+    }
+  }
 }
 
 data "aws_secretsmanager_secret" "udl" {

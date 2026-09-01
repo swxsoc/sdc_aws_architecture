@@ -69,6 +69,16 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
     "Service" = "processing"
   })
 
+  lifecycle {
+    precondition {
+      condition = (
+        trimspace(var.processing_image_uri_override) != "" ||
+        trimspace(var.pf_image_tag) != ""
+      )
+      error_message = "An immutable pf_image_tag or processing_image_uri_override is required for the processing Lambda."
+    }
+  }
+
   depends_on = [aws_secretsmanager_secret_version.secret]
 }
 
