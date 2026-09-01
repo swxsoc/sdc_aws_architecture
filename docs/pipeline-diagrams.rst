@@ -19,4 +19,9 @@ This is a diagram of how we've set up our CI/CD pipeline that we've set up to ma
 .. image:: images/cicd-diagram.png
 
 .. Note::
-   The diagram shows the only CodeBuild processes of the pipeline which gets triggered when there is a change to main of each Repo. We also have GitHub actions set-up to do linting and testing on Pull Requests as well.
+   Image CodeBuild projects run for pull-request validation, main pushes, and
+   release tags. Their guarded repository buildspecs publish only from main or
+   a release tag, then explicitly invoke the matching architecture project for
+   a targeted Terraform image update. Architecture repository webhooks validate
+   pull requests only; merging architecture changes does not automatically
+   apply unrelated infrastructure. GitHub Actions also run lint and tests.

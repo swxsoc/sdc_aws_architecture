@@ -12,12 +12,15 @@ SDC AWS Pipeline Architecture
 -----------------------------
 This repository deploys all cloud resources required for the SDC AWS Pipeline using Terraform.
 
-There are two Terraform entry points:
+There are three Terraform entry points:
 
 * **Base infrastructure** (`base-infrastructure-terraform/`): shared resources used across missions.
 * **Pipeline infrastructure** (`pipeline-infrastructure-terraform/`): mission-specific resources (S3 buckets, ECR repos, Timestream, RDS, Lambdas, SNS/SQS, IAM, etc.).
+* **Deployment infrastructure** (`deployment-infrastructure-terraform/`): shared CodeBuild projects, service roles, policies, webhooks, and imports for the legacy manually managed fleet.
 
 Each mission is configured using a tfvars file (for example, `padre.tfvars`, `hermes.tfvars`) and a workspace per environment (for example, `dev-<mission>` and `prod-<mission>`).
+One matching entry in ``deployment-infrastructure-terraform/codebuild.tf``
+generates the mission's base-image, architecture, and enabled Lambda projects.
 
 Link to the `GitHub repository for Pipeline <https://github.com/swxsoc/sdc_aws_architecture>`_.
 

@@ -2,10 +2,11 @@
 
 Terraform Overview
 ==================
-Terraform is used to define and provision all infrastructure in this repository. There are two main stacks:
+Terraform is used to define and provision all infrastructure in this repository. There are three main stacks:
 
 * **Base infrastructure** in `base-infrastructure-terraform/`
 * **Pipeline infrastructure** in `pipeline-infrastructure-terraform/`
+* **Deployment infrastructure** in `deployment-infrastructure-terraform/`
 
 Workspaces
 ----------
@@ -53,14 +54,19 @@ If you prefer Makefile shortcuts:
     make tf-fmt
     make tf-validate-base
     make tf-validate-pipeline
+    make tf-validate-deployment
     make tf-plan-base
     make tf-apply-base
     make tf-plan-pipeline MISSION=<mission> ENV=dev
     make tf-apply-pipeline MISSION=<mission> ENV=dev
+    make tf-plan-deployment
+    make tf-apply-deployment
 
 Notes
 -----
-Terraform state uses an S3 backend configured in each `main.tf`. You will need access to that bucket for real deployments.
+Terraform state uses an S3 backend configured in each `main.tf`. The deployment
+root has its own state key. All roots use native S3 lockfiles, so execution
+roles need access to the state object and matching ``.tflock`` object.
 
 CI runs formatting and lint checks only: `terraform fmt`, `terraform validate` (with `-backend=false`), `terraform test` (when tests are present), `tflint`, and Python `ruff format`/`ruff check` for docs. We do not run `terraform apply` in CI.
 
@@ -83,10 +89,25 @@ their source and environment.
 
 Manual applies must pass immutable image-tag variables for every enabled
 private-ECR Lambda (``pf_image_tag``, ``sf_image_tag``, ``af_image_tag``,
-``cf_image_tag``, or ``ef_image_tag`` as appropriate). Do not deploy using the
-mutable ``latest`` defaults. Review every plan before applying it. The project
+``cf_image_tag``, or ``ef_image_tag`` as appropriate). Terraform rejects a
+missing selection or the mutable ``latest`` tag. Review every plan before applying it. The project
 should use a CodeBuild managed Linux image that supports buildspec runtime
 selection for Python 3.12.
+
+CodeBuild ownership
+-------------------
+
+The deployment root adopts the existing CodeBuild projects through declarative
+``import`` blocks. It standardizes repository buildspecs, current managed
+images, Docker privileged mode for container builds, concurrency, GitHub status
+reporting, predictable service roles, and cost tags. Architecture webhooks run
+pull-request validation only. Main and tag events on image repositories build
+the image and explicitly start the matching architecture project.
+
+To add a mission, add one object to ``local.missions`` in
+``deployment-infrastructure-terraform/codebuild.tf``. Supply its base-image
+repository, connection ARN, and enabled Lambda components; Terraform generates
+the project, role, policy, webhook, and complete tag map.
 
 Secrets Manager Naming
 ----------------------
