@@ -34,6 +34,10 @@ terraform {
 
 provider "aws" {
   region = var.deployment_region
+
+  default_tags {
+    tags = local.required_tags
+  }
 }
 
 locals {
@@ -51,11 +55,16 @@ locals {
     prod    = "Production"
   }[local.workspace_prefix]
 
-  standard_tags = {
+  required_tags = {
+    "Mission" = var.soc_name
+    "Service" = var.service_name
+  }
+
+  standard_tags = merge(local.required_tags, {
     "Environment" = local.environment_full_name
     "Purpose"     = "SWSOC Base Infrastructure"
     "Project"     = var.soc_name
-  }
+  })
 
   ecr_lifecycle_policy = jsonencode({
     rules = [

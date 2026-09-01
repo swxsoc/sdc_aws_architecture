@@ -6,6 +6,7 @@ version: 0.2
 # repositories are resolved from the selected mission's Terraform variables so
 # this logic works across all mission pipelines.
 env:
+  shell: bash
   variables:
     TERRAFORM_VERSION: 1.14.4
 
@@ -20,11 +21,11 @@ phases:
       - |
         if command -v apt-get > /dev/null 2>&1; then
           apt-get update
-          apt-get install -y --no-install-recommends make graphviz unzip curl ca-certificates
+          apt-get install -y --no-install-recommends make graphviz unzip curl ca-certificates jq
         elif command -v dnf > /dev/null 2>&1; then
-          dnf install -y make graphviz unzip curl ca-certificates
+          dnf install -y make graphviz unzip curl ca-certificates jq
         elif command -v yum > /dev/null 2>&1; then
-          yum install -y make graphviz unzip curl ca-certificates
+          yum install -y make graphviz unzip curl ca-certificates jq
         else
           echo "No supported package manager found; expected apt-get, dnf, or yum"
           exit 1
@@ -48,10 +49,158 @@ phases:
       - cd pipeline-infrastructure-terraform
       - terraform init -reconfigure -input=false
       - |
-        set -eu
+        set -euo pipefail
 
-        if [ -z "${MISSION:-}" ]; then
-          echo "MISSION is required, for example MISSION=hermes, MISSION=padre, or MISSION=swxsoc_pipeline"
+        TRIGGERED_PIPELINE=$(printf '%s' "${LAMBDA_PIPELINE:-}" | tr '[:lower:]' '[:upper:]')
+        REQUESTED_ENVIRONMENT=$(printf '%s' "${CDK_ENVIRONMENT:-}" | tr '[:lower:]' '[:upper:]')
+        IS_IMAGE_DEPLOYMENT=false
+        IS_DIRECT_TAG_BUILD=false
+
+        # Lambda image projects invoke this build with both TAG and
+        # LAMBDA_PIPELINE. Their environment is about the upstream image build,
+        # so never infer it from tags in this architecture checkout.
+        if [ -n "${TAG:-}" ] || [ -n "${TRIGGERED_PIPELINE}" ]; then
+          if [ -z "${TAG:-}" ] || [ -z "${TRIGGERED_PIPELINE}" ]; then
+            echo "Image deployments require both TAG and LAMBDA_PIPELINE"
+            exit 1
+          fi
+
+          IS_IMAGE_DEPLOYMENT=true
+          if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ]; then
+            # Base infrastructure has one intentional `default` workspace; it
+            # does not use the mission dev/prod workspace convention.
+            DEPLOY_ENV=prod
+          else
+            case "${REQUESTED_ENVIRONMENT}" in
+              DEVELOPMENT)
+                DEPLOY_ENV=dev
+                ;;
+              PRODUCTION)
+                DEPLOY_ENV=prod
+                ;;
+              *)
+                echo "Mission image deployments require CDK_ENVIRONMENT=DEVELOPMENT or PRODUCTION"
+                exit 1
+                ;;
+            esac
+          fi
+        else
+          # For builds sourced directly from this repository, prefer CodeBuild
+          # webhook/source metadata. A commit's local Git tags are not reliable
+          # evidence of which event started a build.
+          case "${CODEBUILD_WEBHOOK_TRIGGER:-}" in
+            tag/*)
+              IS_DIRECT_TAG_BUILD=true
+              ;;
+            branch/main)
+              ;;
+            pr/*|branch/*)
+              echo "Non-main direct build: validation complete; skipping Terraform apply"
+              exit 0
+              ;;
+            "")
+              if [[ "${CODEBUILD_WEBHOOK_HEAD_REF:-}" == refs/tags/* ]]; then
+                IS_DIRECT_TAG_BUILD=true
+              else
+                case "${CODEBUILD_SOURCE_VERSION:-}" in
+                  refs/tags/*)
+                    IS_DIRECT_TAG_BUILD=true
+                    ;;
+                  main|refs/heads/main|"")
+                    ;;
+                  pr/*|refs/pull/*|refs/heads/*)
+                    echo "Non-main direct build: validation complete; skipping Terraform apply"
+                    exit 0
+                    ;;
+                  *)
+                    echo "Unrecognized direct source version ${CODEBUILD_SOURCE_VERSION:-<empty>}; refusing to apply"
+                    exit 1
+                    ;;
+                esac
+              fi
+              ;;
+            *)
+              echo "Unrecognized webhook trigger ${CODEBUILD_WEBHOOK_TRIGGER}; refusing to apply"
+              exit 1
+              ;;
+          esac
+
+          if [ "${IS_DIRECT_TAG_BUILD}" = true ]; then
+            DEPLOY_ENV=prod
+          else
+            case "${REQUESTED_ENVIRONMENT}" in
+              ""|DEVELOPMENT)
+                DEPLOY_ENV=dev
+                ;;
+              PRODUCTION)
+                DEPLOY_ENV=prod
+                ;;
+              *)
+                echo "CDK_ENVIRONMENT must be DEVELOPMENT or PRODUCTION"
+                exit 1
+                ;;
+            esac
+          fi
+        fi
+
+        # Image deployments and direct branch builds must run the exact current
+        # main commit. A direct tag build is allowed to deploy its tagged source.
+        if [ "${IS_DIRECT_TAG_BUILD}" != true ]; then
+          git fetch origin main --depth=1
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            if [ "${IS_IMAGE_DEPLOYMENT}" = true ]; then
+              echo "Architecture source is not the current main commit; refusing image deployment"
+              exit 1
+            fi
+            echo "Non-current main build: validation complete; skipping Terraform apply"
+            exit 0
+          fi
+        fi
+
+        guard_image_plan() {
+          PLAN_FILE="$1"
+          TARGET_RESOURCE="$2"
+          PLAN_JSON="${PLAN_FILE}.json"
+
+          terraform show -json "${PLAN_FILE}" > "${PLAN_JSON}"
+
+          if jq -e '.resource_changes[]? | select(.mode == "managed") | select(.change.actions | index("delete"))' "${PLAN_JSON}" > /dev/null; then
+            echo "Image deployment plan contains a delete or replacement; refusing to apply"
+            jq -r '.resource_changes[]? | select(.mode == "managed") | select(.change.actions | index("delete")) | "\(.address): \(.change.actions | join(","))"' "${PLAN_JSON}"
+            exit 1
+          fi
+
+          UNEXPECTED_CHANGES=$(jq -r --arg target "${TARGET_RESOURCE}" '.resource_changes[]? | select(.mode == "managed") | select(.change.actions != ["no-op"] and .address != $target) | .address' "${PLAN_JSON}")
+          if [ -n "${UNEXPECTED_CHANGES}" ]; then
+            echo "Image deployment plan contains changes outside ${TARGET_RESOURCE}; refusing to apply"
+            printf '%s\n' "${UNEXPECTED_CHANGES}"
+            exit 1
+          fi
+        }
+
+        if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ]; then
+          cd ../base-infrastructure-terraform
+          terraform init -reconfigure -input=false
+          terraform workspace select default
+          EXECUTOR_TARGET='aws_lambda_function.aws_sdc_executor_lambda_function'
+          EXECUTOR_PLAN=/tmp/executor-image.tfplan
+          terraform plan \
+            -lock-timeout=10m \
+            -input=false \
+            -out="${EXECUTOR_PLAN}" \
+            -target="${EXECUTOR_TARGET}" \
+            -var="ef_image_tag=${TAG}"
+          guard_image_plan "${EXECUTOR_PLAN}" "${EXECUTOR_TARGET}"
+          terraform apply -lock-timeout=10m -input=false -auto-approve "${EXECUTOR_PLAN}"
+          exit 0
+        fi
+
+        # Lambda build projects historically used MISSION_NAME, while this
+        # project used MISSION. Accept both names so image builds can trigger a
+        # Terraform deployment without relying on project-level defaults.
+        MISSION="${MISSION:-${MISSION_NAME:-}}"
+        if [ -z "${MISSION}" ]; then
+          echo "MISSION (or MISSION_NAME) is required, for example hermes, padre, or swxsoc_pipeline"
           exit 1
         fi
 
@@ -59,17 +208,6 @@ phases:
         if [ ! -f "${TFVARS}" ]; then
           echo "Mission tfvars file not found: ${TFVARS}"
           exit 1
-        fi
-
-        if git describe --tags --exact-match > /dev/null 2>&1; then
-          echo "This is a tag push event"
-          DEPLOY_ENV=prod
-        elif [ "${CDK_ENVIRONMENT:-}" = "PRODUCTION" ]; then
-          echo "This is a production environment"
-          DEPLOY_ENV=prod
-        else
-          echo "This is a development environment"
-          DEPLOY_ENV=dev
         fi
 
         WORKSPACE="${DEPLOY_ENV}-${MISSION}"
@@ -81,7 +219,7 @@ phases:
           printf '%s\n' "${VALUE}" | sed -e 's/\r$//' -e 's/^"//' -e 's/"$//'
         }
 
-        ECR_REGION=$(tf_value 'var.deployment_region')
+        REGION=$(tf_value 'var.deployment_region')
         TFVARS_MISSION=$(tf_value 'var.mission_name')
         if [ "${TFVARS_MISSION}" != "${MISSION}" ]; then
           echo "MISSION=${MISSION} does not match mission_name=${TFVARS_MISSION} in ${TFVARS}"
@@ -93,20 +231,29 @@ phases:
         AF_ECR_REPO=$(tf_value 'var.enable_artifacts_lambda && var.artifacts_image_uri_override == "" ? format("%s%s", local.environment_short_name, var.artifacts_function_private_ecr_name) : ""')
         CF_ECR_REPO=$(tf_value 'var.needs_concating && var.enable_concating_lambda && var.concating_image_uri_override == "" ? format("%s%s", local.environment_short_name, var.concating_function_private_ecr_name) : ""')
 
-        TRIGGERED_PIPELINE=$(printf '%s' "${LAMBDA_PIPELINE:-}" | tr '[:lower:]' '[:upper:]')
-        if [ -n "${TAG:-}" ]; then
+        TARGET_RESOURCE=""
+        TARGET_IMAGE_VAR=""
+        if [ "${IS_IMAGE_DEPLOYMENT}" = true ]; then
           case "${TRIGGERED_PIPELINE}" in
             PROCESSING)
               [ -n "${PF_ECR_REPO}" ] || { echo "TAG was provided for PROCESSING, but processing Lambda image resolution is disabled for ${MISSION}"; exit 1; }
+              TARGET_RESOURCE='aws_lambda_function.aws_sdc_processing_lambda_function[0]'
+              TARGET_IMAGE_VAR="pf_image_tag=${TAG}"
               ;;
             SORTING)
               [ -n "${SF_ECR_REPO}" ] || { echo "TAG was provided for SORTING, but sorting Lambda image resolution is disabled for ${MISSION}"; exit 1; }
+              TARGET_RESOURCE='aws_lambda_function.sorting_lambda_function[0]'
+              TARGET_IMAGE_VAR="sf_image_tag=${TAG}"
               ;;
             ARTIFACTS)
               [ -n "${AF_ECR_REPO}" ] || { echo "TAG was provided for ARTIFACTS, but artifacts Lambda image resolution is disabled for ${MISSION}"; exit 1; }
+              TARGET_RESOURCE='aws_lambda_function.aws_sdc_artifacts_lambda_function[0]'
+              TARGET_IMAGE_VAR="af_image_tag=${TAG}"
               ;;
             CONCATING)
               [ -n "${CF_ECR_REPO}" ] || { echo "TAG was provided for CONCATING, but concating Lambda image resolution is disabled for ${MISSION}"; exit 1; }
+              TARGET_RESOURCE='aws_lambda_function.aws_sdc_concating_lambda_function[0]'
+              TARGET_IMAGE_VAR="cf_image_tag=${TAG}"
               ;;
             *)
               echo "TAG was provided for unsupported LAMBDA_PIPELINE=${LAMBDA_PIPELINE:-<empty>}"
@@ -118,7 +265,7 @@ phases:
         latest_tag() {
           aws ecr describe-images \
             --repository-name "$1" \
-            --region "${ECR_REGION}" \
+            --region "${REGION}" \
             --query "reverse(sort_by(imageDetails[?imageTags != null], &imagePushedAt))[].imageTags[]" \
             --output text | tr '\t' '\n' | awk '$0 != "latest" { print; exit }'
         }
@@ -143,6 +290,20 @@ phases:
 
           latest_tag "${REPO}"
         }
+
+        if [ "${IS_IMAGE_DEPLOYMENT}" = true ]; then
+          IMAGE_PLAN=/tmp/pipeline-image.tfplan
+          terraform plan \
+            -lock-timeout=10m \
+            -input=false \
+            -out="${IMAGE_PLAN}" \
+            -target="${TARGET_RESOURCE}" \
+            -var-file="${TFVARS}" \
+            -var="${TARGET_IMAGE_VAR}"
+          guard_image_plan "${IMAGE_PLAN}" "${TARGET_RESOURCE}"
+          terraform apply -lock-timeout=10m -input=false -auto-approve "${IMAGE_PLAN}"
+          exit 0
+        fi
 
         PF_IMAGE_TAG=$(image_tag_for PROCESSING "${PF_ECR_REPO}")
         SF_IMAGE_TAG=$(image_tag_for SORTING "${SF_ECR_REPO}")
@@ -174,6 +335,7 @@ phases:
         add_image_var cf_image_tag "${CF_ECR_REPO}" "${CF_IMAGE_TAG}"
 
         terraform apply \
+          -lock-timeout=10m \
           -input=false \
           -auto-approve \
           -var-file="${TFVARS}" \

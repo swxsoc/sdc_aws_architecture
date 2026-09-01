@@ -27,7 +27,23 @@ variable "instrument_names" {
 
 variable "mission_name" {
   type        = string
-  description = "The list of missions"
+  description = "Mission identifier used for resource names and tags"
+
+  validation {
+    condition     = trimspace(var.mission_name) != ""
+    error_message = "mission_name must not be empty."
+  }
+}
+
+variable "service_name" {
+  type        = string
+  description = "Service tag applied to all mission pipeline resources"
+  default     = "sdc-aws-pipeline"
+
+  validation {
+    condition     = trimspace(var.service_name) != ""
+    error_message = "service_name must not be empty."
+  }
 }
 
 variable "resource_purpose" {

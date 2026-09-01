@@ -50,6 +50,14 @@ run "plan_pipeline" {
   }
 
   assert {
+    condition = (
+      resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].tags["Mission"] == "swxsoc_pipeline" &&
+      resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].tags["Service"] == "sdc-aws-pipeline"
+    )
+    error_message = "Pipeline resources should include the required Mission and Service tags."
+  }
+
+  assert {
     condition = alltrue([
       jsondecode(resource.aws_ecr_lifecycle_policy.processing_function_private_ecr.policy).rules[0].selection.countNumber == 15,
       jsondecode(resource.aws_ecr_lifecycle_policy.concating_function_private_ecr[0].policy).rules[0].selection.countNumber == 15,
@@ -109,4 +117,5 @@ run "plan_swxsoc_artifacts_lambda" {
     condition     = length(resource.aws_sns_topic_subscription.af_sns_topic_subscription) == 1
     error_message = "Artifacts Lambda should subscribe to each instrument SNS topic."
   }
+
 }
