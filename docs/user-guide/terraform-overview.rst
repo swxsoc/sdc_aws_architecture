@@ -105,6 +105,11 @@ workspace and mission. The optional ``grafana_secret_name`` and
 ``udl_secret_name`` variables are escape hatches for an existing externally
 managed secret; leave them empty to use the convention.
 
+The checked-in base tfvars temporarily selects the legacy Grafana and UDL names
+so executor image deployments remain safe during migration. Remove an override
+only after the mission-first value exists; the Terraform-managed Grafana secret
+also requires a reviewed state migration rather than a blind replacement.
+
 AWS Secrets Manager cannot rename a secret. A Terraform name change therefore
 plans a replacement. Before applying a migration, create or copy externally
 managed values at the new path, verify IAM access, and update every consumer.

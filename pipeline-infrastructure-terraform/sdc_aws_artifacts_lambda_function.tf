@@ -46,8 +46,8 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
 
   lifecycle {
     ignore_changes = [
-      environment["SDC_AWS_SLACK_TOKEN"],   # Ignore changes to this variable
-      environment["SDC_AWS_SLACK_CHANNEL"], # Ignore changes to this variable
+      environment[0].variables["SDC_AWS_SLACK_TOKEN"],   # Ignore changes to this variable
+      environment[0].variables["SDC_AWS_SLACK_CHANNEL"], # Ignore changes to this variable
     ]
 
     precondition {

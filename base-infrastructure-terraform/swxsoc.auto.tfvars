@@ -12,6 +12,11 @@ soc_name = "swxsoc"
 # The name of the ECR repository that will be created to store the artifacts lambda image
 executor_function_private_ecr_name = "swxsoc_sdc_aws_executor_lambda"
 
+# Staged secret migration: keep current consumers on the existing value-bearing
+# secrets until the mission-first copies and Terraform state move are verified.
+grafana_secret_name = "grafana-credentials"
+udl_secret_name     = "udl-credentials"
+
 
 # Timestream Database and Table Names for Logs
 # The names of the timestream database and table that will be created to store logs
