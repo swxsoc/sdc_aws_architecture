@@ -27,9 +27,22 @@ run "plan_base" {
   assert {
     condition = (
       resource.aws_ecr_repository.executor_function_private_ecr.tags["Mission"] == "swxsoc" &&
-      resource.aws_ecr_repository.executor_function_private_ecr.tags["Service"] == "sdc-aws-base-infrastructure"
+      resource.aws_ecr_repository.executor_function_private_ecr.tags["Service"] == "executor" &&
+      resource.aws_ecr_repository.executor_function_private_ecr.tags["Environment"] == "Production" &&
+      resource.aws_ecr_repository.executor_function_private_ecr.tags["ManagedBy"] == "terraform" &&
+      resource.aws_ecr_repository.executor_function_private_ecr.tags["Project"] == "swxsoc"
     )
-    error_message = "Base resources should include the required Mission and Service tags."
+    error_message = "Executor ECR should include the complete common and component tags."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.aws_sdc_executor_lambda_function.tags["Mission"] == "swxsoc" &&
+      resource.aws_lambda_function.aws_sdc_executor_lambda_function.tags["Service"] == "executor" &&
+      resource.aws_lambda_function.aws_sdc_executor_lambda_function.tags["Environment"] == "Production" &&
+      resource.aws_lambda_function.aws_sdc_executor_lambda_function.tags["ManagedBy"] == "terraform"
+    )
+    error_message = "Executor Lambda should include the complete common and component tags."
   }
 
   assert {
@@ -48,8 +61,13 @@ run "plan_base" {
   }
 
   assert {
-    condition     = resource.aws_secretsmanager_secret.grafana_secret.tags["Service"] == "executor"
-    error_message = "Base secrets should be tagged with their consuming service."
+    condition = (
+      resource.aws_secretsmanager_secret.grafana_secret.tags["Service"] == "executor" &&
+      resource.aws_secretsmanager_secret.grafana_secret.tags["Environment"] == "Production" &&
+      resource.aws_secretsmanager_secret.grafana_secret.tags["ManagedBy"] == "terraform" &&
+      resource.aws_secretsmanager_secret.grafana_secret.recovery_window_in_days == 30
+    )
+    error_message = "Base secrets should have complete tags and a recoverable deletion window."
   }
 
   assert {

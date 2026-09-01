@@ -36,7 +36,7 @@ provider "aws" {
   region = var.deployment_region
 
   default_tags {
-    tags = local.required_tags
+    tags = local.standard_tags
   }
 }
 
@@ -67,6 +67,7 @@ locals {
 
   standard_tags = merge(local.required_tags, {
     "Environment" = local.environment_full_name
+    "ManagedBy"   = "terraform"
     "Purpose"     = "SWSOC Base Infrastructure"
     "Project"     = var.soc_name
   })

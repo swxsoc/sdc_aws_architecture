@@ -13,11 +13,33 @@ locals {
 data "aws_secretsmanager_secret" "mattermost" {
   count = var.enable_mattermost ? 1 : 0
   name  = local.mattermost_secret_name
+
+  lifecycle {
+    postcondition {
+      condition = (
+        lookup(self.tags, "Mission", "") == var.mission_name &&
+        lookup(self.tags, "Service", "") == "communications" &&
+        lookup(self.tags, "Environment", "") == local.environment_full_name &&
+        lookup(self.tags, "ManagedBy", "") == "external"
+      )
+      error_message = "The Mattermost secret must have the expected Mission, Service=communications, Environment, and ManagedBy=external tags."
+    }
+  }
 }
 
 data "aws_secretsmanager_secret_version" "mattermost" {
   count     = var.enable_mattermost ? 1 : 0
   secret_id = data.aws_secretsmanager_secret.mattermost[0].id
+
+  lifecycle {
+    postcondition {
+      condition = (
+        try(length(trimspace(jsondecode(self.secret_string).token)) > 0, false) &&
+        try(length(trimspace(jsondecode(self.secret_string).channel_id)) > 0, false)
+      )
+      error_message = "The Mattermost secret JSON must contain non-empty string keys named token and channel_id."
+    }
+  }
 }
 
 locals {
@@ -64,7 +86,9 @@ resource "aws_lambda_function" "sorting_lambda_function" {
   role = aws_iam_role.sorting_lambda_exec.arn
 
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "sorting"
+  })
 
   lifecycle {
 

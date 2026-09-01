@@ -45,6 +45,12 @@ run "plan_pipeline" {
     values = {
       arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
       id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
     }
   }
 
@@ -68,9 +74,33 @@ run "plan_pipeline" {
   assert {
     condition = (
       resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].tags["Mission"] == "swxsoc_pipeline" &&
-      resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].tags["Service"] == "sdc-aws-pipeline"
+      resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].tags["Service"] == "sdc-aws-pipeline" &&
+      resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].tags["Environment"] == "Development" &&
+      resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].tags["ManagedBy"] == "terraform" &&
+      resource.aws_s3_bucket.sdc_buckets["swxsoc-pipeline-reach"].tags["Project"] == "swxsoc_pipeline"
     )
-    error_message = "Pipeline resources should include the required Mission and Service tags."
+    error_message = "Shared pipeline resources should include the complete common tags."
+  }
+
+  assert {
+    condition = (
+      resource.aws_ecr_repository.processing_function_private_ecr.tags["Service"] == "processing" &&
+      resource.aws_ecr_repository.sorting_function_private_ecr.tags["Service"] == "sorting" &&
+      resource.aws_ecr_repository.artifacts_function_private_ecr.tags["Service"] == "artifacts" &&
+      resource.aws_ecr_repository.concating_function_private_ecr[0].tags["Service"] == "concating" &&
+      resource.aws_ecrpublic_repository.docker_base_public_ecr.tags["Service"] == "container-base"
+    )
+    error_message = "Each ECR repository should identify its component service."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.sorting_lambda_function[0].tags["Mission"] == "swxsoc_pipeline" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].tags["Service"] == "sorting" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].tags["Environment"] == "Development" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].tags["ManagedBy"] == "terraform"
+    )
+    error_message = "Sorting Lambda should include the complete common and component tags."
   }
 
   assert {
@@ -89,8 +119,18 @@ run "plan_pipeline" {
   }
 
   assert {
-    condition     = resource.aws_secretsmanager_secret.rds_secret.tags["Service"] == "processing"
-    error_message = "Pipeline secrets should be tagged with their consuming service."
+    condition = (
+      resource.aws_secretsmanager_secret.rds_secret.tags["Service"] == "processing" &&
+      resource.aws_secretsmanager_secret.rds_secret.tags["Environment"] == "Development" &&
+      resource.aws_secretsmanager_secret.rds_secret.tags["ManagedBy"] == "terraform" &&
+      resource.aws_secretsmanager_secret.rds_secret.recovery_window_in_days == 30
+    )
+    error_message = "Pipeline secrets should have complete tags and a recoverable deletion window."
+  }
+
+  assert {
+    condition     = resource.aws_db_instance.rds_instance.identifier == "dev-swxsoc-pipeline-cdftracker-db"
+    error_message = "RDS should use a deterministic environment/mission identifier."
   }
 }
 
@@ -140,6 +180,12 @@ run "plan_swxsoc_artifacts_lambda" {
     values = {
       arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
       id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
     }
   }
 
@@ -178,6 +224,16 @@ run "plan_swxsoc_artifacts_lambda" {
       resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].environment[0].variables["MATTERMOST_URL"] == "https://mm.sciencecloud.nasa.gov:443"
     )
     error_message = "Artifacts Lambda should receive the complete Mattermost environment."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.sorting_lambda_function[0].tags["Service"] == "sorting" &&
+      resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].tags["Service"] == "artifacts" &&
+      resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].tags["Environment"] == "Development" &&
+      resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].tags["ManagedBy"] == "terraform"
+    )
+    error_message = "Sorting and Artifacts Lambdas should use component service tags."
   }
 
 }
