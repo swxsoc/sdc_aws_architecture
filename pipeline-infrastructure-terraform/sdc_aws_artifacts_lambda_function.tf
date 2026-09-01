@@ -34,7 +34,7 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
       SUNPY_DOWNLOADDIR      = "/tmp"
-    }, local.mattermost_environment)
+    }, local.comms_environment)
   }
   ephemeral_storage {
     size = 2048

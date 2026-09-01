@@ -111,6 +111,11 @@ services use a purpose-specific service path, such as
 `swxsoc/dev/swxsoc-pipeline/communications/mattermost`. Terraform applies
 the same `Mission`, `Service`, and `Environment` tags to managed secrets.
 
+Communications platforms are explicit per mission: PADRE selects Slack,
+HERMES preserves legacy auto-detection, and the existing iMPAX plus SWxSOC
+Pipeline Mattermost environments are adopted through their mission-specific
+external secrets.
+
 Changing an existing Secrets Manager name creates a replacement because AWS
 does not support renaming secrets. Before applying a naming migration, copy any
 externally managed secret value to the new path and update its consumers. Never

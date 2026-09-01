@@ -44,12 +44,16 @@ data "aws_secretsmanager_secret_version" "mattermost" {
 
 locals {
   mattermost_credentials = var.enable_mattermost ? jsondecode(data.aws_secretsmanager_secret_version.mattermost[0].secret_string) : {}
-  mattermost_environment = var.enable_mattermost ? {
-    COMMS_PLATFORM        = "mattermost"
-    MATTERMOST_CHANNEL_ID = local.mattermost_credentials.channel_id
-    MATTERMOST_TOKEN      = local.mattermost_credentials.token
-    MATTERMOST_URL        = var.mattermost_url
-  } : {}
+  comms_environment = merge(
+    trimspace(var.comms_platform) != "" ? {
+      COMMS_PLATFORM = lower(trimspace(var.comms_platform))
+    } : {},
+    var.enable_mattermost ? {
+      MATTERMOST_CHANNEL_ID = local.mattermost_credentials.channel_id
+      MATTERMOST_TOKEN      = local.mattermost_credentials.token
+      MATTERMOST_URL        = var.mattermost_url
+    } : {},
+  )
 }
 
 // Creates the Sorting Lambda function
@@ -69,7 +73,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
       SUNPY_DOWNLOADDIR      = "/tmp"
-    }, local.mattermost_environment)
+    }, local.comms_environment)
   }
 
   image_uri    = local.sorting_image_uri
