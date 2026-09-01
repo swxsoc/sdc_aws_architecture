@@ -14,6 +14,10 @@ Pipeline infrastructure uses workspaces for environments and missions, for examp
 * `dev-<mission>`
 * `prod-<mission>`
 
+The pipeline root refuses to plan in the ``default`` workspace. That workspace
+is reserved for base infrastructure; always select an explicit mission and
+environment before planning.
+
 Common Commands
 ---------------
 Initialize:
@@ -105,6 +109,8 @@ AWS Secrets Manager cannot rename a secret. A Terraform name change therefore
 plans a replacement. Before applying a migration, create or copy externally
 managed values at the new path, verify IAM access, and update every consumer.
 Do not store secret values in Terraform variable files or version control.
+Managed secrets use a 30-day recovery window and create-before-destroy, but
+those safeguards do not populate externally managed values at a new path.
 
 Mattermost Notifications
 ------------------------

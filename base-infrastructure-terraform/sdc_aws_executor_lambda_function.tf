@@ -43,6 +43,9 @@ resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
     mode = "PassThrough"
   }
 
+  tags = merge(local.standard_tags, {
+    "Service" = "executor"
+  })
 }
 
 data "aws_secretsmanager_secret" "udl" {
@@ -68,11 +71,15 @@ resource "aws_secretsmanager_secret" "grafana_secret" {
   kms_key_id              = aws_kms_key.default.key_id
   name                    = local.grafana_secret_name
   description             = "Grafana Credentials"
-  recovery_window_in_days = 0
+  recovery_window_in_days = 30
 
   tags = merge(local.standard_tags, {
     "Service" = "executor"
   })
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 

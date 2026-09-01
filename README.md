@@ -88,12 +88,13 @@ or replacement.
 
 ### Resource tags
 
-Both Terraform roots enforce `Mission` and `Service` through AWS provider
-default tags, so every AWS resource type that supports tags receives them. The
-base service defaults to `sdc-aws-base-infrastructure`; mission pipelines
-default to `sdc-aws-pipeline`. Override `service_name` when a distinct service
-boundary is required. Explicit resource tags also include `Environment`,
-`Purpose`, and `Project`.
+Both Terraform roots enforce `Mission`, `Service`, `Environment`, `Purpose`,
+`Project`, and `ManagedBy=terraform` through AWS provider default tags, so
+every AWS resource type that supports tags receives them. Shared pipeline
+resources use `Service=sdc-aws-pipeline`; component Lambdas, ECR repositories,
+secrets, KMS keys, and RDS resources override that with `executor`,
+`processing`, `sorting`, `artifacts`, `concating`, or `container-base` as
+appropriate.
 
 ### Secrets Manager names
 
@@ -114,6 +115,13 @@ Changing an existing Secrets Manager name creates a replacement because AWS
 does not support renaming secrets. Before applying a naming migration, copy any
 externally managed secret value to the new path and update its consumers. Never
 put credentials in tfvars or commit them to this repository.
+
+Pipeline deployments must use an explicit `dev-<mission>` or `prod-<mission>`
+workspace. Terraform refuses to plan the pipeline root in `default`, which is
+reserved for base infrastructure because the two roots currently share a
+backend key. RDS instances use the deterministic identifier
+`<environment>-<mission>-cdftracker-db`; review the first migration plan before
+applying it to an existing database.
 
 ## Documentation
 

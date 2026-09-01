@@ -245,7 +245,9 @@ resource "aws_sqs_queue" "sqs_queue" {
 resource "aws_ecr_repository" "processing_function_private_ecr" {
   name                 = "${local.environment_short_name}${var.processing_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
-  tags                 = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "processing"
+  })
 }
 
 resource "aws_ecr_lifecycle_policy" "processing_function_private_ecr" {
@@ -258,7 +260,9 @@ resource "aws_ecr_repository" "concating_function_private_ecr" {
   count                = var.needs_concating ? 1 : 0
   name                 = "${local.environment_short_name}${var.concating_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
-  tags                 = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "concating"
+  })
 }
 
 resource "aws_ecr_lifecycle_policy" "concating_function_private_ecr" {
@@ -271,7 +275,9 @@ resource "aws_ecr_lifecycle_policy" "concating_function_private_ecr" {
 resource "aws_ecr_repository" "sorting_function_private_ecr" {
   name                 = "${local.environment_short_name}${var.sorting_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
-  tags                 = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "sorting"
+  })
 }
 
 resource "aws_ecr_lifecycle_policy" "sorting_function_private_ecr" {
@@ -283,7 +289,9 @@ resource "aws_ecr_lifecycle_policy" "sorting_function_private_ecr" {
 resource "aws_ecr_repository" "artifacts_function_private_ecr" {
   name                 = "${local.environment_short_name}${var.artifacts_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
-  tags                 = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "artifacts"
+  })
 }
 
 resource "aws_ecr_lifecycle_policy" "artifacts_function_private_ecr" {
@@ -294,7 +302,9 @@ resource "aws_ecr_lifecycle_policy" "artifacts_function_private_ecr" {
 // Public ECR for the docker base image
 resource "aws_ecrpublic_repository" "docker_base_public_ecr" {
   repository_name = "${local.environment_short_name}${var.docker_base_public_ecr_name}"
-  tags            = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "container-base"
+  })
 }
 
 

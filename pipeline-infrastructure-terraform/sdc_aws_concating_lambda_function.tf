@@ -57,7 +57,11 @@ resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
     }
   }
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "concating"
+  })
+
+  depends_on = [aws_secretsmanager_secret_version.secret]
 }
 
 

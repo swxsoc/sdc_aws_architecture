@@ -35,14 +35,21 @@ provider "aws" {
   region = var.deployment_region
 
   default_tags {
-    tags = local.required_tags
+    tags = local.standard_tags
   }
 }
 
 
 
 // Identify the current AWS account
-data "aws_caller_identity" "current" {}
+data "aws_caller_identity" "current" {
+  lifecycle {
+    precondition {
+      condition     = terraform.workspace != "default"
+      error_message = "The pipeline root must use an explicit <environment>-<mission> workspace; the default workspace is reserved for base infrastructure."
+    }
+  }
+}
 
 // Locals for SDC Pipeline
 locals {
@@ -76,6 +83,7 @@ locals {
 
   standard_tags = merge(local.required_tags, {
     "Environment" = local.environment_full_name
+    "ManagedBy"   = "terraform"
     "Purpose"     = var.resource_purpose
     "Project"     = var.mission_name
   })
