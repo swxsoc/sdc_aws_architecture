@@ -91,11 +91,18 @@ resource "aws_lambda_function" "sorting_lambda_function" {
   })
 
   lifecycle {
-
     ignore_changes = [
       environment["SDC_AWS_SLACK_TOKEN"],   // Ignore changes to this variable
       environment["SDC_AWS_SLACK_CHANNEL"], // Ignore changes to this variable
     ]
+
+    precondition {
+      condition = (
+        trimspace(var.sorting_image_uri_override) != "" ||
+        trimspace(var.sf_image_tag) != ""
+      )
+      error_message = "An immutable sf_image_tag or sorting_image_uri_override is required for the sorting Lambda."
+    }
   }
 }
 

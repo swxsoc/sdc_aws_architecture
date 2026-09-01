@@ -45,11 +45,18 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
   }
 
   lifecycle {
-
     ignore_changes = [
       environment["SDC_AWS_SLACK_TOKEN"],   # Ignore changes to this variable
       environment["SDC_AWS_SLACK_CHANNEL"], # Ignore changes to this variable
     ]
+
+    precondition {
+      condition = (
+        trimspace(var.artifacts_image_uri_override) != "" ||
+        trimspace(var.af_image_tag) != ""
+      )
+      error_message = "An immutable af_image_tag or artifacts_image_uri_override is required for the artifacts Lambda."
+    }
   }
 
   dynamic "vpc_config" {

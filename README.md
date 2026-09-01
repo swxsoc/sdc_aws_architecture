@@ -82,9 +82,9 @@ infer the environment of a downstream Lambda image build.
 The build jobs pass immutable image tags into Terraform. For a manual pipeline
 apply, pass an immutable `pf_image_tag`, `sf_image_tag`, `af_image_tag`, and/or
 `cf_image_tag` for every enabled private-ECR Lambda. For a manual base apply,
-pass an immutable `ef_image_tag`. Do not rely on the mutable `latest` defaults
-for a deployment. Always review the plan, and never apply an unexpected delete
-or replacement.
+pass an immutable `ef_image_tag`. Terraform rejects missing image selections
+and the mutable `latest` tag before a Lambda can be changed. Always review the
+plan, and never apply an unexpected delete or replacement.
 
 ### Resource tags
 

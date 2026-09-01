@@ -164,26 +164,46 @@ variable "enable_concating_lambda" {
 
 variable "pf_image_tag" {
   type        = string
-  description = "Processing Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Processing Function ECR image tag; required when no full image URI override is supplied"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.pf_image_tag) == "" || lower(trimspace(var.pf_image_tag)) != "latest"
+    error_message = "pf_image_tag must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "cf_image_tag" {
   type        = string
-  description = "Processing Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Concating Function ECR image tag; required when no full image URI override is supplied"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.cf_image_tag) == "" || lower(trimspace(var.cf_image_tag)) != "latest"
+    error_message = "cf_image_tag must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "sf_image_tag" {
   type        = string
-  description = "Sorting Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Sorting Function ECR image tag; required when no full image URI override is supplied"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.sf_image_tag) == "" || lower(trimspace(var.sf_image_tag)) != "latest"
+    error_message = "sf_image_tag must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "af_image_tag" {
   type        = string
-  description = "Artifact Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Artifacts Function ECR image tag; required when no full image URI override is supplied"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.af_image_tag) == "" || lower(trimspace(var.af_image_tag)) != "latest"
+    error_message = "af_image_tag must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "processing_image_uri_override" {
