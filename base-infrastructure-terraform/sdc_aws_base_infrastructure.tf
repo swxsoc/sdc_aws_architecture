@@ -40,7 +40,9 @@ resource "aws_timestreamwrite_table" "sdc_aws_timestream_measures_table" {
 resource "aws_ecr_repository" "executor_function_private_ecr" {
   name                 = "${local.environment_short_name}${var.executor_function_private_ecr_name}"
   image_tag_mutability = "MUTABLE"
-  tags                 = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "executor"
+  })
 }
 
 resource "aws_ecr_lifecycle_policy" "executor_function_private_ecr" {

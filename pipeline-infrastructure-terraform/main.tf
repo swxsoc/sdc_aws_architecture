@@ -35,14 +35,28 @@ provider "aws" {
   region = var.deployment_region
 
   default_tags {
-    tags = local.required_tags
+    tags = local.standard_tags
   }
 }
 
 
 
 // Identify the current AWS account
-data "aws_caller_identity" "current" {}
+data "aws_caller_identity" "current" {
+  lifecycle {
+    precondition {
+      condition     = terraform.workspace != "default"
+      error_message = "The pipeline root must use an explicit <environment>-<mission> workspace; the default workspace is reserved for base infrastructure."
+    }
+  }
+}
+
+check "mattermost_platform" {
+  assert {
+    condition     = var.enable_mattermost == (lower(trimspace(var.comms_platform)) == "mattermost")
+    error_message = "enable_mattermost must be true exactly when comms_platform is mattermost."
+  }
+}
 
 // Locals for SDC Pipeline
 locals {
@@ -62,6 +76,13 @@ locals {
     prod    = "Production"
   }[local.workspace_prefix]
 
+  environment_slug       = local.is_production ? "prod" : "dev"
+  mission_slug           = replace(lower(var.mission_name), "_", "-")
+  secret_path_root       = "swxsoc/${local.environment_slug}/${local.mission_slug}"
+  grafana_secret_name    = trimspace(var.grafana_secret_name) != "" ? var.grafana_secret_name : "${local.secret_path_root}/processing/grafana"
+  mattermost_secret_name = trimspace(var.mattermost_secret_name) != "" ? var.mattermost_secret_name : "${local.secret_path_root}/communications/mattermost"
+  rds_secret_name        = "${local.secret_path_root}/processing/rds"
+
   required_tags = {
     "Mission" = var.mission_name
     "Service" = var.service_name
@@ -69,6 +90,7 @@ locals {
 
   standard_tags = merge(local.required_tags, {
     "Environment" = local.environment_full_name
+    "ManagedBy"   = "terraform"
     "Purpose"     = var.resource_purpose
     "Project"     = var.mission_name
   })

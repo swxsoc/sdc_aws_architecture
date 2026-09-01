@@ -14,6 +14,10 @@ Pipeline infrastructure uses workspaces for environments and missions, for examp
 * `dev-<mission>`
 * `prod-<mission>`
 
+The pipeline root refuses to plan in the ``default`` workspace. That workspace
+is reserved for base infrastructure; always select an explicit mission and
+environment before planning.
+
 Common Commands
 ---------------
 Initialize:
@@ -83,3 +87,61 @@ private-ECR Lambda (``pf_image_tag``, ``sf_image_tag``, ``af_image_tag``,
 mutable ``latest`` defaults. Review every plan before applying it. The project
 should use a CodeBuild managed Linux image that supports buildspec runtime
 selection for Python 3.12.
+
+Secrets Manager Naming
+----------------------
+Secrets use the predictable mission-first path
+``swxsoc/<environment>/<mission>/<service>/<secret>``. Path components are
+lowercase, environments are ``dev`` or ``prod``, and underscores in mission
+names are normalized to hyphens. For example:
+
+* ``swxsoc/prod/hermes/processing/rds``
+* ``swxsoc/dev/impax/processing/grafana``
+* ``swxsoc/prod/swxsoc/executor/udl``
+* ``swxsoc/dev/swxsoc-pipeline/communications/mattermost``
+
+Terraform derives managed RDS and Grafana secret names from the selected
+workspace and mission. The optional ``grafana_secret_name`` and
+``udl_secret_name`` variables are escape hatches for an existing externally
+managed secret; leave them empty to use the convention.
+
+The checked-in base tfvars temporarily selects the legacy Grafana and UDL names
+so executor image deployments remain safe during migration. Remove an override
+only after the mission-first value exists; the Terraform-managed Grafana secret
+also requires a reviewed state migration rather than a blind replacement.
+
+AWS Secrets Manager cannot rename a secret. A Terraform name change therefore
+plans a replacement. Before applying a migration, create or copy externally
+managed values at the new path, verify IAM access, and update every consumer.
+Do not store secret values in Terraform variable files or version control.
+Managed secrets use a 30-day recovery window and create-before-destroy, but
+those safeguards do not populate externally managed values at a new path.
+
+Mattermost Notifications
+------------------------
+Set ``comms_platform`` explicitly when a mission's application selects a
+communications backend. PADRE uses ``slack``; HERMES keeps legacy auto-detection;
+iMPAX and SWxSOC Pipeline use ``mattermost``. For Mattermost, also set
+``enable_mattermost = true``. Both Lambdas receive
+``COMMS_PLATFORM=mattermost`` and the configured ``MATTERMOST_URL``. Terraform
+reads ``MATTERMOST_TOKEN`` and ``MATTERMOST_CHANNEL_ID`` from the mission and
+environment-specific Mattermost secret, whose JSON value must contain:
+
+.. code-block:: json
+
+    {
+      "token": "<Mattermost token>",
+      "channel_id": "<Mattermost channel ID>"
+    }
+
+Create and tag that external secret before enabling Mattermost. At minimum use
+``Mission=<mission>``, ``Service=communications``,
+``Environment=Development|Production``, and ``ManagedBy=external``. The
+The iMPAX and ``swxsoc_pipeline`` configurations enable this for both their
+``dev`` and ``prod`` workspaces; workspace-derived paths keep mission and
+environment credentials separate.
+
+Because Lambda requires the token as an environment variable, Terraform reads
+the secret value during the apply and records it as sensitive data in the
+encrypted remote state. Restrict access to the Terraform state bucket and its
+KMS key accordingly.

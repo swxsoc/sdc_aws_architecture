@@ -21,7 +21,7 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
   package_type = "Image"
 
   environment {
-    variables = {
+    variables = merge({
       LAMBDA_ENVIRONMENT     = upper(local.environment_full_name)
       RDS_SECRET_ARN         = aws_secretsmanager_secret.rds_secret.arn
       RDS_HOST               = aws_db_instance.rds_instance.address
@@ -34,7 +34,7 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
       SUNPY_DOWNLOADDIR      = "/tmp"
-    }
+    }, local.comms_environment)
   }
   ephemeral_storage {
     size = 2048
@@ -45,11 +45,18 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
   }
 
   lifecycle {
-
     ignore_changes = [
-      environment["SDC_AWS_SLACK_TOKEN"],   # Ignore changes to this variable
-      environment["SDC_AWS_SLACK_CHANNEL"], # Ignore changes to this variable
+      environment[0].variables["SDC_AWS_SLACK_TOKEN"],   # Ignore changes to this variable
+      environment[0].variables["SDC_AWS_SLACK_CHANNEL"], # Ignore changes to this variable
     ]
+
+    precondition {
+      condition = (
+        trimspace(var.artifacts_image_uri_override) != "" ||
+        trimspace(var.af_image_tag) != ""
+      )
+      error_message = "An immutable af_image_tag or artifacts_image_uri_override is required for the artifacts Lambda."
+    }
   }
 
   dynamic "vpc_config" {
@@ -60,7 +67,11 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
     }
   }
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "artifacts"
+  })
+
+  depends_on = [aws_secretsmanager_secret_version.secret]
 
 
 }

@@ -57,7 +57,21 @@ resource "aws_lambda_function" "aws_sdc_concating_lambda_function" {
     }
   }
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "concating"
+  })
+
+  lifecycle {
+    precondition {
+      condition = (
+        trimspace(var.concating_image_uri_override) != "" ||
+        trimspace(var.cf_image_tag) != ""
+      )
+      error_message = "An immutable cf_image_tag or concating_image_uri_override is required for the concating Lambda."
+    }
+  }
+
+  depends_on = [aws_secretsmanager_secret_version.secret]
 }
 
 
