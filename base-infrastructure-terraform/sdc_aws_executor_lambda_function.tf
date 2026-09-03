@@ -53,6 +53,8 @@ resource "aws_lambda_function" "aws_sdc_executor_lambda_function" {
       error_message = "An immutable ef_image_tag is required for the executor Lambda."
     }
   }
+
+  depends_on = [aws_cloudwatch_log_group.executor]
 }
 
 data "aws_secretsmanager_secret" "udl" {

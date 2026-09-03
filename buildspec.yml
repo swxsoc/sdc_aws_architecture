@@ -31,6 +31,7 @@ phases:
         BANNER_MISSION=${MISSION:-${MISSION_NAME:-}}
         if [ -z "${BANNER_MISSION}" ]; then
           case "${BANNER_PROJECT}" in
+            build_swxsoc_sdc_aws_base_architecture) BANNER_MISSION=swxsoc ;;
             build_sdc_aws_pipeline_architecture) BANNER_MISSION=hermes ;;
             build_*_sdc_aws_pipeline_architecture)
               BANNER_MISSION=${BANNER_PROJECT#build_}
@@ -112,7 +113,7 @@ phases:
           fi
 
           IS_IMAGE_DEPLOYMENT=true
-          if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ]; then
+          if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ] || [ "${TRIGGERED_PIPELINE}" = "ALERT" ]; then
             # Base infrastructure has one intentional `default` workspace; it
             # does not use the mission dev/prod workspace convention.
             DEPLOY_ENV=prod
@@ -224,20 +225,27 @@ phases:
           fi
         }
 
-        if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ]; then
+        if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ] || [ "${TRIGGERED_PIPELINE}" = "ALERT" ]; then
           cd ../base-infrastructure-terraform
           terraform init -reconfigure -input=false
           terraform workspace select default
-          EXECUTOR_TARGET='aws_lambda_function.aws_sdc_executor_lambda_function'
-          EXECUTOR_PLAN=/tmp/executor-image.tfplan
+          if [ "${TRIGGERED_PIPELINE}" = "EXECUTOR" ]; then
+            BASE_TARGET='aws_lambda_function.aws_sdc_executor_lambda_function'
+            BASE_IMAGE_VAR="ef_image_tag=${TAG}"
+            BASE_PLAN=/tmp/executor-image.tfplan
+          else
+            BASE_TARGET='aws_lambda_function.aws_sdc_alert_lambda_function'
+            BASE_IMAGE_VAR="alert_image_tag=${TAG}"
+            BASE_PLAN=/tmp/alert-image.tfplan
+          fi
           terraform plan \
             -lock-timeout=10m \
             -input=false \
-            -out="${EXECUTOR_PLAN}" \
-            -target="${EXECUTOR_TARGET}" \
-            -var="ef_image_tag=${TAG}"
-          guard_image_plan "${EXECUTOR_PLAN}" "${EXECUTOR_TARGET}"
-          terraform apply -lock-timeout=10m -input=false -auto-approve "${EXECUTOR_PLAN}"
+            -out="${BASE_PLAN}" \
+            -target="${BASE_TARGET}" \
+            -var="${BASE_IMAGE_VAR}"
+          guard_image_plan "${BASE_PLAN}" "${BASE_TARGET}"
+          terraform apply -lock-timeout=10m -input=false -auto-approve "${BASE_PLAN}"
           exit 0
         fi
 

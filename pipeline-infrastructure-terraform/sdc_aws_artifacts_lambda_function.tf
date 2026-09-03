@@ -71,7 +71,10 @@ resource "aws_lambda_function" "aws_sdc_artifacts_lambda_function" {
     "Service" = "artifacts"
   })
 
-  depends_on = [aws_secretsmanager_secret_version.secret]
+  depends_on = [
+    aws_cloudwatch_log_group.artifacts,
+    aws_secretsmanager_secret_version.secret,
+  ]
 
 
 }

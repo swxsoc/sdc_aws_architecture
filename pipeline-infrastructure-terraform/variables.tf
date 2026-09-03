@@ -173,6 +173,23 @@ variable "enable_concating_lambda" {
   default     = true
 }
 
+variable "lambda_log_retention_days" {
+  type        = number
+  description = "CloudWatch retention in days for managed mission Lambda log groups"
+  default     = 90
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.lambda_log_retention_days)
+    error_message = "lambda_log_retention_days must be a CloudWatch Logs supported retention period."
+  }
+}
+
+variable "adopt_existing_lambda_log_groups" {
+  type        = bool
+  description = "Whether declarative imports should adopt existing mission Lambda log groups; set false for a brand-new mission"
+  default     = true
+}
+
 variable "pf_image_tag" {
   type        = string
   description = "Immutable Processing Function ECR image tag; required when no full image URI override is supplied"

@@ -14,9 +14,9 @@ This repository deploys all cloud resources required for the SDC AWS Pipeline us
 
 There are three Terraform entry points:
 
-* **Base infrastructure** (`base-infrastructure-terraform/`): shared resources used across missions.
+* **Base infrastructure** (`base-infrastructure-terraform/`): shared resources used across missions, including the executor and alert Lambdas.
 * **Pipeline infrastructure** (`pipeline-infrastructure-terraform/`): mission-specific resources (S3 buckets, ECR repos, Timestream, RDS, Lambdas, SNS/SQS, IAM, etc.).
-* **Deployment infrastructure** (`deployment-infrastructure-terraform/`): shared CodeBuild projects, service roles, policies, webhooks, and imports for the legacy manually managed fleet.
+* **Deployment infrastructure** (`deployment-infrastructure-terraform/`): all 34 CodeBuild projects (image builds, architecture deployments, dependency rebuild triggers, and reprocessing), their service roles, policies, webhooks, log groups, and imports for the legacy manually managed fleet.
 
 Each mission is configured using a tfvars file (for example, `padre.tfvars`, `hermes.tfvars`) and a workspace per environment (for example, `dev-<mission>` and `prod-<mission>`).
 One matching entry in ``deployment-infrastructure-terraform/codebuild.tf``

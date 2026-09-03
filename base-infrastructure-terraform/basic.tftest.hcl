@@ -4,15 +4,19 @@ run "plan_base" {
   command = plan
 
   variables {
-    deployment_region                  = "us-east-1"
-    soc_name                           = "swxsoc"
-    timestream_database_name           = "swxsoc_sdc_aws_logs"
-    timestream_measures_table_name     = "swxsoc_measures_table"
-    executor_function_private_ecr_name = "swxsoc_sdc_aws_executor_lambda"
-    ef_image_tag                       = "test-immutable-sha"
-    grafana_secret_name                = ""
-    udl_secret_name                    = ""
-    s3_access_bucket_names             = ["dev-swxsoc-pipeline-incoming", "swxsoc-pipeline-incoming"]
+    deployment_region                     = "us-east-1"
+    soc_name                              = "swxsoc"
+    timestream_database_name              = "swxsoc_sdc_aws_logs"
+    timestream_measures_table_name        = "swxsoc_measures_table"
+    executor_function_private_ecr_name    = "swxsoc_sdc_aws_executor_lambda"
+    alert_function_private_ecr_name       = "swxsoc_sdc_aws_alert_lambda"
+    ef_image_tag                          = "test-immutable-sha"
+    alert_image_tag                       = "test-alert-immutable-sha"
+    grafana_secret_name                   = ""
+    udl_secret_name                       = ""
+    alert_gcn_secret_name                 = ""
+    adopt_existing_base_runtime_resources = false
+    s3_access_bucket_names                = ["dev-swxsoc-pipeline-incoming", "swxsoc-pipeline-incoming"]
   }
 
   override_data {
@@ -29,6 +33,16 @@ run "plan_base" {
 
   assert {
     condition = (
+      resource.aws_ecr_repository.alert_function_private_ecr.name == "swxsoc_sdc_aws_alert_lambda" &&
+      resource.aws_ecr_repository.alert_function_private_ecr.tags["Mission"] == "swxsoc" &&
+      resource.aws_ecr_repository.alert_function_private_ecr.tags["Service"] == "alert" &&
+      resource.aws_ecr_repository.alert_function_private_ecr.tags["Environment"] == "Production"
+    )
+    error_message = "Alert ECR should have a predictable name and complete mission/service/environment tags."
+  }
+
+  assert {
+    condition = (
       resource.aws_ecr_repository.executor_function_private_ecr.tags["Mission"] == "swxsoc" &&
       resource.aws_ecr_repository.executor_function_private_ecr.tags["Service"] == "executor" &&
       resource.aws_ecr_repository.executor_function_private_ecr.tags["Environment"] == "Production" &&
@@ -36,6 +50,33 @@ run "plan_base" {
       resource.aws_ecr_repository.executor_function_private_ecr.tags["Project"] == "swxsoc"
     )
     error_message = "Executor ECR should include the complete common and component tags."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.aws_sdc_alert_lambda_function.function_name == "aws_sdc_alert_lambda_function" &&
+      resource.aws_lambda_function.aws_sdc_alert_lambda_function.tags["Service"] == "alert" &&
+      resource.aws_lambda_function.aws_sdc_alert_lambda_function.environment[0].variables["LAMBDA_ENVIRONMENT"] == "PRODUCTION"
+    )
+    error_message = "Alert Lambda should preserve its production identity and carry alert service tags."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_permission.alert_eventbridge.statement_id == "lambda-8e809099-7565-4fcb-a416-b694da153a2a" &&
+      resource.aws_cloudwatch_event_target.alert.target_id == "jc7f7xt2upcwol5ogc67" &&
+      resource.aws_cloudwatch_event_rule.alert.schedule_expression == "rate(5 minutes)"
+    )
+    error_message = "Alert schedule wiring must keep the live identifiers so adoption never replaces the permission or target."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_log_group.executor.retention_in_days == 90 &&
+      resource.aws_cloudwatch_log_group.alert.retention_in_days == 90 &&
+      resource.aws_cloudwatch_log_group.alert.tags["Service"] == "alert"
+    )
+    error_message = "Base Lambda logs should be explicitly retained and tagged by service."
   }
 
   assert {

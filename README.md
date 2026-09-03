@@ -35,9 +35,12 @@ This repository contains Terraform configurations for managing AWS infrastructur
 ### Deployment Infrastructure
 - Managed in `deployment-infrastructure-terraform/`
 - Uses a dedicated S3 state key and the default workspace
-- Declaratively imports the 22 existing CodeBuild projects
-- Owns their predictable service roles, policies, webhooks, and tags
+- Declaratively imports all 33 live CodeBuild projects and adds one dedicated
+  base-architecture project, for 34 managed projects in total
+- Owns their predictable service roles, policies, webhooks, log groups, and tags
 - Generates a mission's standard projects from one entry in `local.missions`
+- Manages the nine dependency rebuild triggers and the PADRE reprocessing job
+  as least-privilege support projects with generated buildspecs
 
 ## Getting Started
 
@@ -75,12 +78,15 @@ pushing an immutable image tag. The downstream build accepts either `MISSION`
 or the legacy `MISSION_NAME`, selects the matching `dev-<mission>` or
 `prod-<mission>` Terraform workspace, and applies the triggering component's
 image tag. `LAMBDA_PIPELINE` must be one of `PROCESSING`, `SORTING`, `ARTIFACTS`,
-or `CONCATING` when `TAG` is supplied. `EXECUTOR` is also supported: it uses
-the base Terraform root and its `default` workspace.
+or `CONCATING` when `TAG` is supplied. `EXECUTOR` and `ALERT` are also
+supported: they use the base Terraform root and its `default` workspace, and
+the executor and alert image builds invoke the dedicated
+`build_swxsoc_sdc_aws_base_architecture` project rather than a mission
+architecture project.
 
 Mission image deployments require an explicit `CDK_ENVIRONMENT` of
-`DEVELOPMENT` or `PRODUCTION`; executor deployments always use the base
-`default` workspace and need no environment override. Image deployments
+`DEVELOPMENT` or `PRODUCTION`; executor and alert deployments always use the
+base `default` workspace and need no environment override. Image deployments
 create a saved, targeted plan for only the triggering Lambda and refuse any
 delete, replacement, or unrelated resource change before applying it. Direct
 builds use CodeBuild source metadata to distinguish `main` and release-tag
@@ -90,7 +96,7 @@ infer the environment of a downstream Lambda image build.
 The build jobs pass immutable image tags into Terraform. For a manual pipeline
 apply, pass an immutable `pf_image_tag`, `sf_image_tag`, `af_image_tag`, and/or
 `cf_image_tag` for every enabled private-ECR Lambda. For a manual base apply,
-pass an immutable `ef_image_tag`. Terraform rejects missing image selections
+pass an immutable `ef_image_tag` and `alert_image_tag`. Terraform rejects missing image selections
 and the mutable `latest` tag before a Lambda can be changed. Always review the
 plan, and never apply an unexpected delete or replacement.
 
@@ -101,6 +107,16 @@ uniform `Mission`, `Service`, `Environment=Shared`, `Purpose`, `Project`, and
 `ManagedBy=terraform` tags. Architecture projects accept pull-request webhooks
 for validation only; image builds invoke them explicitly for targeted deploys.
 This prevents an architecture merge from applying unrelated infrastructure.
+Every project writes to an explicit, tagged `/aws/codebuild/<project>` log
+group with 90-day retention, and the base and pipeline roots give each managed
+Lambda the same explicit 90-day log group. See
+`deployment-infrastructure-terraform/README.md` for the full project list,
+support-trigger behavior, and the first-apply import order.
+
+The alert Lambda (`aws_sdc_alert_lambda_function`), its ECR repository,
+execution role, EventBridge schedule, and log group are managed by the base
+root. It keeps the legacy `gdc_test_kafka` GCN secret through the explicit
+`alert_gcn_secret_name` override until a mission-first copy exists.
 
 All three S3 backends use native lockfiles. Terraform execution roles need
 access to both the state object and its `.tflock` object.
@@ -140,8 +156,16 @@ does not support renaming secrets. Before applying a naming migration, copy any
 externally managed secret value to the new path and update its consumers. Never
 put credentials in tfvars or commit them to this repository.
 
-The base tfvars intentionally pins `grafana-credentials` and `udl-credentials`
-during the migration. Remove each override only after its value-bearing
+The Mattermost secrets for SWxSOC Pipeline
+(`swxsoc/dev/swxsoc-pipeline/communications/mattermost` and
+`swxsoc/prod/swxsoc-pipeline/communications/mattermost`) do not exist yet.
+Until they are seeded and tagged through an approved migration, the
+`dev-swxsoc_pipeline` and `prod-swxsoc_pipeline` plans fail at the secret data
+source by design; the live Lambdas keep their current environment variables in
+the meantime.
+
+The base tfvars intentionally pins `grafana-credentials`, `udl-credentials`,
+and `gdc_test_kafka` during the migration. Remove each override only after its value-bearing
 mission-first target exists and the Grafana Terraform state move has been
 planned. This keeps executor image deployments working during the transition.
 

@@ -29,8 +29,8 @@ run "plan_deployment_projects" {
   }
 
   assert {
-    condition     = length(resource.aws_codebuild_project.pipeline) == 22
-    error_message = "The four missions plus executor should produce 22 managed CodeBuild projects."
+    condition     = length(resource.aws_codebuild_project.pipeline) == 24 && length(resource.aws_codebuild_project.support) == 10
+    error_message = "The complete live fleet plus its base deployment project should produce 34 managed CodeBuild projects."
   }
 
   assert {
@@ -59,5 +59,31 @@ run "plan_deployment_projects" {
       resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].tags["ManagedBy"] == "terraform"
     )
     error_message = "Every project must carry uniform mission, service, environment, and ownership tags."
+  }
+
+  assert {
+    condition = (
+      resource.aws_codebuild_project.pipeline["build_aws_sdc_alert_lambda_function"].environment[0].privileged_mode &&
+      resource.aws_codebuild_project.pipeline["build_aws_sdc_alert_lambda_function"].tags["Service"] == "alert"
+    )
+    error_message = "The alert image build must be Docker-enabled and tagged as the alert service."
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_cloudwatch_log_group.codebuild) == 34 &&
+      resource.aws_cloudwatch_log_group.codebuild["trigger_rebuild_hermes_core"].retention_in_days == 90 &&
+      resource.aws_cloudwatch_log_group.codebuild["trigger_rebuild_hermes_core"].tags["Mission"] == "hermes"
+    )
+    error_message = "Every CodeBuild project must have a retained, mission-tagged log group."
+  }
+
+  assert {
+    condition = (
+      resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].tags["Service"] == "dependency-rebuild" &&
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "SWxSOC BUILD: DEPENDENCY REBUILD TRIGGER") &&
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "build_impax_sdc_aws_base_docker_image")
+    )
+    error_message = "The SWxSOC dependency trigger must be tagged, bannered, and fan out to every mission base image."
   }
 }
