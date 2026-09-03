@@ -50,6 +50,20 @@ resource "aws_ecr_lifecycle_policy" "executor_function_private_ecr" {
   policy     = local.ecr_lifecycle_policy
 }
 
+// Private ECR for the alert function
+resource "aws_ecr_repository" "alert_function_private_ecr" {
+  name                 = "${local.environment_short_name}${var.alert_function_private_ecr_name}"
+  image_tag_mutability = "MUTABLE"
+  tags = merge(local.standard_tags, {
+    "Service" = "alert"
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "alert_function_private_ecr" {
+  repository = aws_ecr_repository.alert_function_private_ecr.name
+  policy     = local.ecr_lifecycle_policy
+}
+
 
 
 ///////////////////////////////////////

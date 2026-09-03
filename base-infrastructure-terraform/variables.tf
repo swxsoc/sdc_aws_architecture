@@ -41,14 +41,31 @@ variable "executor_function_private_ecr_name" {
   description = "Private ECR repository for the processing function"
 }
 
+variable "alert_function_private_ecr_name" {
+  type        = string
+  description = "Private ECR repository for the SWxSOC alert function"
+  default     = "swxsoc_sdc_aws_alert_lambda"
+}
+
 variable "ef_image_tag" {
   type        = string
   description = "Immutable Executor Function ECR image tag"
   default     = ""
 
   validation {
-    condition     = trimspace(var.ef_image_tag) != "" && lower(trimspace(var.ef_image_tag)) != "latest"
-    error_message = "ef_image_tag is required and must be immutable; the mutable latest tag is not allowed."
+    condition     = trimspace(var.ef_image_tag) == "" || lower(trimspace(var.ef_image_tag)) != "latest"
+    error_message = "ef_image_tag must be immutable when set; the mutable latest tag is not allowed."
+  }
+}
+
+variable "alert_image_tag" {
+  type        = string
+  description = "Immutable Alert Function ECR image tag"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.alert_image_tag) == "" || lower(trimspace(var.alert_image_tag)) != "latest"
+    error_message = "alert_image_tag must be immutable when set; the mutable latest tag is not allowed."
   }
 }
 
@@ -83,6 +100,46 @@ variable "grafana_secret_name" {
   validation {
     condition     = var.grafana_secret_name == "" || trimspace(var.grafana_secret_name) != ""
     error_message = "grafana_secret_name must be empty to use the convention or contain a non-whitespace name."
+  }
+}
+
+variable "alert_gcn_secret_name" {
+  type        = string
+  description = "Optional existing GCN credential secret name; defaults to swxsoc/<environment>/<mission>/alert/gcn"
+  default     = ""
+
+  validation {
+    condition     = var.alert_gcn_secret_name == "" || trimspace(var.alert_gcn_secret_name) != ""
+    error_message = "alert_gcn_secret_name must be empty to use the convention or contain a non-whitespace name."
+  }
+}
+
+variable "alert_eventbridge_statement_id" {
+  type        = string
+  description = "Lambda permission statement ID for the alert schedule; defaults to the console-created live statement so adoption does not replace it"
+  default     = "lambda-8e809099-7565-4fcb-a416-b694da153a2a"
+}
+
+variable "alert_eventbridge_target_id" {
+  type        = string
+  description = "EventBridge target ID for the alert schedule; defaults to the console-created live target so adoption does not replace it"
+  default     = "jc7f7xt2upcwol5ogc67"
+}
+
+variable "adopt_existing_base_runtime_resources" {
+  type        = bool
+  description = "Whether declarative imports should adopt existing alert resources and base Lambda log groups"
+  default     = true
+}
+
+variable "lambda_log_retention_days" {
+  type        = number
+  description = "CloudWatch retention in days for managed Lambda log groups"
+  default     = 90
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.lambda_log_retention_days)
+    error_message = "lambda_log_retention_days must be a CloudWatch Logs supported retention period."
   }
 }
 
