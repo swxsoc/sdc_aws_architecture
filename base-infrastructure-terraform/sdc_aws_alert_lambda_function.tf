@@ -67,6 +67,7 @@ resource "aws_iam_role_policy" "alert_lambda_exec" {
 
 resource "aws_lambda_function" "aws_sdc_alert_lambda_function" {
   function_name = "${local.environment_short_name}aws_sdc_alert_lambda_function"
+  description   = "🔔 - SWxSOC Alert Dispatcher Lambda"
   role          = aws_iam_role.alert_lambda_exec.arn
   memory_size   = 128
   timeout       = 120
