@@ -79,7 +79,10 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
     }
   }
 
-  depends_on = [aws_secretsmanager_secret_version.secret]
+  depends_on = [
+    aws_cloudwatch_log_group.processing,
+    aws_secretsmanager_secret_version.secret,
+  ]
 }
 
 

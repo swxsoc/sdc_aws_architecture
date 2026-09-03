@@ -1,4 +1,21 @@
-mock_provider "aws" {}
+mock_provider "aws" {
+  # Mattermost credentials are intentionally derived from a data source. Make
+  # mocked computed values available while planning so environment assertions
+  # remain deterministic.
+  override_during = plan
+
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:role/mock-lambda-role"
+    }
+  }
+
+  mock_resource "aws_iam_policy" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:policy/mock-lambda-policy"
+    }
+  }
+}
 
 run "plan_pipeline" {
   command = plan
@@ -25,6 +42,7 @@ run "plan_pipeline" {
     enable_sorting_lambda                = true
     enable_artifacts_lambda              = false
     enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
     sf_image_tag                         = "test-immutable-sha"
   }
 
@@ -43,7 +61,7 @@ run "plan_pipeline" {
   }
 
   override_data {
-    target = data.aws_secretsmanager_secret.mattermost
+    target = data.aws_secretsmanager_secret.mattermost[0]
     values = {
       arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
       id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
@@ -57,7 +75,8 @@ run "plan_pipeline" {
   }
 
   override_data {
-    target = data.aws_secretsmanager_secret_version.mattermost
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
     values = {
       secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
     }
@@ -103,6 +122,15 @@ run "plan_pipeline" {
       resource.aws_lambda_function.sorting_lambda_function[0].tags["ManagedBy"] == "terraform"
     )
     error_message = "Sorting Lambda should include the complete common and component tags."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_log_group.sorting[0].retention_in_days == 90 &&
+      resource.aws_cloudwatch_log_group.sorting[0].tags["Mission"] == "swxsoc_pipeline" &&
+      resource.aws_cloudwatch_log_group.sorting[0].tags["Service"] == "sorting"
+    )
+    error_message = "Sorting logs should be explicitly retained and tagged."
   }
 
   assert {
@@ -161,6 +189,7 @@ run "plan_swxsoc_artifacts_lambda" {
     enable_sorting_lambda                = true
     enable_artifacts_lambda              = true
     enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
     sf_image_tag                         = "test-immutable-sha"
     af_image_tag                         = "test-immutable-sha"
     artifacts_image_uri_override         = ""
@@ -181,7 +210,7 @@ run "plan_swxsoc_artifacts_lambda" {
   }
 
   override_data {
-    target = data.aws_secretsmanager_secret.mattermost
+    target = data.aws_secretsmanager_secret.mattermost[0]
     values = {
       arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
       id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
@@ -195,7 +224,8 @@ run "plan_swxsoc_artifacts_lambda" {
   }
 
   override_data {
-    target = data.aws_secretsmanager_secret_version.mattermost
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
     values = {
       secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
     }
@@ -239,6 +269,14 @@ run "plan_swxsoc_artifacts_lambda" {
       resource.aws_lambda_function.aws_sdc_artifacts_lambda_function[0].tags["ManagedBy"] == "terraform"
     )
     error_message = "Sorting and Artifacts Lambdas should use component service tags."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_log_group.sorting[0].tags["Service"] == "sorting" &&
+      resource.aws_cloudwatch_log_group.artifacts[0].tags["Service"] == "artifacts"
+    )
+    error_message = "Sorting and Artifacts log groups should use component service tags."
   }
 
 }
