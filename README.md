@@ -156,16 +156,17 @@ does not support renaming secrets. Before applying a naming migration, copy any
 externally managed secret value to the new path and update its consumers. Never
 put credentials in tfvars or commit them to this repository.
 
-The Mattermost secrets for SWxSOC Pipeline
-(`swxsoc/dev/swxsoc-pipeline/communications/mattermost` and
-`swxsoc/prod/swxsoc-pipeline/communications/mattermost`) do not exist yet.
-Until they are seeded and tagged through an approved migration, the
-`dev-swxsoc_pipeline` and `prod-swxsoc_pipeline` plans fail at the secret data
-source by design; the live Lambdas keep their current environment variables in
-the meantime.
+The mission-first Mattermost secrets for iMPAX and SWxSOC Pipeline
+(`swxsoc/<dev|prod>/impax/communications/mattermost` and
+`swxsoc/<dev|prod>/swxsoc-pipeline/communications/mattermost`) do not exist
+yet. Until all four are seeded and tagged through an approved migration, the
+`dev-impax`, `prod-impax`, `dev-swxsoc_pipeline`, and `prod-swxsoc_pipeline`
+plans fail at the secret data source by design; the live Lambdas keep their
+current environment variables in the meantime.
 
 The base tfvars intentionally pins `grafana-credentials`, `udl-credentials`,
-and `gdc_test_kafka` during the migration. Remove each override only after its value-bearing
+and `gdc_test_kafka` during the migration, and `hermes.tfvars` and
+`padre.tfvars` pin `grafana-credentials` for the same reason. Remove each override only after its value-bearing
 mission-first target exists and the Grafana Terraform state move has been
 planned. This keeps executor image deployments working during the transition.
 

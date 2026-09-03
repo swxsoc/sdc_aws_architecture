@@ -148,7 +148,8 @@ managed secret; leave them empty to use the convention.
 
 The checked-in base tfvars temporarily selects the legacy Grafana, UDL, and
 ``gdc_test_kafka`` GCN names so executor and alert image deployments remain
-safe during migration. Remove an override
+safe during migration, and ``hermes.tfvars`` and ``padre.tfvars`` pin the
+legacy ``grafana-credentials`` name for the same reason. Remove an override
 only after the mission-first value exists; the Terraform-managed Grafana secret
 also requires a reviewed state migration rather than a blind replacement.
 
@@ -183,12 +184,13 @@ and ``swxsoc_pipeline`` configurations enable this for both their ``dev`` and
 ``prod`` workspaces; workspace-derived paths keep mission and environment
 credentials separate.
 
-The ``swxsoc/dev/swxsoc-pipeline/communications/mattermost`` and
-``swxsoc/prod/swxsoc-pipeline/communications/mattermost`` secrets do not exist
-yet. Until they are seeded and tagged through an approved migration, the
-``dev-swxsoc_pipeline`` and ``prod-swxsoc_pipeline`` plans fail at the secret
-data source by design, and the live Lambdas keep their current environment
-variables.
+The mission-first Mattermost secrets for iMPAX and SWxSOC Pipeline
+(``swxsoc/<dev|prod>/impax/communications/mattermost`` and
+``swxsoc/<dev|prod>/swxsoc-pipeline/communications/mattermost``) do not exist
+yet. Until all four are seeded and tagged through an approved migration, the
+``dev-impax``, ``prod-impax``, ``dev-swxsoc_pipeline``, and
+``prod-swxsoc_pipeline`` plans fail at the secret data source by design, and
+the live Lambdas keep their current environment variables.
 
 Because Lambda requires the token as an environment variable, Terraform reads
 the secret value during the apply and records it as sensitive data in the

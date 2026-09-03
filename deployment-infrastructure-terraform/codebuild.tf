@@ -73,6 +73,10 @@ locals {
     }
   }
 
+  # Architecture projects clone this repository, which lives in the swxsoc
+  # GitHub organization, so they use the shared SWxSOC connection regardless of
+  # the mission's own connection. A mission with no connection keeps the
+  # account-level OAuth credential.
   mission_architecture_projects = {
     for mission_name, mission in local.missions :
     "build_${mission_name}_sdc_aws_pipeline_architecture" => {
@@ -81,7 +85,7 @@ locals {
       service        = "terraform-deployment"
       kind           = "architecture"
       repository_url = "https://github.com/swxsoc/sdc_aws_architecture"
-      connection_arn = mission.connection_arn
+      connection_arn = mission.connection_arn == "" ? "" : var.shared_codeconnection_arn
     }
   }
 
@@ -141,6 +145,12 @@ locals {
     for project_name, project in local.codebuild_projects :
     project_name => substr("swxsoc-codebuild-${replace(project.mission, "_", "-")}-${project.service}", 0, 64)
   }
+
+  # Projects declared here do not exist in the account yet, so the adoption
+  # imports skip them and the first apply creates them.
+  new_codebuild_projects = toset([
+    "build_swxsoc_sdc_aws_base_architecture",
+  ])
 
   existing_image_webhooks = toset([
     "build_aws_sdc_executor_lambda_function",

@@ -29,6 +29,11 @@ project gets a predictable Terraform-managed role and policy, an explicit
 
 ### Base architecture handoff
 
+Every architecture project clones this repository from the swxsoc GitHub
+organization, so all of them use the shared SWxSOC connection (iMPAX keeps the
+account-level OAuth credential) even when the mission's image builds use a
+mission-specific connection.
+
 `build_swxsoc_sdc_aws_base_architecture` is the only project that applies the
 base root. The executor and alert image builds start it with
 `LAMBDA_PIPELINE=EXECUTOR` or `LAMBDA_PIPELINE=ALERT` and the immutable `TAG`.
