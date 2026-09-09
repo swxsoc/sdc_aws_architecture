@@ -123,6 +123,9 @@ run "plan_base" {
     condition = (
       resource.aws_cloudwatch_event_target.lambda_targets["generate_cloc_report_and_upload"].target_id == "xrgrwi0lufj3c6n4mq8s" &&
       resource.aws_lambda_permission.lambda_permissions["import_UDL_REACH_to_s3"].statement_id == "lambda-a5dcf76c-d08b-47ef-8bcb-797474e7ce36" &&
+      resource.aws_cloudwatch_event_target.lambda_targets["import_UDL_REACH_to_s3"].target_id == "a0e359m3gjys55n17jg" &&
+      resource.aws_lambda_permission.lambda_permissions["generate_cloc_report_and_upload"].statement_id == "generate_cloc_report_and_upload" &&
+      resource.aws_lambda_permission.lambda_permissions["create_GOES_data_annotations"].statement_id == "AllowCloudWatchToInvoke-create_GOES_data_annotations" &&
       resource.aws_cloudwatch_event_target.lambda_targets["create_GOES_data_annotations"].target_id == "aws-sdc-executor-target-create_GOES_data_annotations" &&
       resource.aws_cloudwatch_event_rule.lambda_rules["generate_cloc_report_and_upload"].schedule_expression == "rate(1 day)"
     )

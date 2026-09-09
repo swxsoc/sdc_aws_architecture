@@ -67,5 +67,5 @@ import {
 import {
   for_each = var.adopt_existing_base_runtime_resources ? local.console_created_triggers : {}
   to       = aws_lambda_permission.lambda_permissions[each.key]
-  id       = "aws_sdc_executor_lambda_function/${each.value.statement_id}"
+  id       = "${local.environment_short_name}aws_sdc_executor_lambda_function/${each.value.statement_id}"
 }
