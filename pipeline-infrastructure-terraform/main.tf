@@ -20,10 +20,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "smce-swsoc-terraform"
-    key     = "smce-swsoc.terraform.tfstate"
-    region  = "us-east-1"
-    encrypt = true
+    bucket       = "smce-swsoc-terraform"
+    key          = "smce-swsoc.terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
   }
 
 

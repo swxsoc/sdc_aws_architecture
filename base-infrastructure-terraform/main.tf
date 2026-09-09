@@ -23,10 +23,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "smce-swsoc-terraform"
-    key     = "smce-swsoc.terraform.tfstate"
-    region  = "us-east-1"
-    encrypt = true
+    bucket       = "smce-swsoc-terraform"
+    key          = "smce-swsoc.terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
   }
 
 
@@ -55,10 +56,11 @@ locals {
     prod    = "Production"
   }[local.workspace_prefix]
 
-  environment_slug    = local.workspace_prefix == "dev" ? "dev" : "prod"
-  secret_path_root    = "swxsoc/${local.environment_slug}/${replace(lower(var.soc_name), "_", "-")}"
-  grafana_secret_name = trimspace(var.grafana_secret_name) != "" ? var.grafana_secret_name : "${local.secret_path_root}/executor/grafana"
-  udl_secret_name     = trimspace(var.udl_secret_name) != "" ? var.udl_secret_name : "${local.secret_path_root}/executor/udl"
+  environment_slug      = local.workspace_prefix == "dev" ? "dev" : "prod"
+  secret_path_root      = "swxsoc/${local.environment_slug}/${replace(lower(var.soc_name), "_", "-")}"
+  grafana_secret_name   = trimspace(var.grafana_secret_name) != "" ? var.grafana_secret_name : "${local.secret_path_root}/executor/grafana"
+  udl_secret_name       = trimspace(var.udl_secret_name) != "" ? var.udl_secret_name : "${local.secret_path_root}/executor/udl"
+  alert_gcn_secret_name = trimspace(var.alert_gcn_secret_name) != "" ? var.alert_gcn_secret_name : "${local.secret_path_root}/alert/gcn"
 
   required_tags = {
     "Mission" = var.soc_name

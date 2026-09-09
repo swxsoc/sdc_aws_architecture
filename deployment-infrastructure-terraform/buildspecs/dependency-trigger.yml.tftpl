@@ -1,0 +1,77 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  build:
+    commands:
+      - |
+        set -euo pipefail
+
+        REQUESTED_ENVIRONMENT=$${CDK_ENVIRONMENT:-}
+        WEBHOOK_TRIGGER=$${CODEBUILD_WEBHOOK_TRIGGER:-}
+        SOURCE_REF=$${CODEBUILD_WEBHOOK_HEAD_REF:-$${CODEBUILD_SOURCE_VERSION:-manual}}
+        SOURCE_KIND=
+
+        if [ -z "$WEBHOOK_TRIGGER" ] && [ -n "$REQUESTED_ENVIRONMENT" ]; then
+          SOURCE_KIND=manual
+        else
+          case "$WEBHOOK_TRIGGER" in
+            tag/*) SOURCE_KIND=tag ;;
+            branch/main) SOURCE_KIND=main ;;
+            pr/*|branch/*) SOURCE_KIND=other ;;
+          esac
+        fi
+
+        if [ -z "$SOURCE_KIND" ]; then
+          case "$SOURCE_REF" in
+            refs/tags/*) SOURCE_KIND=tag ;;
+            refs/heads/main|main) SOURCE_KIND=main ;;
+            refs/pull/*|refs/heads/*) SOURCE_KIND=other ;;
+            *) SOURCE_KIND=manual ;;
+          esac
+        fi
+
+        case "$SOURCE_KIND" in
+          tag)
+            CDK_ENVIRONMENT=PRODUCTION
+            ;;
+          main)
+            CDK_ENVIRONMENT=DEVELOPMENT
+            ;;
+          manual)
+            case "$(printf '%s' "$${REQUESTED_ENVIRONMENT:-DEVELOPMENT}" | tr '[:lower:]' '[:upper:]')" in
+              DEV|DEVELOPMENT) CDK_ENVIRONMENT=DEVELOPMENT ;;
+              PROD|PRODUCTION) CDK_ENVIRONMENT=PRODUCTION ;;
+              *)
+                echo "Unsupported CDK_ENVIRONMENT: $${REQUESTED_ENVIRONMENT:-<empty>}"
+                exit 1
+                ;;
+            esac
+            ;;
+          *)
+            echo "Non-main dependency build: skipping downstream image rebuilds"
+            exit 0
+            ;;
+        esac
+        export CDK_ENVIRONMENT
+
+        BANNER_PROJECT=$${CODEBUILD_BUILD_ID%%:*}
+        BANNER_COMMIT=$${CODEBUILD_RESOLVED_SOURCE_VERSION:-unknown}
+        printf '\n%s\n' '================================================================================'
+        printf '  SWxSOC BUILD: DEPENDENCY REBUILD TRIGGER\n'
+        printf '%s\n' '================================================================================'
+        printf '  Environment : %s\n' "$CDK_ENVIRONMENT"
+        printf '  Mission     : ${mission}\n'
+        printf '  Service     : dependency-rebuild\n'
+        printf '  Action      : rebuild declared mission base image(s)\n'
+        printf '  Project     : %s\n' "$${BANNER_PROJECT:-local}"
+        printf '  Build       : %s\n' "$${CODEBUILD_BUILD_NUMBER:-local}"
+        printf '  Trigger     : %s\n' "$${WEBHOOK_TRIGGER:-manual}"
+        printf '  Source ref  : %s\n' "$SOURCE_REF"
+        printf '  Commit      : %.12s\n' "$BANNER_COMMIT"
+        printf '%s\n\n' '================================================================================'
+
+        ${targets}
+
