@@ -60,6 +60,41 @@ terraform apply -var-file=<mission>.tfvars
 - Grafana credentials are optional for `swxsoc_pipeline` (`enable_grafana_secret = false` by default). Enable it only after the secret exists.
 - Lambda VPC subnets and RDS ingress allowlists are configurable via tfvars to avoid hard-coded IDs when needed.
 
+### Lambda image deployments
+
+Lambda image build projects trigger this repository's CodeBuild project after
+pushing an immutable image tag. The downstream build accepts either `MISSION`
+or the legacy `MISSION_NAME`, selects the matching `dev-<mission>` or
+`prod-<mission>` Terraform workspace, and applies the triggering component's
+image tag. `LAMBDA_PIPELINE` must be one of `PROCESSING`, `SORTING`, `ARTIFACTS`,
+or `CONCATING` when `TAG` is supplied. `EXECUTOR` is also supported: it uses
+the base Terraform root and its `default` workspace.
+
+Mission image deployments require an explicit `CDK_ENVIRONMENT` of
+`DEVELOPMENT` or `PRODUCTION`; executor deployments always use the base
+`default` workspace and need no environment override. Image deployments
+create a saved, targeted plan for only the triggering Lambda and refuse any
+delete, replacement, or unrelated resource change before applying it. Direct
+builds use CodeBuild source metadata to distinguish `main` and release-tag
+builds; Git tags in the checked-out architecture commit are never used to
+infer the environment of a downstream Lambda image build.
+
+The build jobs pass immutable image tags into Terraform. For a manual pipeline
+apply, pass an immutable `pf_image_tag`, `sf_image_tag`, `af_image_tag`, and/or
+`cf_image_tag` for every enabled private-ECR Lambda. For a manual base apply,
+pass an immutable `ef_image_tag`. Do not rely on the mutable `latest` defaults
+for a deployment. Always review the plan, and never apply an unexpected delete
+or replacement.
+
+### Resource tags
+
+Both Terraform roots enforce `Mission` and `Service` through AWS provider
+default tags, so every AWS resource type that supports tags receives them. The
+base service defaults to `sdc-aws-base-infrastructure`; mission pipelines
+default to `sdc-aws-pipeline`. Override `service_name` when a distinct service
+boundary is required. Explicit resource tags also include `Environment`,
+`Purpose`, and `Project`.
+
 ## Documentation
 
 Comprehensive documentation is available in the `docs/` directory:

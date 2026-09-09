@@ -105,15 +105,13 @@ resource "aws_iam_policy" "lambda_secrets_manager_policy" {
   // Define the permissions for accessing the secret
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [
-      {
-        Action = [
-          "secretsmanager:GetSecretValue",
-        ],
-        Effect   = "Allow",
-        Resource = aws_secretsmanager_secret.grafana_secret.arn,
-      },
-    ],
+    Statement = [for secret_arn in [aws_secretsmanager_secret.grafana_secret.arn, data.aws_secretsmanager_secret.udl.arn] : {
+      Action = [
+        "secretsmanager:GetSecretValue",
+      ],
+      Effect   = "Allow",
+      Resource = secret_arn,
+    }],
   })
 }
 
@@ -164,6 +162,7 @@ locals {
   s3_access_bucket_names = sort(distinct(compact(concat(
     var.s3_access_bucket_name != "" ? [var.s3_access_bucket_name] : [],
     var.s3_access_bucket_names,
+    var.github_report_bucket_name != "" ? [var.github_report_bucket_name] : [],
   ))))
 }
 

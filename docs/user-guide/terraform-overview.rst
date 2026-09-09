@@ -60,4 +60,26 @@ Terraform state uses an S3 backend configured in each `main.tf`. You will need a
 
 CI runs formatting and lint checks only: `terraform fmt`, `terraform validate` (with `-backend=false`), `terraform test` (when tests are present), `tflint`, and Python `ruff format`/`ruff check` for docs. We do not run `terraform apply` in CI.
 
-The CodeBuild deployment job requires `MISSION` to be set explicitly, for example `MISSION=hermes`, `MISSION=padre`, or `MISSION=swxsoc_pipeline`. It selects the existing `<env>-<mission>` workspace, reads the selected mission's Terraform variables, and resolves ECR image tags only for enabled Lambda functions that are not using an explicit image URI override. The project should use a CodeBuild managed Linux image that supports buildspec runtime selection for Python 3.12.
+The CodeBuild deployment job requires ``MISSION`` (or the legacy
+``MISSION_NAME``) to be set explicitly, for example ``MISSION=hermes``,
+``MISSION=padre``, or ``MISSION=swxsoc_pipeline``. It selects the existing
+``<env>-<mission>`` workspace, reads the selected mission's Terraform
+variables, and resolves ECR image tags only for enabled Lambda functions that
+are not using an explicit image URI override. An ``EXECUTOR`` image deployment
+uses the base Terraform root and its ``default`` workspace instead.
+
+Lambda image jobs must pass an immutable ``TAG`` and the ``LAMBDA_PIPELINE``.
+Mission image jobs must also pass an explicit ``CDK_ENVIRONMENT`` of
+``DEVELOPMENT`` or ``PRODUCTION``; executor jobs always use the base
+``default`` workspace and need no environment override. CodeBuild creates a
+saved, targeted plan for the triggering Lambda and refuses deletes,
+replacements, or changes to unrelated resources. Direct architecture builds
+use CodeBuild webhook/source metadata rather than local Git tags to determine
+their source and environment.
+
+Manual applies must pass immutable image-tag variables for every enabled
+private-ECR Lambda (``pf_image_tag``, ``sf_image_tag``, ``af_image_tag``,
+``cf_image_tag``, or ``ef_image_tag`` as appropriate). Do not deploy using the
+mutable ``latest`` defaults. Review every plan before applying it. The project
+should use a CodeBuild managed Linux image that supports buildspec runtime
+selection for Python 3.12.

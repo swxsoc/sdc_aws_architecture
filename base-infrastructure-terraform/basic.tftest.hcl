@@ -25,6 +25,14 @@ run "plan_base" {
   }
 
   assert {
+    condition = (
+      resource.aws_ecr_repository.executor_function_private_ecr.tags["Mission"] == "swxsoc" &&
+      resource.aws_ecr_repository.executor_function_private_ecr.tags["Service"] == "sdc-aws-base-infrastructure"
+    )
+    error_message = "Base resources should include the required Mission and Service tags."
+  }
+
+  assert {
     condition     = jsondecode(resource.aws_ecr_lifecycle_policy.executor_function_private_ecr.policy).rules[0].selection.countNumber == 15
     error_message = "Executor ECR lifecycle policy should retain the newest 15 images."
   }
