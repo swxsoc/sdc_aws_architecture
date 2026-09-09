@@ -86,4 +86,24 @@ run "plan_deployment_projects" {
     )
     error_message = "The SWxSOC dependency trigger must be tagged, bannered, and fan out to every mission base image."
   }
+
+  assert {
+    condition = (
+      length(resource.aws_iam_role.codebuild) == 26 &&
+      resource.aws_iam_role.codebuild["codebuild-trigger_rebuild-service-role"].path == "/service-role/" &&
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-swxsoc-base-architecture"].path == "/" &&
+      resource.aws_iam_role.codebuild["padre-sdc-aws-base-docker-image"].tags["Mission"] == "padre" &&
+      resource.aws_iam_role.codebuild["codebuild-trigger_rebuild-service-role"].tags["Service"] == "dependency-rebuild" &&
+      resource.aws_iam_role_policy.codebuild["codebuild-trigger_rebuild-service-role"].name == "swxsoc-codebuild-managed"
+    )
+    error_message = "The 25 live service roles must be adopted under their existing names and paths, with one new role for the base architecture project."
+  }
+
+  assert {
+    condition = alltrue([
+      for target in ["build_hermes_sdc_aws_base_docker_image", "build_impax_sdc_aws_base_docker_image", "build_padre_sdc_aws_base_docker_image", "build_swxsoc_pipeline_sdc_aws_base_docker_image"] :
+      strcontains(resource.aws_iam_role_policy.codebuild["codebuild-trigger_rebuild-service-role"].policy, "project/${target}")
+    ])
+    error_message = "The shared trigger role's managed policy must cover every base image the nine triggers start."
+  }
 }

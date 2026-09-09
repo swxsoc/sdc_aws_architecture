@@ -42,3 +42,11 @@ import {
   to       = aws_cloudwatch_log_group.codebuild[each.key]
   id       = "/aws/codebuild/${each.key}"
 }
+
+# Every project's live service role is adopted by name; the one role for the
+# new base architecture project is created.
+import {
+  for_each = var.adopt_existing_codebuild_projects ? toset(distinct(values(local.existing_service_roles))) : toset([])
+  to       = aws_iam_role.codebuild[each.key]
+  id       = each.key
+}

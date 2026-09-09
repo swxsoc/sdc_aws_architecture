@@ -22,10 +22,29 @@ and adds one new project, for 34 managed projects.
 
 `aws_codebuild_project.pipeline` holds the 24 image and architecture projects
 and `aws_codebuild_project.support` holds the 10 support projects. Every
-project gets a predictable Terraform-managed role and policy, an explicit
-`/aws/codebuild/<project>` log group with 90-day retention, and the uniform
-`Mission`, `Service`, `Environment=Shared`, `Purpose`, `Project`, and
-`ManagedBy=terraform` tags.
+project gets an explicit `/aws/codebuild/<project>` log group with 90-day
+retention and the uniform `Mission`, `Service`, `Environment=Shared`,
+`Purpose`, `Project`, and `ManagedBy=terraform` tags.
+
+### Service roles
+
+The 33 live projects already run under 25 IAM roles (the nine dependency
+triggers share one). This root adopts those roles under their existing names
+and `/service-role/` path rather than creating replacements. On each adopted
+role Terraform manages the trust policy, tags, and one inline policy named
+`swxsoc-codebuild-managed` that grants exactly what the projects under that
+role need: log writes, the repository connection, ECR plus `StartBuild` for
+image builds, the Terraform service set for architecture builds, the declared
+base-image targets for triggers, and Lambda invoke plus S3 read for
+reprocessing. Whatever the role carried before (console-attached
+`CodeBuildBasePolicy-*` policies, `AdministratorAccess` on two architecture
+roles, hand-written inline policies) is left in place and untouched, so no
+build loses a permission on the first apply. Retiring those legacy policies is
+a separate change, one role at a time, once builds are verified on the managed
+policy.
+
+Only `build_swxsoc_sdc_aws_base_architecture` gets a new role, because the
+project itself is new.
 
 ### Base architecture handoff
 
@@ -80,11 +99,13 @@ while `adopt_existing_codebuild_projects=true` (the default):
    architecture project, and the four `trigger_rebuild_hermes_*` projects that
    have never run.
 
-Creates in the same plan are the new base architecture project, every
-Terraform-managed role and policy, and the webhooks that do not exist yet.
-In-place updates switch each project from its stale inline buildspec to
-`buildspec.yml` on `main`, enable Docker privileged mode for image builds,
-attach the new roles, and apply tags and retention. A correct plan contains no
+Imports also cover the 25 existing service roles. Creates in the same plan
+are the new base architecture project and its role, the managed inline policy
+on every role, and the webhooks that do not exist yet. In-place updates switch
+each project from its stale inline buildspec to `buildspec.yml` on `main`,
+enable Docker privileged mode for image builds, tag the roles, and apply tags
+and retention to projects and log groups. Projects keep the service role they
+have today. A correct plan contains no
 deletes and no replacements; do not apply one that does.
 
 ```bash
@@ -114,7 +135,9 @@ Add one entry to `local.missions` in `codebuild.tf` with:
 - the enabled Lambda components.
 
 Terraform generates the base-image, architecture, and component projects along
-with one tagged service role, policy, and log group per project. New projects
+with one tagged log group per project and a managed policy on their roles.
+Add each new project to `local.existing_service_roles` if it should adopt a
+role that already exists, or to `local.new_service_roles` to create one. New projects
 do not need entries in the import sets because they do not exist yet. Add a
 `local.dependency_trigger_projects` entry for each dependency repository that
 should rebuild the mission base image.

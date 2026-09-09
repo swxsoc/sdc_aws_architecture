@@ -141,9 +141,80 @@ locals {
     project_name => project if project.kind == "architecture"
   }
 
-  role_name_by_project = {
-    for project_name, project in local.codebuild_projects :
-    project_name => substr("swxsoc-codebuild-${replace(project.mission, "_", "-")}-${project.service}", 0, 64)
+  # Every live project already has a service role. Adopt those roles by name
+  # rather than creating replacements: the role is imported and tagged, a
+  # managed least-privilege inline policy is added beside whatever the role
+  # carries today, and the legacy attached and inline policies are left alone
+  # so no build loses a permission on the first apply. Retiring the legacy
+  # policies is a separate, later change. Only the brand-new base
+  # architecture project gets a role of its own.
+  existing_service_roles = {
+    build_aws_sdc_alert_lambda_function                 = "codebuild-build_aws_sdc_alert_lambda_function-service-role"
+    build_aws_sdc_executor_lambda_function              = "codebuild-build_aws_sdc_executor_lambda_function-service-role"
+    build_hermes_sdc_aws_artifact_lambda                = "codebuild-build_hermes_sdc_aws_artifact_lambda-service-role"
+    build_hermes_sdc_aws_base_docker_image              = "codebuild-build_hermes_sdc_aws_base_docker_image-service-role"
+    build_hermes_sdc_aws_pipeline_architecture          = "build_hermes_sdc_aws_pipeline_architecture-service-role"
+    build_hermes_sdc_aws_processing_lambda              = "codebuild-build_hermes_sdc_aws_processing_lambda-service-role"
+    build_hermes_sdc_aws_sorting_lambda                 = "codebuild-build_hermes_sdc_aws_sorting_lambda-role"
+    build_impax_sdc_aws_artifact_lambda                 = "codebuild-build_impax_sdc_aws_artifact_lambda-service-role"
+    build_impax_sdc_aws_base_docker_image               = "codebuild-build_impax_sdc_aws_base_docker_image-sr"
+    build_impax_sdc_aws_pipeline_architecture           = "codebuild-build_impax_sdc_aws_pipeline_architecture-service-role"
+    build_impax_sdc_aws_processing_lambda               = "codebuild-build_impax_sdc_aws_processing_lambda-service-role"
+    build_impax_sdc_aws_sorting_lambda                  = "codebuild-build_impax_sdc_aws_sorting_lambda-service-role"
+    build_padre_sdc_aws_artifact_lambda                 = "codebuild-build_padre_sdc_aws_artifact_lambda-service-role"
+    build_padre_sdc_aws_base_docker_image               = "padre-sdc-aws-base-docker-image"
+    build_padre_sdc_aws_concating_lambda                = "codebuild-build_padre_sdc_aws_concating_lambda-service-role"
+    build_padre_sdc_aws_pipeline_architecture           = "codebuild-build_padre_sdc_aws_pipeline_architecture-service-role"
+    build_padre_sdc_aws_processing_lambda               = "codebuild-build_padre_sdc_aws_processing_lambda-service-role"
+    build_padre_sdc_aws_sorting_lambda                  = "codebuild-build_padre_sdc_aws_sorting_lambda-service-role"
+    build_swxsoc_pipeline_sdc_aws_artifact_lambda       = "codebuild-build_sdc_aws_artifact_lambda-service-role"
+    build_swxsoc_pipeline_sdc_aws_base_docker_image     = "codebuild-build_swxsoc_pipeline_sdc_aws_base_docker_image-sr"
+    build_swxsoc_pipeline_sdc_aws_pipeline_architecture = "codebuild-build_swxsoc_pipeline_sdc_aws_pipeline_architecture-sr"
+    build_swxsoc_pipeline_sdc_aws_processing_lambda     = "codebuild-build_swxsoc_pipeline_sdc_aws_processing_lambda-sr"
+    build_swxsoc_pipeline_sdc_aws_sorting_lambda        = "codebuild-build_swxsoc_pipeline_sdc_aws_sorting_lambda-sr"
+    padre-reprocessing-requests                         = "codebuild-padre-reprocessing-pipeline-service-role"
+    trigger_rebuild_hermes_core                         = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_hermes_eea                          = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_hermes_merit                        = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_hermes_nemisis                      = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_hermes_spani                        = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_padre_craft                         = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_padre_meddea                        = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_padre_sharp                         = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_swxsoc                              = "codebuild-trigger_rebuild-service-role"
+  }
+
+  new_service_roles = {
+    build_swxsoc_sdc_aws_base_architecture = "swxsoc-codebuild-swxsoc-base-architecture"
+  }
+
+  project_role_name = merge(local.existing_service_roles, local.new_service_roles)
+
+  # One record per role, describing every project that runs under it, so the
+  # managed policy grants the union of what those projects need.
+  all_managed_projects = merge(
+    {
+      for project_name, project in local.codebuild_projects :
+      project_name => merge(project, {
+        purpose = contains(["architecture", "base-architecture"], project.kind) ? "Terraform deployment" : "Lambda image deployment"
+        targets = []
+      })
+    },
+    local.support_projects,
+  )
+
+  service_roles = {
+    for role_name in distinct(values(local.project_role_name)) :
+    role_name => {
+      path            = contains(values(local.new_service_roles), role_name) ? "/" : "/service-role/"
+      projects        = sort([for project_name, name in local.project_role_name : project_name if name == role_name])
+      kinds           = distinct([for project_name, name in local.project_role_name : local.all_managed_projects[project_name].kind if name == role_name])
+      connection_arns = distinct(compact([for project_name, name in local.project_role_name : local.all_managed_projects[project_name].connection_arn if name == role_name]))
+      targets         = distinct(flatten([for project_name, name in local.project_role_name : local.all_managed_projects[project_name].targets if name == role_name]))
+      missions        = distinct([for project_name, name in local.project_role_name : local.all_managed_projects[project_name].mission if name == role_name])
+      services        = distinct([for project_name, name in local.project_role_name : local.all_managed_projects[project_name].service if name == role_name])
+      purposes        = distinct([for project_name, name in local.project_role_name : local.all_managed_projects[project_name].purpose if name == role_name])
+    }
   }
 
   # Projects declared here do not exist in the account yet, so the adoption
@@ -286,11 +357,6 @@ locals {
     },
   )
 
-  support_role_name_by_project = {
-    for project_name, project in local.support_projects :
-    project_name => substr("swxsoc-codebuild-${replace(project_name, "_", "-")}", 0, 64)
-  }
-
   existing_support_webhooks = toset([
     "padre-reprocessing-requests",
     "trigger_rebuild_padre_craft",
@@ -369,9 +435,10 @@ resource "aws_cloudwatch_log_group" "codebuild" {
 }
 
 resource "aws_iam_role" "codebuild" {
-  for_each = local.codebuild_projects
+  for_each = local.service_roles
 
-  name = local.role_name_by_project[each.key]
+  name = each.key
+  path = each.value.path
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -386,17 +453,26 @@ resource "aws_iam_role" "codebuild" {
   tags = {
     Environment = "Shared"
     ManagedBy   = "terraform"
-    Mission     = each.value.mission
-    Project     = each.value.mission
-    Purpose     = "Lambda image deployment"
-    Service     = each.value.service
+    Mission     = length(each.value.missions) == 1 ? each.value.missions[0] : "swxsoc"
+    Project     = length(each.value.missions) == 1 ? each.value.missions[0] : "swxsoc"
+    Purpose     = length(each.value.purposes) == 1 ? each.value.purposes[0] : "CodeBuild"
+    Service     = length(each.value.services) == 1 ? each.value.services[0] : "shared"
+  }
+
+  lifecycle {
+    # Adopted roles keep their console descriptions and any policies that were
+    # attached or written inline before Terraform took over.
+    ignore_changes = [description]
   }
 }
 
+# The managed policy sits beside the legacy policies on each adopted role. It
+# grants exactly what the projects under that role need, so the legacy
+# policies can be detached one role at a time once builds are verified.
 resource "aws_iam_role_policy" "codebuild" {
-  for_each = local.codebuild_projects
+  for_each = local.service_roles
 
-  name = "${local.role_name_by_project[each.key]}-policy"
+  name = "swxsoc-codebuild-managed"
   role = aws_iam_role.codebuild[each.key].id
 
   policy = jsonencode({
@@ -411,13 +487,15 @@ resource "aws_iam_role_policy" "codebuild" {
             "logs:CreateLogStream",
             "logs:PutLogEvents",
           ]
-          Resource = [
-            "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/${each.key}",
-            "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/${each.key}:*",
-          ]
+          Resource = flatten([
+            for project_name in each.value.projects : [
+              "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/${project_name}",
+              "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/${project_name}:*",
+            ]
+          ])
         },
       ],
-      each.value.connection_arn != "" ? [
+      length(each.value.connection_arns) > 0 ? [
         {
           Sid    = "RepositoryConnection"
           Effect = "Allow"
@@ -425,10 +503,10 @@ resource "aws_iam_role_policy" "codebuild" {
             "codeconnections:UseConnection",
             "codestar-connections:UseConnection",
           ]
-          Resource = each.value.connection_arn
+          Resource = each.value.connection_arns
         },
       ] : [],
-      each.value.kind == "image" ? [
+      contains(each.value.kinds, "image") ? [
         {
           Sid    = "ContainerRegistry"
           Effect = "Allow"
@@ -437,15 +515,16 @@ resource "aws_iam_role_policy" "codebuild" {
             "ecr-public:*",
             "sts:GetServiceBearerToken",
           ]
-          Resource = "*"
+          Resource = ["*"]
         },
         {
           Sid      = "StartDownstreamBuilds"
           Effect   = "Allow"
           Action   = ["codebuild:StartBuild"]
-          Resource = "arn:${data.aws_partition.current.partition}:codebuild:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:project/build_*"
+          Resource = ["arn:${data.aws_partition.current.partition}:codebuild:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:project/build_*"]
         },
-        ] : [
+      ] : [],
+      contains(each.value.kinds, "architecture") || contains(each.value.kinds, "base-architecture") ? [
         {
           Sid    = "TerraformManagedServices"
           Effect = "Allow"
@@ -473,9 +552,36 @@ resource "aws_iam_role_policy" "codebuild" {
             "tag:GetTagValues",
             "timestream:*",
           ]
-          Resource = "*"
+          Resource = ["*"]
         },
-      ],
+      ] : [],
+      contains(each.value.kinds, "dependency-trigger") ? [
+        {
+          Sid      = "StartDeclaredBaseBuilds"
+          Effect   = "Allow"
+          Action   = ["codebuild:StartBuild"]
+          Resource = [for target in each.value.targets : "arn:${data.aws_partition.current.partition}:codebuild:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:project/${target}"]
+        },
+      ] : [],
+      contains(each.value.kinds, "reprocessing") ? [
+        {
+          Sid      = "InvokeReprocessingLambda"
+          Effect   = "Allow"
+          Action   = ["lambda:InvokeFunction"]
+          Resource = ["arn:${data.aws_partition.current.partition}:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:*"]
+        },
+        {
+          Sid    = "ReadMissionObjects"
+          Effect = "Allow"
+          Action = [
+            "s3:GetObject",
+            "s3:ListBucket",
+            "s3:ListBucketVersions",
+            "s3:ListBucketMultipartUploads",
+          ]
+          Resource = ["*"]
+        },
+      ] : [],
     )
   })
 }
@@ -485,7 +591,7 @@ resource "aws_codebuild_project" "pipeline" {
 
   name                   = each.key
   description            = "${each.value.mission} ${each.value.service} build and deployment"
-  service_role           = aws_iam_role.codebuild[each.key].arn
+  service_role           = aws_iam_role.codebuild[local.project_role_name[each.key]].arn
   build_timeout          = 60
   queued_timeout         = 480
   source_version         = "main"
@@ -609,96 +715,12 @@ resource "aws_codebuild_webhook" "architecture" {
   }
 }
 
-resource "aws_iam_role" "support_codebuild" {
-  for_each = local.support_projects
-
-  name = local.support_role_name_by_project[each.key]
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = "sts:AssumeRole"
-      Principal = {
-        Service = "codebuild.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = {
-    Environment = "Shared"
-    ManagedBy   = "terraform"
-    Mission     = each.value.mission
-    Project     = each.value.mission
-    Purpose     = each.value.purpose
-    Service     = each.value.service
-  }
-}
-
-resource "aws_iam_role_policy" "support_codebuild" {
-  for_each = local.support_projects
-
-  name = "${local.support_role_name_by_project[each.key]}-policy"
-  role = aws_iam_role.support_codebuild[each.key].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = concat(
-      [
-        {
-          Sid    = "BuildLogs"
-          Effect = "Allow"
-          Action = [
-            "logs:CreateLogStream",
-            "logs:PutLogEvents",
-          ]
-          Resource = "${aws_cloudwatch_log_group.codebuild[each.key].arn}:*"
-        },
-        {
-          Sid    = "RepositoryConnection"
-          Effect = "Allow"
-          Action = [
-            "codeconnections:UseConnection",
-            "codestar-connections:UseConnection",
-          ]
-          Resource = each.value.connection_arn
-        },
-      ],
-      each.value.kind == "dependency-trigger" ? tolist([
-        {
-          Sid      = "StartDeclaredBaseBuilds"
-          Effect   = "Allow"
-          Action   = tolist(["codebuild:StartBuild"])
-          Resource = tolist([for target in each.value.targets : "arn:${data.aws_partition.current.partition}:codebuild:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:project/${target}"])
-        },
-        ]) : tolist([
-        {
-          Sid      = "InvokeReprocessingLambda"
-          Effect   = "Allow"
-          Action   = tolist(["lambda:InvokeFunction"])
-          Resource = tolist(["arn:${data.aws_partition.current.partition}:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:*"])
-        },
-        {
-          Sid    = "ReadMissionObjects"
-          Effect = "Allow"
-          Action = tolist([
-            "s3:GetObject",
-            "s3:ListBucket",
-            "s3:ListBucketVersions",
-            "s3:ListBucketMultipartUploads",
-          ])
-          Resource = tolist(["*"])
-        },
-      ]),
-    )
-  })
-}
-
 resource "aws_codebuild_project" "support" {
   for_each = local.support_projects
 
   name                   = each.key
   description            = "${each.value.mission} ${each.value.service}"
-  service_role           = aws_iam_role.support_codebuild[each.key].arn
+  service_role           = aws_iam_role.codebuild[local.project_role_name[each.key]].arn
   build_timeout          = 60
   queued_timeout         = 480
   source_version         = "main"

@@ -102,8 +102,9 @@ plan, and never apply an unexpected delete or replacement.
 
 The CodeBuild fleet is managed by `deployment-infrastructure-terraform/`.
 Image projects use each repository's `buildspec.yml`, Docker privileged mode,
-the current standard build image, a predictable Terraform-managed role, and
-uniform `Mission`, `Service`, `Environment=Shared`, `Purpose`, `Project`, and
+the current standard build image, their existing service role (adopted, with a
+managed least-privilege policy added beside the legacy ones), and uniform
+`Mission`, `Service`, `Environment=Shared`, `Purpose`, `Project`, and
 `ManagedBy=terraform` tags. Architecture projects accept pull-request webhooks
 for validation only; image builds invoke them explicitly for targeted deploys.
 This prevents an architecture merge from applying unrelated infrastructure.

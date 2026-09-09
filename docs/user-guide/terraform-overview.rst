@@ -104,7 +104,9 @@ declarative ``import`` blocks and adds the dedicated
 ``build_swxsoc_sdc_aws_base_architecture`` project, for 34 managed projects.
 It standardizes repository buildspecs, current managed images, Docker
 privileged mode for container builds, concurrency, GitHub status reporting,
-predictable service roles, explicit 90-day log groups, and cost tags.
+explicit 90-day log groups, and cost tags. The 25 existing service roles are
+adopted under their live names; each gains a managed least-privilege inline
+policy while its legacy policies stay in place until retired separately.
 Architecture webhooks run pull-request validation only. Main and tag events on
 image repositories build the image and explicitly start the matching
 architecture project; the executor and alert images start the base
@@ -127,7 +129,8 @@ manually. Nothing in this repository applies these roots automatically.
 To add a mission, add one object to ``local.missions`` in
 ``deployment-infrastructure-terraform/codebuild.tf``. Supply its base-image
 repository, connection ARN, and enabled Lambda components; Terraform generates
-the project, role, policy, webhook, and complete tag map.
+the project, log group, webhook, managed policy, and complete tag map, using
+an adopted or newly declared service role.
 
 Secrets Manager Naming
 ----------------------
