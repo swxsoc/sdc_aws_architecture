@@ -192,28 +192,12 @@ locals {
 
   # One record per role, describing every project that runs under it, so the
   # managed policy grants the union of what those projects need.
-  # Exactly which projects each image build may start: component images hand
-  # off to their mission's architecture project, executor and alert hand off
-  # to the base architecture project, and base images fan out to their
-  # mission's Lambda builds. Architecture projects start nothing.
-  image_start_targets = {
-    for project_name, project in local.codebuild_projects :
-    project_name => (
-      project.kind != "image" ? [] :
-      contains(["executor", "alert"], project.service) ? ["build_swxsoc_sdc_aws_base_architecture"] :
-      project.service == "container-base" ? [
-        for name, candidate in local.mission_lambda_projects : name if candidate.mission == project.mission
-      ] :
-      ["build_${project.mission}_sdc_aws_pipeline_architecture"]
-    )
-  }
-
   all_managed_projects = merge(
     {
       for project_name, project in local.codebuild_projects :
       project_name => merge(project, {
         purpose = contains(["architecture", "base-architecture"], project.kind) ? "Terraform deployment" : "Lambda image deployment"
-        targets = local.image_start_targets[project_name]
+        targets = []
       })
     },
     local.support_projects,
@@ -533,13 +517,11 @@ resource "aws_iam_role_policy" "codebuild" {
           ]
           Resource = ["*"]
         },
-      ] : [],
-      length(each.value.targets) > 0 ? [
         {
-          Sid      = "StartDeclaredDownstreamBuilds"
+          Sid      = "StartDownstreamBuilds"
           Effect   = "Allow"
           Action   = ["codebuild:StartBuild"]
-          Resource = [for target in sort(each.value.targets) : "arn:${data.aws_partition.current.partition}:codebuild:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:project/${target}"]
+          Resource = ["arn:${data.aws_partition.current.partition}:codebuild:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:project/build_*"]
         },
       ] : [],
       contains(each.value.kinds, "architecture") || contains(each.value.kinds, "base-architecture") ? [
@@ -571,6 +553,14 @@ resource "aws_iam_role_policy" "codebuild" {
             "timestream:*",
           ]
           Resource = ["*"]
+        },
+      ] : [],
+      contains(each.value.kinds, "dependency-trigger") ? [
+        {
+          Sid      = "StartDeclaredBaseBuilds"
+          Effect   = "Allow"
+          Action   = ["codebuild:StartBuild"]
+          Resource = [for target in each.value.targets : "arn:${data.aws_partition.current.partition}:codebuild:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:project/${target}"]
         },
       ] : [],
       contains(each.value.kinds, "reprocessing") ? [

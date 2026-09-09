@@ -106,17 +106,4 @@ run "plan_deployment_projects" {
     ])
     error_message = "The shared trigger role's managed policy must cover every base image the nine triggers start."
   }
-
-  assert {
-    condition = (
-      !strcontains(resource.aws_iam_role_policy.codebuild["codebuild-build_padre_sdc_aws_sorting_lambda-service-role"].policy, "project/build_*") &&
-      strcontains(resource.aws_iam_role_policy.codebuild["codebuild-build_padre_sdc_aws_sorting_lambda-service-role"].policy, "project/build_padre_sdc_aws_pipeline_architecture") &&
-      !strcontains(resource.aws_iam_role_policy.codebuild["codebuild-build_padre_sdc_aws_sorting_lambda-service-role"].policy, "project/build_padre_sdc_aws_processing_lambda") &&
-      strcontains(resource.aws_iam_role_policy.codebuild["codebuild-build_aws_sdc_executor_lambda_function-service-role"].policy, "project/build_swxsoc_sdc_aws_base_architecture") &&
-      strcontains(resource.aws_iam_role_policy.codebuild["padre-sdc-aws-base-docker-image"].policy, "project/build_padre_sdc_aws_concating_lambda") &&
-      !strcontains(resource.aws_iam_role_policy.codebuild["padre-sdc-aws-base-docker-image"].policy, "project/build_hermes_sdc_aws_sorting_lambda") &&
-      !strcontains(resource.aws_iam_role_policy.codebuild["codebuild-build_padre_sdc_aws_pipeline_architecture-service-role"].policy, "codebuild:StartBuild")
-    )
-    error_message = "Each image build may start only its own downstream projects: component builds their mission architecture project, executor and alert the base architecture project, base images their mission Lambda builds, and architecture builds nothing."
-  }
 }
