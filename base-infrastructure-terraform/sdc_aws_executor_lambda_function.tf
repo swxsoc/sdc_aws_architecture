@@ -104,6 +104,11 @@ variable "lambda_triggers" {
     name          = string
     description   = string
     schedule_expr = string
+    # target_id and statement_id force replacement. Triggers that were created
+    # in the console keep their generated identifiers so adoption replaces
+    # nothing; new triggers use the predictable defaults below.
+    target_id    = optional(string)
+    statement_id = optional(string)
   }))
 
   default = [
@@ -121,13 +126,17 @@ variable "lambda_triggers" {
     },
     {
       name          = "generate_cloc_report_and_upload"
-      description   = "CloudWatch event trigger to generate CLOC report and upload to S3, every 6 hours"
-      schedule_expr = "cron(0 */6 * * ? *)"
+      description   = "CloudWatch event trigger to generate CLOC report and upload to S3, daily"
+      schedule_expr = "rate(1 day)"
+      target_id     = "xrgrwi0lufj3c6n4mq8s"
+      statement_id  = "generate_cloc_report_and_upload"
     },
     {
       name          = "import_UDL_REACH_to_s3"
       description   = "CloudWatch event trigger for importing the previous complete REACH day"
       schedule_expr = "cron(0 6 * * ? *)"
+      target_id     = "a0e359m3gjys55n17jg"
+      statement_id  = "lambda-a5dcf76c-d08b-47ef-8bcb-797474e7ce36"
     },
   ]
 }
@@ -144,18 +153,26 @@ resource "aws_cloudwatch_event_rule" "lambda_rules" {
 # Lambda Permissions
 resource "aws_lambda_permission" "lambda_permissions" {
   for_each      = { for trigger in var.lambda_triggers : trigger.name => trigger }
-  statement_id  = "AllowCloudWatchToInvoke-${each.value.name}"
+  statement_id  = coalesce(each.value.statement_id, "AllowCloudWatchToInvoke-${each.value.name}")
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.aws_sdc_executor_lambda_function.arn
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.lambda_rules[each.key].arn
+
+  lifecycle {
+    # Terraform-created permissions store the function ARN here and
+    # console-created ones store the bare name. Both resolve to the same
+    # function, and the attribute forces replacement, so the representation
+    # is not worth a replace.
+    ignore_changes = [function_name]
+  }
 }
 
 # CloudWatch Event Targets
 resource "aws_cloudwatch_event_target" "lambda_targets" {
   for_each  = { for trigger in var.lambda_triggers : trigger.name => trigger }
   rule      = aws_cloudwatch_event_rule.lambda_rules[each.key].name
-  target_id = "aws-sdc-executor-target-${each.value.name}"
+  target_id = coalesce(each.value.target_id, "aws-sdc-executor-target-${each.value.name}")
   arn       = aws_lambda_function.aws_sdc_executor_lambda_function.arn
 }
 

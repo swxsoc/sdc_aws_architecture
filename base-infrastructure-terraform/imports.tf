@@ -41,3 +41,31 @@ import {
   to       = aws_cloudwatch_log_group.executor
   id       = each.key
 }
+
+# The generate_cloc_report_and_upload and import_UDL_REACH_to_s3 schedules were
+# created in the console after the executor was first managed here. Adopt the
+# rules, their targets, and their invoke permissions under the live identifiers.
+locals {
+  console_created_triggers = {
+    for trigger in var.lambda_triggers : trigger.name => trigger
+    if trigger.target_id != null && trigger.statement_id != null
+  }
+}
+
+import {
+  for_each = var.adopt_existing_base_runtime_resources ? local.console_created_triggers : {}
+  to       = aws_cloudwatch_event_rule.lambda_rules[each.key]
+  id       = each.key
+}
+
+import {
+  for_each = var.adopt_existing_base_runtime_resources ? local.console_created_triggers : {}
+  to       = aws_cloudwatch_event_target.lambda_targets[each.key]
+  id       = "${each.key}/${each.value.target_id}"
+}
+
+import {
+  for_each = var.adopt_existing_base_runtime_resources ? local.console_created_triggers : {}
+  to       = aws_lambda_permission.lambda_permissions[each.key]
+  id       = "aws_sdc_executor_lambda_function/${each.value.statement_id}"
+}
