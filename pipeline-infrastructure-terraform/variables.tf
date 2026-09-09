@@ -111,8 +111,42 @@ variable "enable_grafana_secret" {
 
 variable "grafana_secret_name" {
   type        = string
-  description = "Secrets Manager secret name for Grafana credentials"
-  default     = "grafana-credentials"
+  description = "Optional Grafana secret name; defaults to swxsoc/<environment>/<mission>/processing/grafana"
+  default     = ""
+}
+
+variable "enable_mattermost" {
+  type        = bool
+  description = "Whether to inject Mattermost configuration into Sorting and Artifacts"
+  default     = false
+}
+
+variable "comms_platform" {
+  type        = string
+  description = "Explicit communications platform exposed to Sorting and Artifacts; empty preserves legacy platform auto-detection"
+  default     = ""
+
+  validation {
+    condition     = contains(["", "slack", "mattermost"], lower(trimspace(var.comms_platform)))
+    error_message = "comms_platform must be empty, slack, or mattermost."
+  }
+}
+
+variable "mattermost_secret_name" {
+  type        = string
+  description = "Optional Mattermost secret name; defaults to swxsoc/<environment>/<mission>/communications/mattermost"
+  default     = ""
+}
+
+variable "mattermost_url" {
+  type        = string
+  description = "Mattermost server URL"
+  default     = "https://mm.sciencecloud.nasa.gov:443"
+
+  validation {
+    condition     = !var.enable_mattermost || startswith(var.mattermost_url, "https://")
+    error_message = "mattermost_url must use HTTPS when Mattermost is enabled."
+  }
 }
 
 variable "enable_processing_lambda" {
@@ -141,26 +175,46 @@ variable "enable_concating_lambda" {
 
 variable "pf_image_tag" {
   type        = string
-  description = "Processing Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Processing Function ECR image tag; required when no full image URI override is supplied"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.pf_image_tag) == "" || lower(trimspace(var.pf_image_tag)) != "latest"
+    error_message = "pf_image_tag must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "cf_image_tag" {
   type        = string
-  description = "Processing Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Concating Function ECR image tag; required when no full image URI override is supplied"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.cf_image_tag) == "" || lower(trimspace(var.cf_image_tag)) != "latest"
+    error_message = "cf_image_tag must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "sf_image_tag" {
   type        = string
-  description = "Sorting Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Sorting Function ECR image tag; required when no full image URI override is supplied"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.sf_image_tag) == "" || lower(trimspace(var.sf_image_tag)) != "latest"
+    error_message = "sf_image_tag must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "af_image_tag" {
   type        = string
-  description = "Artifact Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Artifacts Function ECR image tag; required when no full image URI override is supplied"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.af_image_tag) == "" || lower(trimspace(var.af_image_tag)) != "latest"
+    error_message = "af_image_tag must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "processing_image_uri_override" {

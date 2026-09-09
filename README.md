@@ -82,18 +82,56 @@ infer the environment of a downstream Lambda image build.
 The build jobs pass immutable image tags into Terraform. For a manual pipeline
 apply, pass an immutable `pf_image_tag`, `sf_image_tag`, `af_image_tag`, and/or
 `cf_image_tag` for every enabled private-ECR Lambda. For a manual base apply,
-pass an immutable `ef_image_tag`. Do not rely on the mutable `latest` defaults
-for a deployment. Always review the plan, and never apply an unexpected delete
-or replacement.
+pass an immutable `ef_image_tag`. Terraform rejects missing image selections
+and the mutable `latest` tag before a Lambda can be changed. Always review the
+plan, and never apply an unexpected delete or replacement.
 
 ### Resource tags
 
-Both Terraform roots enforce `Mission` and `Service` through AWS provider
-default tags, so every AWS resource type that supports tags receives them. The
-base service defaults to `sdc-aws-base-infrastructure`; mission pipelines
-default to `sdc-aws-pipeline`. Override `service_name` when a distinct service
-boundary is required. Explicit resource tags also include `Environment`,
-`Purpose`, and `Project`.
+Both Terraform roots enforce `Mission`, `Service`, `Environment`, `Purpose`,
+`Project`, and `ManagedBy=terraform` through AWS provider default tags, so
+every AWS resource type that supports tags receives them. Shared pipeline
+resources use `Service=sdc-aws-pipeline`; component Lambdas, ECR repositories,
+secrets, KMS keys, and RDS resources override that with `executor`,
+`processing`, `sorting`, `artifacts`, `concating`, or `container-base` as
+appropriate.
+
+### Secrets Manager names
+
+Secrets use a mission-first hierarchy:
+
+```text
+swxsoc/<environment>/<mission>/<service>/<secret>
+```
+
+Paths are lowercase; mission underscores are normalized to hyphens. Examples
+include `swxsoc/prod/hermes/processing/rds` and
+`swxsoc/dev/swxsoc/executor/udl`. Credentials shared by multiple Lambda
+services use a purpose-specific service path, such as
+`swxsoc/dev/swxsoc-pipeline/communications/mattermost`. Terraform applies
+the same `Mission`, `Service`, and `Environment` tags to managed secrets.
+
+Communications platforms are explicit per mission: PADRE selects Slack,
+HERMES preserves legacy auto-detection, and the existing iMPAX plus SWxSOC
+Pipeline Mattermost environments are adopted through their mission-specific
+external secrets.
+
+Changing an existing Secrets Manager name creates a replacement because AWS
+does not support renaming secrets. Before applying a naming migration, copy any
+externally managed secret value to the new path and update its consumers. Never
+put credentials in tfvars or commit them to this repository.
+
+The base tfvars intentionally pins `grafana-credentials` and `udl-credentials`
+during the migration. Remove each override only after its value-bearing
+mission-first target exists and the Grafana Terraform state move has been
+planned. This keeps executor image deployments working during the transition.
+
+Pipeline deployments must use an explicit `dev-<mission>` or `prod-<mission>`
+workspace. Terraform refuses to plan the pipeline root in `default`, which is
+reserved for base infrastructure because the two roots currently share a
+backend key. RDS instances use the deterministic identifier
+`<environment>-<mission>-cdftracker-db`; review the first migration plan before
+applying it to an existing database.
 
 ## Documentation
 

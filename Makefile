@@ -43,7 +43,7 @@ tf-test-base:
 	@cd "$(TF_BASE_DIR)" && terraform init -backend=false -input=false && TF_WORKSPACE=default TF_CLI_ARGS_init="-backend=false -input=false" terraform test
 
 tf-test-pipeline:
-	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false -input=false && TF_WORKSPACE=default TF_CLI_ARGS_init="-backend=false -input=false" terraform test
+	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false -input=false && TF_WORKSPACE=dev-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test
 
 tf-smoke: tf-fmt-check tf-validate-base tf-validate-pipeline tf-test-base tf-test-pipeline
 

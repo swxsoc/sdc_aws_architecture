@@ -23,7 +23,7 @@ jobs:
       working-directory: base-infrastructure-terraform
       run: |
         if find . -name '*.tftest.hcl' -print -quit | grep -q .; then
-          TF_CLI_ARGS_init="-backend=false -input=false" terraform test
+          TF_WORKSPACE=default TF_CLI_ARGS_init="-backend=false -input=false" terraform test
         else
           echo "No Terraform tests found."
         fi
@@ -36,7 +36,7 @@ jobs:
       working-directory: pipeline-infrastructure-terraform
       run: |
         if find . -name '*.tftest.hcl' -print -quit | grep -q .; then
-          TF_CLI_ARGS_init="-backend=false -input=false" terraform test
+          TF_WORKSPACE=dev-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test
         else
           echo "No Terraform tests found."
         fi

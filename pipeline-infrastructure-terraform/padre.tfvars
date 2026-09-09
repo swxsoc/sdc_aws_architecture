@@ -58,6 +58,9 @@ docker_base_public_ecr_name = "padre-swsoc-docker-lambda-base"
 # The name of the IAM role from the other account that will be used to push to the incoming bucket
 optional_s3_uploader_role_arn = "arn:aws:iam::815232357003:role/data-transfer-12321-padre"
 
+# PADRE's live Sorting and Artifacts functions explicitly select Slack.
+comms_platform = "slack"
+
 # RDS ingress allowlists
 rds_additional_security_group_ids = ["sg-002dbe7887ac759c5"] # Grafana EC2 webDMZ
 rds_ingress_cidr_blocks           = []

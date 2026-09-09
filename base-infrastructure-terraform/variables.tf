@@ -43,8 +43,13 @@ variable "executor_function_private_ecr_name" {
 
 variable "ef_image_tag" {
   type        = string
-  description = "Executor Function ECR image tag"
-  default     = "latest"
+  description = "Immutable Executor Function ECR image tag"
+  default     = ""
+
+  validation {
+    condition     = trimspace(var.ef_image_tag) != "" && lower(trimspace(var.ef_image_tag)) != "latest"
+    error_message = "ef_image_tag is required and must be immutable; the mutable latest tag is not allowed."
+  }
 }
 
 variable "executor_memory_size" {
@@ -61,12 +66,23 @@ variable "executor_ephemeral_storage_size" {
 
 variable "udl_secret_name" {
   type        = string
-  description = "Name of the existing UDL credentials secret"
-  default     = "udl-credentials"
+  description = "Optional existing UDL secret name; defaults to swxsoc/<environment>/<mission>/executor/udl"
+  default     = ""
 
   validation {
-    condition     = trimspace(var.udl_secret_name) != ""
-    error_message = "udl_secret_name must not be empty."
+    condition     = var.udl_secret_name == "" || trimspace(var.udl_secret_name) != ""
+    error_message = "udl_secret_name must be empty to use the convention or contain a non-whitespace name."
+  }
+}
+
+variable "grafana_secret_name" {
+  type        = string
+  description = "Optional existing Grafana secret name; defaults to swxsoc/<environment>/<mission>/executor/grafana"
+  default     = ""
+
+  validation {
+    condition     = var.grafana_secret_name == "" || trimspace(var.grafana_secret_name) != ""
+    error_message = "grafana_secret_name must be empty to use the convention or contain a non-whitespace name."
   }
 }
 

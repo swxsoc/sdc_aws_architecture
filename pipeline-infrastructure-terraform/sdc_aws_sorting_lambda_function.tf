@@ -10,6 +10,52 @@ locals {
   enable_sorting_lambda = var.enable_sorting_lambda
 }
 
+data "aws_secretsmanager_secret" "mattermost" {
+  count = var.enable_mattermost ? 1 : 0
+  name  = local.mattermost_secret_name
+
+  lifecycle {
+    postcondition {
+      condition = (
+        lookup(self.tags, "Mission", "") == var.mission_name &&
+        lookup(self.tags, "Service", "") == "communications" &&
+        lookup(self.tags, "Environment", "") == local.environment_full_name &&
+        lookup(self.tags, "ManagedBy", "") == "external"
+      )
+      error_message = "The Mattermost secret must have the expected Mission, Service=communications, Environment, and ManagedBy=external tags."
+    }
+  }
+}
+
+data "aws_secretsmanager_secret_version" "mattermost" {
+  count     = var.enable_mattermost ? 1 : 0
+  secret_id = data.aws_secretsmanager_secret.mattermost[0].id
+
+  lifecycle {
+    postcondition {
+      condition = (
+        try(length(trimspace(jsondecode(self.secret_string).token)) > 0, false) &&
+        try(length(trimspace(jsondecode(self.secret_string).channel_id)) > 0, false)
+      )
+      error_message = "The Mattermost secret JSON must contain non-empty string keys named token and channel_id."
+    }
+  }
+}
+
+locals {
+  mattermost_credentials = var.enable_mattermost ? jsondecode(data.aws_secretsmanager_secret_version.mattermost[0].secret_string) : {}
+  comms_environment = merge(
+    trimspace(var.comms_platform) != "" ? {
+      COMMS_PLATFORM = lower(trimspace(var.comms_platform))
+    } : {},
+    var.enable_mattermost ? {
+      MATTERMOST_CHANNEL_ID = local.mattermost_credentials.channel_id
+      MATTERMOST_TOKEN      = local.mattermost_credentials.token
+      MATTERMOST_URL        = var.mattermost_url
+    } : {},
+  )
+}
+
 // Creates the Sorting Lambda function
 resource "aws_lambda_function" "sorting_lambda_function" {
   count         = local.enable_sorting_lambda ? 1 : 0
@@ -18,7 +64,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
   timeout       = 600
 
   environment {
-    variables = {
+    variables = merge({
       LAMBDA_ENVIRONMENT     = upper(local.environment_full_name)
       SDC_AWS_SLACK_TOKEN    = var.slack_token
       SDC_AWS_SLACK_CHANNEL  = var.slack_channel
@@ -27,7 +73,7 @@ resource "aws_lambda_function" "sorting_lambda_function" {
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
       SUNPY_DOWNLOADDIR      = "/tmp"
-    }
+    }, local.comms_environment)
   }
 
   image_uri    = local.sorting_image_uri
@@ -44,14 +90,23 @@ resource "aws_lambda_function" "sorting_lambda_function" {
   role = aws_iam_role.sorting_lambda_exec.arn
 
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "sorting"
+  })
 
   lifecycle {
-
     ignore_changes = [
-      environment["SDC_AWS_SLACK_TOKEN"],   // Ignore changes to this variable
-      environment["SDC_AWS_SLACK_CHANNEL"], // Ignore changes to this variable
+      environment[0].variables["SDC_AWS_SLACK_TOKEN"],   // Ignore changes to this variable
+      environment[0].variables["SDC_AWS_SLACK_CHANNEL"], // Ignore changes to this variable
     ]
+
+    precondition {
+      condition = (
+        trimspace(var.sorting_image_uri_override) != "" ||
+        trimspace(var.sf_image_tag) != ""
+      )
+      error_message = "An immutable sf_image_tag or sorting_image_uri_override is required for the sorting Lambda."
+    }
   }
 }
 

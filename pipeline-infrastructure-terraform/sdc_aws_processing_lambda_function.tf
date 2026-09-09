@@ -7,7 +7,7 @@
 
 data "aws_secretsmanager_secret" "grafana" {
   count = var.enable_grafana_secret ? 1 : 0
-  name  = var.grafana_secret_name
+  name  = local.grafana_secret_name
 }
 
 data "aws_secretsmanager_secret_version" "grafana_credentials" {
@@ -65,7 +65,21 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
     }
   }
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "processing"
+  })
+
+  lifecycle {
+    precondition {
+      condition = (
+        trimspace(var.processing_image_uri_override) != "" ||
+        trimspace(var.pf_image_tag) != ""
+      )
+      error_message = "An immutable pf_image_tag or processing_image_uri_override is required for the processing Lambda."
+    }
+  }
+
+  depends_on = [aws_secretsmanager_secret_version.secret]
 }
 
 
@@ -91,17 +105,25 @@ resource "aws_kms_key" "default" {
   is_enabled              = true
   enable_key_rotation     = true
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "processing"
+  })
 }
 
 // Create a secret in Secrets Manager
 resource "aws_secretsmanager_secret" "rds_secret" {
   kms_key_id              = aws_kms_key.default.key_id
-  name                    = "${local.environment_short_name}${var.mission_name}-rds-credentials"
+  name                    = local.rds_secret_name
   description             = "RDS Credentials"
-  recovery_window_in_days = 0
+  recovery_window_in_days = 30
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "processing"
+  })
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 // Store the secret in Secrets Manager
@@ -162,6 +184,7 @@ resource "aws_security_group" "rds_sg" {
 
 // Create the RDS instance
 resource "aws_db_instance" "rds_instance" {
+  identifier        = "${local.environment_slug}-${local.mission_slug}-cdftracker-db"
   allocated_storage = 30
   storage_type      = "gp2"
   engine            = "postgres"
@@ -184,7 +207,9 @@ resource "aws_db_instance" "rds_instance" {
 
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
 
-  tags = local.standard_tags
+  tags = merge(local.standard_tags, {
+    "Service" = "processing"
+  })
 
   lifecycle {
     ignore_changes = [

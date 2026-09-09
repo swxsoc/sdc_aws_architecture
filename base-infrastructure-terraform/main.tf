@@ -6,7 +6,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "5.14.0"
+      version = "5.96.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -36,7 +36,7 @@ provider "aws" {
   region = var.deployment_region
 
   default_tags {
-    tags = local.required_tags
+    tags = local.standard_tags
   }
 }
 
@@ -55,6 +55,11 @@ locals {
     prod    = "Production"
   }[local.workspace_prefix]
 
+  environment_slug    = local.workspace_prefix == "dev" ? "dev" : "prod"
+  secret_path_root    = "swxsoc/${local.environment_slug}/${replace(lower(var.soc_name), "_", "-")}"
+  grafana_secret_name = trimspace(var.grafana_secret_name) != "" ? var.grafana_secret_name : "${local.secret_path_root}/executor/grafana"
+  udl_secret_name     = trimspace(var.udl_secret_name) != "" ? var.udl_secret_name : "${local.secret_path_root}/executor/udl"
+
   required_tags = {
     "Mission" = var.soc_name
     "Service" = var.service_name
@@ -62,6 +67,7 @@ locals {
 
   standard_tags = merge(local.required_tags, {
     "Environment" = local.environment_full_name
+    "ManagedBy"   = "terraform"
     "Purpose"     = "SWSOC Base Infrastructure"
     "Project"     = var.soc_name
   })
