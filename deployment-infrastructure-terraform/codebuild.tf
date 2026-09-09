@@ -497,13 +497,24 @@ resource "aws_iam_role_policy" "codebuild" {
       ],
       length(each.value.connection_arns) > 0 ? [
         {
+          # CodeBuild validates the service role at CreateProject with the
+          # Get* actions, and the console grants both service prefixes.
           Sid    = "RepositoryConnection"
           Effect = "Allow"
           Action = [
+            "codeconnections:GetConnection",
+            "codeconnections:GetConnectionToken",
             "codeconnections:UseConnection",
+            "codestar-connections:GetConnection",
+            "codestar-connections:GetConnectionToken",
             "codestar-connections:UseConnection",
           ]
-          Resource = each.value.connection_arns
+          Resource = distinct(flatten([
+            for connection_arn in each.value.connection_arns : [
+              replace(connection_arn, ":codestar-connections:", ":codeconnections:"),
+              replace(connection_arn, ":codeconnections:", ":codestar-connections:"),
+            ]
+          ]))
         },
       ] : [],
       contains(each.value.kinds, "image") ? [
