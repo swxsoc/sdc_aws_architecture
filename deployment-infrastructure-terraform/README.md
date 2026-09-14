@@ -79,6 +79,15 @@ to an environment:
 mission trigger only rebuilds its own base image. The role for each trigger is
 scoped to `codebuild:StartBuild` on exactly its declared targets.
 
+Support projects allow two concurrent builds, the image and architecture
+projects only one. CodeBuild throttles a build that would exceed the limit
+instead of queueing it, and a release pushes `main` and the release tag within
+seconds of each other; both match the trigger's webhook filters, so a limit of
+one drops the second. The triggers only call `StartBuild`, so overlapping runs
+are harmless. Image projects keep the limit of one on purpose: two concurrent
+builds of the same component would race each other deploying to the same
+Lambda function.
+
 `padre-reprocessing-requests` runs `buildspecs/reprocessing.yml.tftpl`, which
 prints the build banner and then processes newly added `requests/*.json` files
 (excluding `requests/submit/`). Its role can invoke Lambda functions and read

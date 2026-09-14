@@ -735,7 +735,7 @@ resource "aws_codebuild_project" "support" {
   build_timeout          = 60
   queued_timeout         = 480
   source_version         = "main"
-  concurrent_build_limit = 1
+  concurrent_build_limit = 2
 
   artifacts {
     type = "NO_ARTIFACTS"
