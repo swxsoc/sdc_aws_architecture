@@ -24,7 +24,7 @@ resource "aws_timestreamwrite_table" "sdc_aws_timestream_measures_table" {
 
   retention_properties {
     memory_store_retention_period_in_hours  = 24
-    magnetic_store_retention_period_in_days = 360
+    magnetic_store_retention_period_in_days = 14600
   }
 
   depends_on = [aws_timestreamwrite_database.sdc_aws_timestream_db]
