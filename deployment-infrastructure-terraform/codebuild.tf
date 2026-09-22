@@ -309,15 +309,7 @@ locals {
     for project_name, project in local.dependency_trigger_projects :
     project_name => templatefile("${path.module}/buildspecs/dependency-trigger.yml.tftpl", {
       mission = project.mission
-      targets = join("\n", [for target in project.targets : <<-EOT
-        echo "Starting ${target} for $CDK_ENVIRONMENT..."
-        aws codebuild start-build \
-          --project-name "${target}" \
-          --source-version main \
-          --environment-variables-override \
-            name=CDK_ENVIRONMENT,value="$CDK_ENVIRONMENT",type=PLAINTEXT
-      EOT
-      ])
+      targets = join("\n", [for target in project.targets : "start_target_build \"${target}\""])
     })
   }
 
