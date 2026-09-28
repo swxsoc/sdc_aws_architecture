@@ -1,28 +1,35 @@
 locals {
   # Adding a mission is deliberately data-driven: add one entry with its base
-  # image repository, source connection, and enabled Lambda components. The
-  # standard project, role, policy, webhook, and tags are generated below.
+  # image repository and enabled Lambda components. The standard project,
+  # role, policy, webhook, and tags are generated below.
   missions = {
     hermes = {
       base_repository_url = "https://github.com/HERMES-SOC/sdc_aws_base_docker_image.git"
-      connection_arn      = var.hermes_codeconnection_arn
       lambda_components   = toset(["processing", "sorting", "artifacts"])
     }
     impax = {
       base_repository_url = "https://github.com/iMPAXSat/sdc_aws_base_docker_image"
-      connection_arn      = ""
       lambda_components   = toset(["processing", "sorting", "artifacts"])
     }
     padre = {
       base_repository_url = "https://github.com/PADRESat/sdc_aws_base_docker_image.git"
-      connection_arn      = var.shared_codeconnection_arn
       lambda_components   = toset(["processing", "sorting", "artifacts", "concating"])
     }
     swxsoc_pipeline = {
       base_repository_url = "https://github.com/swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image"
-      connection_arn      = var.shared_codeconnection_arn
       lambda_components   = toset(["processing", "sorting", "artifacts"])
     }
+  }
+
+  # Each CodeConnection is bound to one GitHub organization's app
+  # installation, so a project's connection follows the organization that owns
+  # its source repository, not the mission it builds for. Webhook creation and
+  # commit status reporting fail when the two disagree. An organization with no
+  # connection keeps the account-level GitHub credential.
+  github_org_connections = {
+    "HERMES-SOC" = var.hermes_codeconnection_arn
+    "PADRESat"   = var.padre_codeconnection_arn
+    "swxsoc"     = var.shared_codeconnection_arn
   }
 
   lambda_components = {
@@ -55,7 +62,7 @@ locals {
           service        = component_name
           kind           = "image"
           repository_url = local.lambda_components[component_name].repository_url
-          connection_arn = mission.connection_arn
+          connection_arn = lookup(local.github_org_connections, split("/", local.lambda_components[component_name].repository_url)[3], "")
         }
       ]
     ]) : pair.name => pair
@@ -69,14 +76,13 @@ locals {
       service        = "container-base"
       kind           = "image"
       repository_url = mission.base_repository_url
-      connection_arn = mission.connection_arn
+      connection_arn = lookup(local.github_org_connections, split("/", mission.base_repository_url)[3], "")
     }
   }
 
   # Architecture projects clone this repository, which lives in the swxsoc
   # GitHub organization, so they use the shared SWxSOC connection regardless of
-  # the mission's own connection. A mission with no connection keeps the
-  # account-level OAuth credential.
+  # the mission.
   mission_architecture_projects = {
     for mission_name, mission in local.missions :
     "build_${mission_name}_sdc_aws_pipeline_architecture" => {
@@ -85,7 +91,7 @@ locals {
       service        = "terraform-deployment"
       kind           = "architecture"
       repository_url = "https://github.com/swxsoc/sdc_aws_architecture"
-      connection_arn = mission.connection_arn == "" ? "" : var.shared_codeconnection_arn
+      connection_arn = var.shared_codeconnection_arn
     }
   }
 
