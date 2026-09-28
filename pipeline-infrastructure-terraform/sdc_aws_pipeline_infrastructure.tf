@@ -106,6 +106,53 @@ resource "aws_s3_bucket_versioning" "sdc_buckets" {
   }
 }
 
+// Versioning keeps every overwritten or deleted object forever unless a rule
+// expires it. Keep noncurrent versions long enough to recover from a bad
+// overwrite or delete, then let S3 remove them, and clear leftover delete
+// markers and abandoned multipart uploads. A lifecycle configuration replaces
+// any rules set outside Terraform; none of these buckets had any.
+locals {
+  versioned_buckets = merge(
+    { for key, versioning in aws_s3_bucket_versioning.sdc_buckets : key => versioning.bucket },
+    local.is_production ? { access_logs = aws_s3_bucket_versioning.access_logs[0].bucket } : {},
+  )
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "versioned_buckets" {
+  for_each = local.versioned_buckets
+  bucket   = each.value
+
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.s3_noncurrent_version_expiration_days
+    }
+  }
+
+  rule {
+    id     = "clean-up-delete-markers-and-uploads"
+    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
+
+    expiration {
+      expired_object_delete_marker = true
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
 // Attach a bucket policy only to the incoming bucket when uploader roles exist
 resource "aws_s3_bucket_policy" "incoming_bucket_policy" {
   for_each = {
