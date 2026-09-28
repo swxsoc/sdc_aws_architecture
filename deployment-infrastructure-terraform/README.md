@@ -79,6 +79,20 @@ to an environment:
 mission trigger only rebuilds its own base image. The role for each trigger is
 scoped to `codebuild:StartBuild` on exactly its declared targets.
 
+Support projects allow two concurrent builds, the image and architecture
+projects only one. CodeBuild throttles a build that would exceed the limit
+instead of queueing it, and a release pushes `main` and the release tag within
+seconds of each other; both match the trigger's webhook filters, so a limit of
+one drops the second. Image projects keep the limit of one on purpose: two
+concurrent builds of the same component would race each other deploying to the
+same Lambda function. That means the second trigger's `StartBuild` on an image
+project is throttled too, so the trigger buildspec retries each throttled
+`StartBuild` every 30 seconds and fails the trigger build if the target never
+frees up. The retry deadline is the image projects' 60-minute build timeout
+plus 15 minutes, and the trigger projects' own build timeout is 15 minutes
+longer than that, so a trigger is never stopped while it is still waiting.
+Any other `StartBuild` error, such as a denied call, fails immediately.
+
 `padre-reprocessing-requests` runs `buildspecs/reprocessing.yml.tftpl`, which
 prints the build banner and then processes newly added `requests/*.json` files
 (excluding `requests/submit/`). Its role can invoke Lambda functions and read
