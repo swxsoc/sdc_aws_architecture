@@ -144,6 +144,17 @@ run "plan_pipeline" {
   }
 
   assert {
+    condition = (
+      length(resource.aws_s3_bucket_lifecycle_configuration.versioned_buckets) == length(resource.aws_s3_bucket_versioning.sdc_buckets) &&
+      alltrue([
+        for config in resource.aws_s3_bucket_lifecycle_configuration.versioned_buckets :
+        length([for rule in config.rule : rule if length(rule.noncurrent_version_expiration) > 0 && rule.noncurrent_version_expiration[0].noncurrent_days == 30]) == 1
+      ])
+    )
+    error_message = "Every versioned mission bucket should expire noncurrent object versions after 30 days."
+  }
+
+  assert {
     condition     = resource.aws_secretsmanager_secret.rds_secret.name == "swxsoc/dev/swxsoc-pipeline/processing/rds"
     error_message = "Pipeline secrets should use the environment/mission/service path convention."
   }

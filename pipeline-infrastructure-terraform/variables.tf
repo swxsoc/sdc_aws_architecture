@@ -57,6 +57,17 @@ variable "s3_server_access_logs_bucket_name" {
   description = "The name of the S3 bucket to create for storing access logs"
 }
 
+variable "s3_noncurrent_version_expiration_days" {
+  type        = number
+  description = "Days an overwritten or deleted object version is kept in a versioned mission bucket before S3 expires it"
+  default     = 30
+
+  validation {
+    condition     = var.s3_noncurrent_version_expiration_days >= 1
+    error_message = "s3_noncurrent_version_expiration_days must be at least 1."
+  }
+}
+
 variable "sorting_function_private_ecr_name" {
   type        = string
   description = "Private ECR repository for the sorting function"
