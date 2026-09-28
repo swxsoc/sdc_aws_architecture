@@ -305,11 +305,20 @@ locals {
     }
   }
 
+  # A trigger retries StartBuild while its target image project is busy, and
+  # that target can run for its full build timeout. The retry deadline covers
+  # that timeout plus a margin, and the trigger's own timeout covers the
+  # deadline, so CodeBuild never stops a trigger that is still waiting.
+  pipeline_build_timeout_minutes            = 60
+  dependency_trigger_start_deadline_minutes = local.pipeline_build_timeout_minutes + 15
+  dependency_trigger_build_timeout_minutes  = local.dependency_trigger_start_deadline_minutes + 15
+
   dependency_trigger_buildspecs = {
     for project_name, project in local.dependency_trigger_projects :
     project_name => templatefile("${path.module}/buildspecs/dependency-trigger.yml.tftpl", {
-      mission = project.mission
-      targets = join("\n", [for target in project.targets : "start_target_build \"${target}\""])
+      mission                = project.mission
+      start_deadline_minutes = local.dependency_trigger_start_deadline_minutes
+      targets                = join("\n", [for target in project.targets : "start_target_build \"${target}\""])
     })
   }
 
@@ -322,6 +331,7 @@ locals {
         kind                  = "dependency-trigger"
         purpose               = "Dependency-triggered image rebuild"
         buildspec             = local.dependency_trigger_buildspecs[project_name]
+        build_timeout         = local.dependency_trigger_build_timeout_minutes
         compute_type          = "BUILD_GENERAL1_SMALL"
         git_clone_depth       = 1
         environment_variables = {}
@@ -339,6 +349,7 @@ locals {
         buildspec = templatefile("${path.module}/buildspecs/reprocessing.yml.tftpl", {
           mission = "padre"
         })
+        build_timeout   = 60
         compute_type    = "BUILD_GENERAL1_SMALL"
         git_clone_depth = 5
         environment_variables = {
@@ -595,7 +606,7 @@ resource "aws_codebuild_project" "pipeline" {
   name                   = each.key
   description            = "${each.value.mission} ${each.value.service} build and deployment"
   service_role           = aws_iam_role.codebuild[local.project_role_name[each.key]].arn
-  build_timeout          = 60
+  build_timeout          = local.pipeline_build_timeout_minutes
   queued_timeout         = 480
   source_version         = "main"
   concurrent_build_limit = 1
@@ -724,7 +735,7 @@ resource "aws_codebuild_project" "support" {
   name                   = each.key
   description            = "${each.value.mission} ${each.value.service}"
   service_role           = aws_iam_role.codebuild[local.project_role_name[each.key]].arn
-  build_timeout          = 60
+  build_timeout          = each.value.build_timeout
   queued_timeout         = 480
   source_version         = "main"
   concurrent_build_limit = 2
