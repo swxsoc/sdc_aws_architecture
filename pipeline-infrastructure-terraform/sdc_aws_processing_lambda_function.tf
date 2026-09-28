@@ -214,10 +214,16 @@ resource "aws_db_instance" "rds_instance" {
     "Service" = "processing"
   })
 
+  # Every live mission database was created with a generated terraform-<ts>
+  # identifier. Renaming one changes its endpoint, but the plan does not model
+  # the address change, so the RDS secret would be written with the old,
+  # dead hostname. Keep existing identifiers; new missions still get the
+  # deterministic name above.
   lifecycle {
     ignore_changes = [
       engine_version, # Ignore changes to the engine version
       instance_class, # Ignore changes to the instance class
+      identifier,     # Keep each live database's generated identifier
     ]
   }
 }
