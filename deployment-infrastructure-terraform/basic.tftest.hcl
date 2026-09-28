@@ -53,18 +53,6 @@ run "plan_deployment_projects" {
 
   assert {
     condition = (
-      resource.aws_codebuild_project.pipeline["build_hermes_sdc_aws_sorting_lambda"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
-      resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
-      resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_pipeline_architecture"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
-      resource.aws_codebuild_project.pipeline["build_hermes_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.hermes_codeconnection_arn &&
-      resource.aws_codebuild_project.pipeline["build_padre_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.padre_codeconnection_arn &&
-      length(resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_base_docker_image"].source[0].auth) == 0
-    )
-    error_message = "Each project must use the CodeConnection of the GitHub organization that owns its repository."
-  }
-
-  assert {
-    condition = (
       resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].tags["Mission"] == "impax" &&
       resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].tags["Service"] == "processing" &&
       resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].tags["Environment"] == "Shared" &&
@@ -79,6 +67,18 @@ run "plan_deployment_projects" {
       resource.aws_codebuild_project.pipeline["build_aws_sdc_alert_lambda_function"].tags["Service"] == "alert"
     )
     error_message = "The alert image build must be Docker-enabled and tagged as the alert service."
+  }
+
+  assert {
+    condition = (
+      resource.aws_codebuild_project.pipeline["build_hermes_sdc_aws_sorting_lambda"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_pipeline_architecture"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_hermes_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.hermes_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_padre_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.padre_codeconnection_arn &&
+      length(resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_base_docker_image"].source[0].auth) == 0
+    )
+    error_message = "Each project must use the CodeConnection of the GitHub organization that owns its repository."
   }
 
   assert {
