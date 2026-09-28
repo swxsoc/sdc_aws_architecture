@@ -73,5 +73,38 @@ phases:
         printf '  Commit      : %.12s\n' "$BANNER_COMMIT"
         printf '%s\n\n' '================================================================================'
 
-        ${targets}
+        # Image projects allow one concurrent build and CodeBuild throttles,
+        # rather than queues, a StartBuild over that limit. A release's main
+        # and tag triggers overlap, so keep retrying until the target is free.
+        # The deadline outlasts the target's build timeout. Only throttling and
+        # limit errors are retried; anything else, such as a denied call or a
+        # missing project, fails the trigger immediately.
+        START_DEADLINE=$(( $(date +%s) + ${start_deadline_minutes} * 60 ))
+        start_target_build() {
+          local target=$1 output
+          echo "Starting $target for $CDK_ENVIRONMENT..."
+          until output=$(aws codebuild start-build \
+            --project-name "$target" \
+            --source-version main \
+            --environment-variables-override \
+              name=CDK_ENVIRONMENT,value="$CDK_ENVIRONMENT",type=PLAINTEXT \
+            --query 'build.id' --output text 2>&1); do
+            case "$output" in
+              *AccountLimitExceededException*|*ThrottlingException*|*TooManyRequestsException*|*RequestLimitExceeded*|*"Rate exceeded"*) ;;
+              *)
+                echo "StartBuild for $target failed and will not be retried: $output"
+                return 1
+                ;;
+            esac
+            if [ "$(date +%s)" -ge "$START_DEADLINE" ]; then
+              echo "Gave up starting $target after ${start_deadline_minutes} minutes: $output"
+              return 1
+            fi
+            echo "StartBuild for $target was throttled, retrying in 30s: $output"
+            sleep 30
+          done
+          echo "Started $output"
+        }
+
+        ${indent(8, targets)}
 

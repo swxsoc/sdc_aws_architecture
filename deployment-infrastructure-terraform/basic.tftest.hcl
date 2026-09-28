@@ -53,6 +53,15 @@ run "plan_deployment_projects" {
 
   assert {
     condition = (
+      resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].build_timeout > local.dependency_trigger_start_deadline_minutes &&
+      local.dependency_trigger_start_deadline_minutes > resource.aws_codebuild_project.pipeline["build_padre_sdc_aws_base_docker_image"].build_timeout &&
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "+ ${local.dependency_trigger_start_deadline_minutes} * 60")
+    )
+    error_message = "A trigger must keep retrying past its target's build timeout and must outlive its own retry deadline."
+  }
+
+  assert {
+    condition = (
       resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].tags["Mission"] == "impax" &&
       resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].tags["Service"] == "processing" &&
       resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].tags["Environment"] == "Shared" &&
