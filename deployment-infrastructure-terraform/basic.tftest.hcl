@@ -80,6 +80,18 @@ run "plan_deployment_projects" {
 
   assert {
     condition = (
+      resource.aws_codebuild_project.pipeline["build_hermes_sdc_aws_sorting_lambda"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_processing_lambda"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_pipeline_architecture"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_hermes_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.hermes_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_padre_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.padre_codeconnection_arn &&
+      length(resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_base_docker_image"].source[0].auth) == 0
+    )
+    error_message = "Each project must use the CodeConnection of the GitHub organization that owns its repository."
+  }
+
+  assert {
+    condition = (
       length(resource.aws_cloudwatch_log_group.codebuild) == 34 &&
       resource.aws_cloudwatch_log_group.codebuild["trigger_rebuild_hermes_core"].retention_in_days == 90 &&
       resource.aws_cloudwatch_log_group.codebuild["trigger_rebuild_hermes_core"].tags["Mission"] == "hermes"
