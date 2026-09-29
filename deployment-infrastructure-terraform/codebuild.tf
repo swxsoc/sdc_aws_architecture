@@ -243,9 +243,10 @@ locals {
     "build_swxsoc_pipeline_sdc_aws_sorting_lambda",
   ])
 
+  # The HERMES and PADRE architecture webhooks pointed at GitHub hooks on the
+  # retired HERMES-SOC/sdc_aws_pipeline_architecture repository. The first
+  # apply replaced them, so they are created here rather than imported.
   existing_architecture_webhooks = toset([
-    "build_hermes_sdc_aws_pipeline_architecture",
-    "build_padre_sdc_aws_pipeline_architecture",
     "build_swxsoc_pipeline_sdc_aws_pipeline_architecture",
   ])
 
