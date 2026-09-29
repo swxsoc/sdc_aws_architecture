@@ -106,8 +106,11 @@ Everything is adopted through declarative `import` blocks in `imports.tf`
 while `adopt_existing_codebuild_projects=true` (the default):
 
 1. 33 existing projects (`pipeline` and `support`);
-2. the 11 existing image webhooks, 3 existing architecture webhooks, 4 existing
-   dependency-trigger webhooks, and the reprocessing webhook;
+2. the 11 existing image webhooks, the swxsoc_pipeline architecture webhook,
+   4 existing dependency-trigger webhooks, and the reprocessing webhook. The
+   HERMES and PADRE architecture webhooks are created, not imported: their
+   GitHub hooks were on the retired `HERMES-SOC/sdc_aws_pipeline_architecture`
+   repository, so the first apply replaced them;
 3. the 28 `/aws/codebuild/<project>` log groups that already exist. The six
    remaining groups are created: the iMPAX architecture project, the new base
    architecture project, and the four `trigger_rebuild_hermes_*` projects that
@@ -144,12 +147,14 @@ Add one entry to `local.missions` in `codebuild.tf` with:
 
 - the mission key used by its Terraform workspaces and project names;
 - the mission base-image repository URL;
-- the CodeConnection ARN, or an empty string for an existing account-level
-  GitHub OAuth credential;
 - the enabled Lambda components.
 
 Terraform generates the base-image, architecture, and component projects along
 with one tagged log group per project and a managed policy on their roles.
+Each project's CodeConnection comes from the GitHub organization that owns its
+repository, through `local.github_org_connections`. If the mission's base-image
+repository is in a new organization, add that organization and its connection
+there; an organization with no entry uses the account-level GitHub credential.
 Add each new project to `local.existing_service_roles` if it should adopt a
 role that already exists, or to `local.new_service_roles` to create one. New projects
 do not need entries in the import sets because they do not exist yet. Add a
