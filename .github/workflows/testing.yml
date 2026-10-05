@@ -36,7 +36,10 @@ jobs:
       working-directory: pipeline-infrastructure-terraform
       run: |
         if find . -name '*.tftest.hcl' -print -quit | grep -q .; then
-          TF_WORKSPACE=dev-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test
+          # Production-only resources depend on the workspace name, so the
+          # production test file runs under its own prod-* workspace.
+          TF_WORKSPACE=dev-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=basic.tftest.hcl
+          TF_WORKSPACE=prod-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=production.tftest.hcl
         else
           echo "No Terraform tests found."
         fi
