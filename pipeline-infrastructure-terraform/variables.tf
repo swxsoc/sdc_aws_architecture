@@ -63,8 +63,8 @@ variable "s3_noncurrent_version_expiration_days" {
   default     = 30
 
   validation {
-    condition     = var.s3_noncurrent_version_expiration_days >= 1
-    error_message = "s3_noncurrent_version_expiration_days must be at least 1."
+    condition     = var.s3_noncurrent_version_expiration_days >= 1 && floor(var.s3_noncurrent_version_expiration_days) == var.s3_noncurrent_version_expiration_days
+    error_message = "s3_noncurrent_version_expiration_days must be a whole number of days, at least 1."
   }
 }
 

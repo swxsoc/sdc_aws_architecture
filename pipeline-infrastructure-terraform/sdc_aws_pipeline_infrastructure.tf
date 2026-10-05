@@ -110,11 +110,13 @@ resource "aws_s3_bucket_versioning" "sdc_buckets" {
 // expires it. Keep noncurrent versions long enough to recover from a bad
 // overwrite or delete, then let S3 remove them, and clear leftover delete
 // markers and abandoned multipart uploads. A lifecycle configuration replaces
-// any rules set outside Terraform; none of these buckets had any.
+// any rules set outside Terraform; none of these buckets had any. Mission
+// bucket keys are namespaced so they can never collide with the access-log
+// bucket's key.
 locals {
   versioned_buckets = merge(
-    { for key, versioning in aws_s3_bucket_versioning.sdc_buckets : key => versioning.bucket },
-    local.is_production ? { access_logs = aws_s3_bucket_versioning.access_logs[0].bucket } : {},
+    { for key, versioning in aws_s3_bucket_versioning.sdc_buckets : "mission/${key}" => versioning.bucket },
+    local.is_production ? { "access-logs" = aws_s3_bucket_versioning.access_logs[0].bucket } : {},
   )
 }
 

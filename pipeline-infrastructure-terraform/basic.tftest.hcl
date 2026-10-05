@@ -155,6 +155,23 @@ run "plan_pipeline" {
   }
 
   assert {
+    condition = alltrue([
+      for config in resource.aws_s3_bucket_lifecycle_configuration.versioned_buckets :
+      length([
+        for rule in config.rule : rule
+        if length(rule.expiration) > 0 && rule.expiration[0].expired_object_delete_marker == true &&
+        length(rule.abort_incomplete_multipart_upload) > 0 && rule.abort_incomplete_multipart_upload[0].days_after_initiation == 7
+      ]) == 1
+    ])
+    error_message = "Every versioned mission bucket should clear expired delete markers and abort multipart uploads after 7 days."
+  }
+
+  assert {
+    condition     = !contains(keys(resource.aws_s3_bucket_lifecycle_configuration.versioned_buckets), "access-logs")
+    error_message = "Development workspaces have no access-log bucket, so they should have no access-log lifecycle configuration."
+  }
+
+  assert {
     condition     = resource.aws_secretsmanager_secret.rds_secret.name == "swxsoc/dev/swxsoc-pipeline/processing/rds"
     error_message = "Pipeline secrets should use the environment/mission/service path convention."
   }
