@@ -220,6 +220,24 @@ variable "lambda_log_retention_days" {
   }
 }
 
+variable "adopt_existing_instruments" {
+  type = map(object({
+    sqs_queue_environments = optional(list(string), ["dev", "prod"])
+  }))
+  description = "Instruments from instrument_names whose bucket, SNS topic, and SQS queue were created outside Terraform. Their resources are imported instead of created. sqs_queue_environments lists the environments (dev, prod) where the queue already exists; elsewhere it is created."
+  default     = {}
+
+  validation {
+    condition     = alltrue([for name in keys(var.adopt_existing_instruments) : contains(var.instrument_names, name)])
+    error_message = "Every adopt_existing_instruments key must also be listed in instrument_names."
+  }
+
+  validation {
+    condition     = alltrue(flatten([for cfg in values(var.adopt_existing_instruments) : [for env in cfg.sqs_queue_environments : contains(["dev", "prod"], env)]]))
+    error_message = "sqs_queue_environments may only contain dev and prod."
+  }
+}
+
 variable "adopt_existing_lambda_log_groups" {
   type        = bool
   description = "Whether declarative imports should adopt existing mission Lambda log groups; set false for a brand-new mission"
