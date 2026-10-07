@@ -32,7 +32,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
   package_type = "Image"
 
   environment {
-    variables = {
+    variables = merge(var.processing_extra_environment, {
       LAMBDA_ENVIRONMENT     = upper(local.environment_full_name)
       SPACEPY                = "/tmp"
       SUNPY_CONFIGDIR        = "/tmp"
@@ -46,7 +46,7 @@ resource "aws_lambda_function" "aws_sdc_processing_lambda_function" {
       SWXSOC_MISSION         = var.mission_name
       SWXSOC_INCOMING_BUCKET = var.incoming_bucket_name
       GRAFANA_API_KEY        = sensitive(local.grafana_api_key)
-    }
+    })
   }
   ephemeral_storage {
     size = 2048
