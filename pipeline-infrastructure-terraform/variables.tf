@@ -166,6 +166,31 @@ variable "enable_processing_lambda" {
   default     = true
 }
 
+variable "processing_extra_environment" {
+  type        = map(string)
+  description = "Mission-specific environment variables added to the processing Lambda, such as writable cache paths an instrument package needs. Cannot override a variable Terraform already sets."
+  default     = {}
+
+  validation {
+    condition = length(setintersection(keys(var.processing_extra_environment), [
+      "LAMBDA_ENVIRONMENT",
+      "SPACEPY",
+      "SUNPY_CONFIGDIR",
+      "SUNPY_DOWNLOADDIR",
+      "ASTROPY_CACHE_DIR",
+      "MPLCONFIGDIR",
+      "RDS_SECRET_ARN",
+      "RDS_HOST",
+      "RDS_PORT",
+      "RDS_DATABASE",
+      "SWXSOC_MISSION",
+      "SWXSOC_INCOMING_BUCKET",
+      "GRAFANA_API_KEY",
+    ])) == 0
+    error_message = "processing_extra_environment cannot override a processing variable Terraform already manages."
+  }
+}
+
 variable "enable_sorting_lambda" {
   type        = bool
   description = "Whether to create the sorting Lambda and related resources"

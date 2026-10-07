@@ -67,6 +67,15 @@ comms_platform    = "mattermost"
 enable_mattermost = true
 mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
 
+# swxsoc_reach draws maps with cartopy, which downloads map data under HOME and
+# XDG_DATA_HOME. Lambda only allows writes under /tmp. These were set by hand on
+# both processing Lambdas before Terraform managed the environment.
+processing_extra_environment = {
+  CARTOPY_DATA_DIR = "/tmp/cartopy"
+  HOME             = "/tmp"
+  XDG_DATA_HOME    = "/tmp"
+}
+
 # Lambda creation flags (enable once images exist)
 enable_processing_lambda = true
 enable_sorting_lambda    = true
