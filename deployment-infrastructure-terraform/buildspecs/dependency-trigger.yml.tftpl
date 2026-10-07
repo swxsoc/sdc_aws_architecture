@@ -81,7 +81,7 @@ phases:
         # missing project, fails the trigger immediately.
         START_DEADLINE=$(( $(date +%s) + ${start_deadline_minutes} * 60 ))
         start_target_build() {
-          local target=$1 output
+          local target=$1 output retry_wait
           echo "Starting $target for $CDK_ENVIRONMENT..."
           until output=$(aws codebuild start-build \
             --project-name "$target" \
@@ -96,12 +96,20 @@ phases:
                 return 1
                 ;;
             esac
+            # Never sleep past the deadline, and check it again before the
+            # next attempt so no StartBuild goes out after the cutoff.
+            retry_wait=$(( START_DEADLINE - $(date +%s) ))
+            if [ "$retry_wait" -gt 30 ]; then
+              retry_wait=30
+            fi
+            if [ "$retry_wait" -gt 0 ]; then
+              echo "StartBuild for $target was throttled, retrying in $retry_wait seconds: $output"
+              sleep "$retry_wait"
+            fi
             if [ "$(date +%s)" -ge "$START_DEADLINE" ]; then
               echo "Gave up starting $target after ${start_deadline_minutes} minutes: $output"
               return 1
             fi
-            echo "StartBuild for $target was throttled, retrying in 30s: $output"
-            sleep 30
           done
           echo "Started $output"
         }
