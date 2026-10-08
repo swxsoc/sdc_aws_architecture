@@ -24,14 +24,19 @@ import {
   id       = each.key
 }
 
-# Instruments that were wired up by hand before Terraform managed them. Their
-# bucket and SNS topic exist in every environment; the SQS queue exists only in
-# the environments listed in sqs_queue_environments and is created elsewhere.
+# Instruments that were wired up by hand under the standard names before
+# Terraform managed them. Importing hands them to Terraform, which then applies
+# the same configuration as every other instrument. The queue is imported only
+# where it already exists and is created everywhere else.
 locals {
-  adopted_instrument_buckets = {
-    for name, cfg in var.adopt_existing_instruments :
-    "${local.mission_bucket_prefix}-${name}" => cfg
-  }
+  adopted_instrument_buckets = toset([
+    for name in var.adopt_existing_instruments : "${local.mission_bucket_prefix}-${name}"
+  ])
+}
+
+data "aws_sqs_queues" "adopted_instrument" {
+  for_each          = local.adopted_instrument_buckets
+  queue_name_prefix = "${local.environment_short_name}${each.key}-sqs-queue"
 }
 
 import {
@@ -47,7 +52,16 @@ import {
 }
 
 import {
-  for_each = { for bucket, cfg in local.adopted_instrument_buckets : bucket => cfg if contains(cfg.sqs_queue_environments, local.environment_slug) }
-  to       = aws_sqs_queue.sqs_queue[each.key]
-  id       = "https://sqs.${var.deployment_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.environment_short_name}${each.key}-sqs-queue"
+  for_each = {
+    for bucket in local.adopted_instrument_buckets : bucket => one([
+      for url in data.aws_sqs_queues.adopted_instrument[bucket].queue_urls : url
+      if endswith(url, "/${local.environment_short_name}${bucket}-sqs-queue")
+    ])
+    if length([
+      for url in data.aws_sqs_queues.adopted_instrument[bucket].queue_urls : url
+      if endswith(url, "/${local.environment_short_name}${bucket}-sqs-queue")
+    ]) == 1
+  }
+  to = aws_sqs_queue.sqs_queue[each.key]
+  id = each.value
 }

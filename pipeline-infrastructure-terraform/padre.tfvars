@@ -12,15 +12,12 @@ mission_name = "padre"
 # The names are used to dynamically create the instrument bucket
 instrument_names = ["meddea", "sharp", "craft"]
 
-# craft was wired up by hand before Terraform managed it: its buckets and SNS
-# topics exist in both environments, and only prod has an SQS queue. Import
-# them instead of creating them. Keep craft last in instrument_names, because
-# the processing bucket notifications are indexed by list position.
-adopt_existing_instruments = {
-  craft = {
-    sqs_queue_environments = ["prod"]
-  }
-}
+# craft was wired up by hand under the standard names before Terraform managed
+# it. Import its existing resources on the first apply; Terraform then manages
+# craft exactly like meddea and sharp. Remove this once dev and prod are
+# applied. Keep craft last in instrument_names: the processing bucket
+# notifications are indexed by list position.
+adopt_existing_instruments = ["craft"]
 
 # Valid Data Levels
 # This is a list of the valid data levels for the mission

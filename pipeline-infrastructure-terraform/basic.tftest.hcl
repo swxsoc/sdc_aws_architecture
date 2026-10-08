@@ -495,9 +495,7 @@ run "reject_adopting_unlisted_instrument" {
     enable_concating_lambda              = false
     adopt_existing_lambda_log_groups     = false
     sf_image_tag                         = "test-immutable-sha"
-    adopt_existing_instruments = {
-      craft = {}
-    }
+    adopt_existing_instruments           = ["craft"]
   }
 
   override_data {

@@ -221,20 +221,13 @@ variable "lambda_log_retention_days" {
 }
 
 variable "adopt_existing_instruments" {
-  type = map(object({
-    sqs_queue_environments = optional(list(string), ["dev", "prod"])
-  }))
-  description = "Instruments from instrument_names whose bucket, SNS topic, and SQS queue were created outside Terraform. Their resources are imported instead of created. sqs_queue_environments lists the environments (dev, prod) where the queue already exists; elsewhere it is created."
-  default     = {}
+  type        = set(string)
+  description = "Instruments from instrument_names whose resources were created outside Terraform under the standard names. Their bucket and SNS topic, and their SQS queue where one exists, are imported instead of created; Terraform then manages them like any other instrument. Remove an entry once every environment has been applied."
+  default     = []
 
   validation {
-    condition     = alltrue([for name in keys(var.adopt_existing_instruments) : contains(var.instrument_names, name)])
-    error_message = "Every adopt_existing_instruments key must also be listed in instrument_names."
-  }
-
-  validation {
-    condition     = alltrue(flatten([for cfg in values(var.adopt_existing_instruments) : [for env in cfg.sqs_queue_environments : contains(["dev", "prod"], env)]]))
-    error_message = "sqs_queue_environments may only contain dev and prod."
+    condition     = alltrue([for name in var.adopt_existing_instruments : contains(var.instrument_names, name)])
+    error_message = "Every adopt_existing_instruments entry must also be listed in instrument_names."
   }
 }
 
