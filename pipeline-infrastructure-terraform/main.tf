@@ -105,8 +105,13 @@ locals {
     )
   )
 
-  mission_bucket_prefix   = replace(var.mission_name, "_", "-")
-  instrument_bucket_names = [for bucket in var.instrument_names : "${local.mission_bucket_prefix}-${bucket}"]
+  mission_bucket_prefix = replace(var.mission_name, "_", "-")
+  # Every mission has a spacecraft bus, so craft is an instrument by default.
+  # It is appended (never inserted) because the processing bucket
+  # notifications are indexed by list position; a mission that already lists
+  # craft keeps its own order.
+  instrument_names        = distinct(concat(var.instrument_names, var.include_craft_instrument ? ["craft"] : []))
+  instrument_bucket_names = [for bucket in local.instrument_names : "${local.mission_bucket_prefix}-${bucket}"]
   bucket_list             = concat([var.incoming_bucket_name], local.instrument_bucket_names)
 
   ecr_lifecycle_policy = jsonencode({

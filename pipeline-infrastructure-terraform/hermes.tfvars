@@ -12,6 +12,10 @@ mission_name = "hermes"
 # The names are used to dynamically create the instrument bucket
 instrument_names = ["eea", "nemisis", "merit", "spani"]
 
+# HERMES has no craft data stream today. Turning this on creates a new craft
+# bucket, topic, queue, and Lambda wiring for the mission.
+include_craft_instrument = false
+
 # Valid Data Levels
 # This is a list of the valid data levels for the mission
 valid_data_levels = ["l0", "l1", "ql"]

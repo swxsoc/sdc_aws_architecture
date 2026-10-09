@@ -24,6 +24,7 @@ run "plan_pipeline" {
     deployment_region                    = "us-east-1"
     mission_name                         = "swxsoc_pipeline"
     instrument_names                     = ["reach"]
+    include_craft_instrument             = false
     valid_data_levels                    = ["raw", "l0", "l1"]
     timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
     timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
@@ -199,6 +200,7 @@ run "plan_swxsoc_artifacts_lambda" {
     deployment_region                    = "us-east-1"
     mission_name                         = "swxsoc_pipeline"
     instrument_names                     = ["reach"]
+    include_craft_instrument             = false
     valid_data_levels                    = ["raw", "l0", "l1"]
     timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
     timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
@@ -316,6 +318,7 @@ run "plan_processing_extra_environment" {
     deployment_region                    = "us-east-1"
     mission_name                         = "swxsoc_pipeline"
     instrument_names                     = ["reach"]
+    include_craft_instrument             = false
     valid_data_levels                    = ["raw", "l0", "l1"]
     timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
     timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
@@ -399,6 +402,7 @@ run "reject_processing_extra_environment_override" {
     deployment_region                    = "us-east-1"
     mission_name                         = "swxsoc_pipeline"
     instrument_names                     = ["reach"]
+    include_craft_instrument             = false
     valid_data_levels                    = ["raw", "l0", "l1"]
     timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
     timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
@@ -475,6 +479,7 @@ run "reject_adopting_unlisted_instrument" {
     deployment_region                    = "us-east-1"
     mission_name                         = "swxsoc_pipeline"
     instrument_names                     = ["reach"]
+    include_craft_instrument             = false
     valid_data_levels                    = ["raw", "l0", "l1"]
     timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
     timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
@@ -537,4 +542,151 @@ run "reject_adopting_unlisted_instrument" {
   expect_failures = [
     var.adopt_existing_instruments,
   ]
+}
+
+run "craft_is_appended_by_default" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["meddea", "sharp"]
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = true
+    enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
+    enable_mattermost                    = true
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = true
+    enable_artifacts_lambda              = false
+    enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
+    sf_image_tag                         = "test-immutable-sha"
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
+  assert {
+    condition     = local.instrument_names == tolist(["meddea", "sharp", "craft"])
+    error_message = "craft should be appended after the mission's own instruments by default."
+  }
+
+  assert {
+    condition     = contains(keys(resource.aws_sns_topic.sns_topics), "swxsoc-pipeline-craft")
+    error_message = "The default craft instrument should get the standard per-instrument resources."
+  }
+}
+
+run "listed_craft_keeps_its_position" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["craft", "iaxis", "ifire"]
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = true
+    enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
+    enable_mattermost                    = true
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = true
+    enable_artifacts_lambda              = false
+    enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
+    sf_image_tag                         = "test-immutable-sha"
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
+  assert {
+    condition     = local.instrument_names == tolist(["craft", "iaxis", "ifire"])
+    error_message = "A mission that already lists craft must keep its existing order."
+  }
 }
