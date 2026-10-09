@@ -220,6 +220,23 @@ variable "lambda_log_retention_days" {
   }
 }
 
+variable "include_craft_instrument" {
+  type        = bool
+  description = "Whether the mission gets the standard craft (spacecraft bus) instrument in addition to instrument_names. On by default; turn it off for a mission without a craft data stream."
+  default     = true
+}
+
+variable "adopt_existing_instruments" {
+  type        = set(string)
+  description = "Instruments from instrument_names whose resources were created outside Terraform under the standard names. Their bucket and SNS topic, and their SQS queue where one exists, are imported instead of created; Terraform then manages them like any other instrument. Remove an entry once every environment has been applied."
+  default     = []
+
+  validation {
+    condition     = alltrue([for name in var.adopt_existing_instruments : contains(var.instrument_names, name) || (name == "craft" && var.include_craft_instrument)])
+    error_message = "Every adopt_existing_instruments entry must be one of the mission's instruments (instrument_names, or craft when include_craft_instrument is true)."
+  }
+}
+
 variable "adopt_existing_lambda_log_groups" {
   type        = bool
   description = "Whether declarative imports should adopt existing mission Lambda log groups; set false for a brand-new mission"
