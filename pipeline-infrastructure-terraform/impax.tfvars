@@ -14,6 +14,8 @@ resource_purpose = "Imaging Microburst Precipitation with Atmospheric X-ray Emis
 
 # Instrument Names Used in the Mission.
 # The names are used to dynamically create the instrument buckets
+# craft stays listed first: the processing bucket notifications are indexed by
+# list position, and this is the order already deployed.
 instrument_names = ["craft", "iaxis", "ifire"]
 
 # Valid Data Levels

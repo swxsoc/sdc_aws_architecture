@@ -12,6 +12,10 @@ mission_name = "swxsoc_pipeline"
 # The names are used to dynamically create the instrument bucket
 instrument_names = ["reach"]
 
+# swxsoc_pipeline has no craft data stream today. Turning this on creates a new craft
+# bucket, topic, queue, and Lambda wiring for the mission.
+include_craft_instrument = false
+
 # Valid Data Levels
 # This is a list of the valid data levels for the mission
 valid_data_levels = ["raw", "l0", "l1c", "l2", "l3", "ql"]

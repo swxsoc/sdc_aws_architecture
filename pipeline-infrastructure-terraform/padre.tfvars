@@ -12,6 +12,13 @@ mission_name = "padre"
 # The names are used to dynamically create the instrument bucket
 instrument_names = ["meddea", "sharp"]
 
+# craft is added automatically (include_craft_instrument defaults to true).
+# It was wired up by hand under the standard names before Terraform managed
+# it, so import its existing resources on the first apply; Terraform then
+# manages craft exactly like meddea and sharp. Remove this once dev and prod
+# are applied.
+adopt_existing_instruments = ["craft"]
+
 # Valid Data Levels
 # This is a list of the valid data levels for the mission
 valid_data_levels = ["raw", "l0", "l1", "ql"]

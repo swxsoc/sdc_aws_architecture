@@ -27,6 +27,7 @@ run "plan_production_pipeline" {
     deployment_region                    = "us-east-1"
     mission_name                         = "swxsoc_pipeline"
     instrument_names                     = ["reach"]
+    include_craft_instrument             = false
     valid_data_levels                    = ["raw", "l0", "l1"]
     timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
     timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
@@ -121,6 +122,7 @@ run "reject_fractional_retention" {
     deployment_region                     = "us-east-1"
     mission_name                          = "swxsoc_pipeline"
     instrument_names                      = ["reach"]
+    include_craft_instrument              = false
     valid_data_levels                     = ["raw", "l0", "l1"]
     timestream_database_name              = "swxsoc_pipeline_sdc_aws_logs"
     timestream_s3_logs_table_name         = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
