@@ -222,7 +222,7 @@ variable "lambda_log_retention_days" {
 
 variable "include_craft_instrument" {
   type        = bool
-  description = "Whether the mission gets the standard craft (spacecraft bus) instrument in addition to instrument_names. On by default; turn it off for a mission without a craft data stream."
+  description = "Whether the mission gets the standard craft (spacecraft bus) instrument in addition to instrument_names. On by default; turn it off for a mission without a craft data stream. By convention a new mission lists craft first in instrument_names explicitly; the automatic append only exists so PADRE keeps its deployed [meddea, sharp, craft] order."
   default     = true
 }
 

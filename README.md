@@ -27,7 +27,7 @@ This repository contains Terraform configurations for managing AWS infrastructur
 - Uses separate workspaces for each mission's environments
 - Two workspaces per mission: development (dev) and production (prod)
 - Components:
-  - Mission-specific configurations (`hermes.tfvars`, `padre.tfvars`)
+  - Mission-specific configurations (`hermes.tfvars`, `padre.tfvars`, `impax.tfvars`, `gdctb.tfvars`)
   - Lambda functions for artifacts, processing, and sorting
   - Pipeline-specific infrastructure
   - New general pipeline config: `swxsoc_pipeline.tfvars` (REACH as the first instrument, mission name `swxsoc_pipeline`)
@@ -36,10 +36,11 @@ This repository contains Terraform configurations for managing AWS infrastructur
 - Managed in `deployment-infrastructure-terraform/`
 - Uses a dedicated S3 state key and the default workspace
 - Declaratively imports all 33 live CodeBuild projects and adds one dedicated
-  base-architecture project, for 34 managed projects in total
+  base-architecture project plus the six GDC Trailblazer (gdctb) projects, for
+  42 managed projects in total
 - Owns their predictable service roles, policies, webhooks, log groups, and tags
 - Generates a mission's standard projects from one entry in `local.missions`
-- Manages the nine dependency rebuild triggers and the PADRE reprocessing job
+- Manages the eleven dependency rebuild triggers and the PADRE reprocessing job
   as least-privilege support projects with generated buildspecs
 
 ## Getting Started
@@ -64,6 +65,25 @@ terraform workspace select <environment>-<mission>
 terraform plan -var-file=<mission>.tfvars
 terraform apply -var-file=<mission>.tfvars
 ```
+
+### gdctb Notes
+- `gdctb.tfvars` is the GDC Trailblazer mission: `mission_name = "gdctb"`,
+  `instrument_names = ["craft", "cape-eea"]` (craft first, by convention), and
+  the four Lambda components including concating, matching the fan-out in the
+  GDC-Trailblazer base image buildspec.
+- Nothing exists in AWS for gdctb yet. Create the `dev-gdctb` and `prod-gdctb`
+  workspaces, seed and tag the external
+  `swxsoc/<dev|prod>/gdctb/communications/mattermost` secret, then apply with
+  every `enable_*_lambda` flag false so the buckets, topics, queues, ECR
+  repositories, and database are created before any image exists.
+- Apply the deployment root to create the gdctb CodeBuild projects, run
+  `build_gdctb_sdc_aws_base_docker_image`, and once each Lambda image has been
+  pushed set its `enable_*_lambda` flag to true and remove
+  `adopt_existing_lambda_log_groups = false`.
+- Set `enable_grafana_secret = true` once
+  `swxsoc/<dev|prod>/gdctb/processing/grafana` holds the API key for the
+  GDCTB Grafana instance (http://grafana.gdctb.swsoc.smce.nasa.gov/), which is
+  deployed from the `sdc_aws_grafana` repository alongside the other missions.
 
 ### swxsoc_pipeline Notes
 - `swxsoc_pipeline.tfvars` uses mission-scoped names and starts with `instrument_names = ["reach"]` and `mission_name = "swxsoc_pipeline"`.
@@ -148,9 +168,9 @@ services use a purpose-specific service path, such as
 the same `Mission`, `Service`, and `Environment` tags to managed secrets.
 
 Communications platforms are explicit per mission: PADRE selects Slack,
-HERMES preserves legacy auto-detection, and the existing iMPAX plus SWxSOC
+HERMES preserves legacy auto-detection, the existing iMPAX plus SWxSOC
 Pipeline Mattermost environments are adopted through their mission-specific
-external secrets.
+external secrets, and GDCTB selects Mattermost from the start.
 
 Changing an existing Secrets Manager name creates a replacement because AWS
 does not support renaming secrets. Before applying a naming migration, copy any
@@ -163,7 +183,9 @@ The mission-first Mattermost secrets for iMPAX and SWxSOC Pipeline
 yet. Until all four are seeded and tagged through an approved migration, the
 `dev-impax`, `prod-impax`, `dev-swxsoc_pipeline`, and `prod-swxsoc_pipeline`
 plans fail at the secret data source by design; the live Lambdas keep their
-current environment variables in the meantime.
+current environment variables in the meantime. The new
+`swxsoc/<dev|prod>/gdctb/communications/mattermost` secrets must exist before
+the first `dev-gdctb` and `prod-gdctb` plans for the same reason.
 
 The base tfvars intentionally pins `grafana-credentials`, `udl-credentials`,
 and `gdc_test_kafka` during the migration, and `hermes.tfvars` and
