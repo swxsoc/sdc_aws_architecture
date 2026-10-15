@@ -3,6 +3,10 @@ locals {
   # image repository and enabled Lambda components. The standard project,
   # role, policy, webhook, and tags are generated below.
   missions = {
+    gdctb = {
+      base_repository_url = "https://github.com/GDC-Trailblazer/sdc_aws_base_docker_image"
+      lambda_components   = toset(["processing", "sorting", "artifacts", "concating"])
+    }
     hermes = {
       base_repository_url = "https://github.com/HERMES-SOC/sdc_aws_base_docker_image.git"
       lambda_components   = toset(["processing", "sorting", "artifacts"])
@@ -25,7 +29,8 @@ locals {
   # installation, so a project's connection follows the organization that owns
   # its source repository, not the mission it builds for. Webhook creation and
   # commit status reporting fail when the two disagree. An organization with no
-  # connection keeps the account-level GitHub credential.
+  # connection (iMPAXSat, GDC-Trailblazer) keeps the account-level GitHub
+  # credential.
   github_org_connections = {
     "HERMES-SOC" = var.hermes_codeconnection_arn
     "PADRESat"   = var.padre_codeconnection_arn
@@ -179,6 +184,8 @@ locals {
     build_swxsoc_pipeline_sdc_aws_processing_lambda     = "codebuild-build_swxsoc_pipeline_sdc_aws_processing_lambda-sr"
     build_swxsoc_pipeline_sdc_aws_sorting_lambda        = "codebuild-build_swxsoc_pipeline_sdc_aws_sorting_lambda-sr"
     padre-reprocessing-requests                         = "codebuild-padre-reprocessing-pipeline-service-role"
+    trigger_rebuild_gdctb_cape_eea                      = "codebuild-trigger_rebuild-service-role"
+    trigger_rebuild_gdctb_craft                         = "codebuild-trigger_rebuild-service-role"
     trigger_rebuild_hermes_core                         = "codebuild-trigger_rebuild-service-role"
     trigger_rebuild_hermes_eea                          = "codebuild-trigger_rebuild-service-role"
     trigger_rebuild_hermes_merit                        = "codebuild-trigger_rebuild-service-role"
@@ -190,8 +197,16 @@ locals {
     trigger_rebuild_swxsoc                              = "codebuild-trigger_rebuild-service-role"
   }
 
+  # GDCTB is the first mission created entirely by this root, so every one of
+  # its projects gets a role of its own, named like the base architecture role.
   new_service_roles = {
-    build_swxsoc_sdc_aws_base_architecture = "swxsoc-codebuild-swxsoc-base-architecture"
+    build_gdctb_sdc_aws_artifact_lambda       = "swxsoc-codebuild-gdctb-artifact-lambda"
+    build_gdctb_sdc_aws_base_docker_image     = "swxsoc-codebuild-gdctb-base-docker-image"
+    build_gdctb_sdc_aws_concating_lambda      = "swxsoc-codebuild-gdctb-concating-lambda"
+    build_gdctb_sdc_aws_pipeline_architecture = "swxsoc-codebuild-gdctb-pipeline-architecture"
+    build_gdctb_sdc_aws_processing_lambda     = "swxsoc-codebuild-gdctb-processing-lambda"
+    build_gdctb_sdc_aws_sorting_lambda        = "swxsoc-codebuild-gdctb-sorting-lambda"
+    build_swxsoc_sdc_aws_base_architecture    = "swxsoc-codebuild-swxsoc-base-architecture"
   }
 
   project_role_name = merge(local.existing_service_roles, local.new_service_roles)
@@ -226,6 +241,12 @@ locals {
   # Projects declared here do not exist in the account yet, so the adoption
   # imports skip them and the first apply creates them.
   new_codebuild_projects = toset([
+    "build_gdctb_sdc_aws_artifact_lambda",
+    "build_gdctb_sdc_aws_base_docker_image",
+    "build_gdctb_sdc_aws_concating_lambda",
+    "build_gdctb_sdc_aws_pipeline_architecture",
+    "build_gdctb_sdc_aws_processing_lambda",
+    "build_gdctb_sdc_aws_sorting_lambda",
     "build_swxsoc_sdc_aws_base_architecture",
   ])
 
@@ -251,6 +272,18 @@ locals {
   ])
 
   dependency_trigger_projects = {
+    trigger_rebuild_gdctb_cape_eea = {
+      mission        = "gdctb"
+      repository_url = "https://github.com/GDC-Trailblazer/gdctb_cape_eea"
+      connection_arn = ""
+      targets        = ["build_gdctb_sdc_aws_base_docker_image"]
+    }
+    trigger_rebuild_gdctb_craft = {
+      mission        = "gdctb"
+      repository_url = "https://github.com/GDC-Trailblazer/gdctb_craft"
+      connection_arn = ""
+      targets        = ["build_gdctb_sdc_aws_base_docker_image"]
+    }
     trigger_rebuild_hermes_core = {
       mission        = "hermes"
       repository_url = "https://github.com/HERMES-SOC/hermes_core"
@@ -304,6 +337,7 @@ locals {
       repository_url = "https://github.com/swxsoc/swxsoc"
       connection_arn = var.shared_codeconnection_arn
       targets = [
+        "build_gdctb_sdc_aws_base_docker_image",
         "build_hermes_sdc_aws_base_docker_image",
         "build_impax_sdc_aws_base_docker_image",
         "build_padre_sdc_aws_base_docker_image",
@@ -787,9 +821,12 @@ resource "aws_codebuild_project" "support" {
     git_clone_depth     = each.value.git_clone_depth
     report_build_status = true
 
-    auth {
-      type     = "CODECONNECTIONS"
-      resource = each.value.connection_arn
+    dynamic "auth" {
+      for_each = each.value.connection_arn == "" ? [] : [each.value.connection_arn]
+      content {
+        type     = "CODECONNECTIONS"
+        resource = auth.value
+      }
     }
   }
 

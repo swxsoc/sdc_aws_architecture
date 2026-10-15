@@ -109,7 +109,9 @@ locals {
   # Every mission has a spacecraft bus, so craft is an instrument by default.
   # It is appended (never inserted) because the processing bucket
   # notifications are indexed by list position; a mission that already lists
-  # craft keeps its own order.
+  # craft keeps its own order. The convention for a new mission is to list
+  # craft first explicitly (iMPAX, GDCTB); the append only preserves PADRE's
+  # deployed order.
   instrument_names        = distinct(concat(var.instrument_names, var.include_craft_instrument ? ["craft"] : []))
   instrument_bucket_names = [for bucket in local.instrument_names : "${local.mission_bucket_prefix}-${bucket}"]
   bucket_list             = concat([var.incoming_bucket_name], local.instrument_bucket_names)

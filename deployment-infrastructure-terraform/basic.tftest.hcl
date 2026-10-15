@@ -29,8 +29,19 @@ run "plan_deployment_projects" {
   }
 
   assert {
-    condition     = length(resource.aws_codebuild_project.pipeline) == 24 && length(resource.aws_codebuild_project.support) == 10
-    error_message = "The complete live fleet plus its base deployment project should produce 34 managed CodeBuild projects."
+    condition     = length(resource.aws_codebuild_project.pipeline) == 30 && length(resource.aws_codebuild_project.support) == 12
+    error_message = "The complete live fleet, its base deployment project, and the GDCTB mission should produce 42 managed CodeBuild projects."
+  }
+
+  assert {
+    condition = (
+      resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_concating_lambda"].environment[0].privileged_mode &&
+      resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_concating_lambda"].tags["Mission"] == "gdctb" &&
+      resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_concating_lambda"].tags["Service"] == "concating" &&
+      !resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_pipeline_architecture"].environment[0].privileged_mode &&
+      resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_base_docker_image"].source[0].location == "https://github.com/GDC-Trailblazer/sdc_aws_base_docker_image"
+    )
+    error_message = "GDCTB must get base, architecture, and all four Lambda image projects, including concating, from its mission entry."
   }
 
   assert {
@@ -85,14 +96,18 @@ run "plan_deployment_projects" {
       resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_pipeline_architecture"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
       resource.aws_codebuild_project.pipeline["build_hermes_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.hermes_codeconnection_arn &&
       resource.aws_codebuild_project.pipeline["build_padre_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.padre_codeconnection_arn &&
-      length(resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_base_docker_image"].source[0].auth) == 0
+      resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_pipeline_architecture"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      length(resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_base_docker_image"].source[0].auth) == 0 &&
+      length(resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_base_docker_image"].source[0].auth) == 0 &&
+      length(resource.aws_codebuild_project.support["trigger_rebuild_gdctb_craft"].source[0].auth) == 0 &&
+      resource.aws_codebuild_project.support["trigger_rebuild_padre_craft"].source[0].auth[0].resource == var.padre_codeconnection_arn
     )
-    error_message = "Each project must use the CodeConnection of the GitHub organization that owns its repository."
+    error_message = "Each project must use the CodeConnection of the GitHub organization that owns its repository, or no connection when that organization has none."
   }
 
   assert {
     condition = (
-      length(resource.aws_cloudwatch_log_group.codebuild) == 34 &&
+      length(resource.aws_cloudwatch_log_group.codebuild) == 42 &&
       resource.aws_cloudwatch_log_group.codebuild["trigger_rebuild_hermes_core"].retention_in_days == 90 &&
       resource.aws_cloudwatch_log_group.codebuild["trigger_rebuild_hermes_core"].tags["Mission"] == "hermes"
     )
@@ -103,28 +118,41 @@ run "plan_deployment_projects" {
     condition = (
       resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].tags["Service"] == "dependency-rebuild" &&
       strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "SWxSOC BUILD: DEPENDENCY REBUILD TRIGGER") &&
-      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "build_impax_sdc_aws_base_docker_image")
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "build_impax_sdc_aws_base_docker_image") &&
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "build_gdctb_sdc_aws_base_docker_image")
     )
     error_message = "The SWxSOC dependency trigger must be tagged, bannered, and fan out to every mission base image."
   }
 
   assert {
     condition = (
-      length(resource.aws_iam_role.codebuild) == 26 &&
+      resource.aws_codebuild_project.support["trigger_rebuild_gdctb_cape_eea"].tags["Mission"] == "gdctb" &&
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_gdctb_cape_eea"].source[0].buildspec, "start_target_build \"build_gdctb_sdc_aws_base_docker_image\"") &&
+      !strcontains(resource.aws_codebuild_project.support["trigger_rebuild_gdctb_cape_eea"].source[0].buildspec, "build_padre_sdc_aws_base_docker_image")
+    )
+    error_message = "Each GDCTB instrument trigger must rebuild only the GDCTB base image."
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_iam_role.codebuild) == 32 &&
       resource.aws_iam_role.codebuild["codebuild-trigger_rebuild-service-role"].path == "/service-role/" &&
       resource.aws_iam_role.codebuild["swxsoc-codebuild-swxsoc-base-architecture"].path == "/" &&
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-gdctb-processing-lambda"].path == "/" &&
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-gdctb-processing-lambda"].tags["Mission"] == "gdctb" &&
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-gdctb-processing-lambda"].tags["Service"] == "processing" &&
       resource.aws_iam_role.codebuild["padre-sdc-aws-base-docker-image"].tags["Mission"] == "padre" &&
       resource.aws_iam_role.codebuild["codebuild-trigger_rebuild-service-role"].tags["Service"] == "dependency-rebuild" &&
       resource.aws_iam_role_policy.codebuild["codebuild-trigger_rebuild-service-role"].name == "swxsoc-codebuild-managed"
     )
-    error_message = "The 25 live service roles must be adopted under their existing names and paths, with one new role for the base architecture project."
+    error_message = "The 25 live service roles must be adopted under their existing names and paths, with new roles for the base architecture project and each GDCTB project."
   }
 
   assert {
     condition = alltrue([
-      for target in ["build_hermes_sdc_aws_base_docker_image", "build_impax_sdc_aws_base_docker_image", "build_padre_sdc_aws_base_docker_image", "build_swxsoc_pipeline_sdc_aws_base_docker_image"] :
+      for target in ["build_gdctb_sdc_aws_base_docker_image", "build_hermes_sdc_aws_base_docker_image", "build_impax_sdc_aws_base_docker_image", "build_padre_sdc_aws_base_docker_image", "build_swxsoc_pipeline_sdc_aws_base_docker_image"] :
       strcontains(resource.aws_iam_role_policy.codebuild["codebuild-trigger_rebuild-service-role"].policy, "project/${target}")
     ])
-    error_message = "The shared trigger role's managed policy must cover every base image the nine triggers start."
+    error_message = "The shared trigger role's managed policy must cover every base image the eleven triggers start."
   }
 }
