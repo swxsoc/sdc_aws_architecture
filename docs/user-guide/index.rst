@@ -140,6 +140,7 @@ Where to go from here:
 .. toctree::
    :maxdepth: 6
 
+   aws-architecture
    terraform-overview
    timestream-overview
    docker-overview
