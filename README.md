@@ -78,8 +78,10 @@ terraform apply -var-file=<mission>.tfvars
   repositories, and database are created before any image exists.
 - Apply the deployment root to create the gdctb CodeBuild projects, run
   `build_gdctb_sdc_aws_base_docker_image`, and once each Lambda image has been
-  pushed set its `enable_*_lambda` flag to true and remove
-  `adopt_existing_lambda_log_groups = false`.
+  pushed set its `enable_*_lambda` flag to true. Keep
+  `adopt_existing_lambda_log_groups = false` through those applies, which
+  create the log groups; remove it only after every Lambda log group exists in
+  both workspaces, or the plan fails importing a group that is not there.
 - Set `enable_grafana_secret = true` once
   `swxsoc/<dev|prod>/gdctb/processing/grafana` holds the API key for the
   GDCTB Grafana instance (http://grafana.gdctb.swsoc.smce.nasa.gov/), which is

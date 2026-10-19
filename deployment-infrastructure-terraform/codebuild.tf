@@ -239,7 +239,8 @@ locals {
   }
 
   # Projects declared here do not exist in the account yet, so the adoption
-  # imports skip them and the first apply creates them.
+  # imports skip them and the first apply creates them. Pipeline and support
+  # projects are both listed here.
   new_codebuild_projects = toset([
     "build_gdctb_sdc_aws_artifact_lambda",
     "build_gdctb_sdc_aws_base_docker_image",
@@ -248,6 +249,8 @@ locals {
     "build_gdctb_sdc_aws_processing_lambda",
     "build_gdctb_sdc_aws_sorting_lambda",
     "build_swxsoc_sdc_aws_base_architecture",
+    "trigger_rebuild_gdctb_cape_eea",
+    "trigger_rebuild_gdctb_craft",
   ])
 
   existing_image_webhooks = toset([

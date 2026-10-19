@@ -92,7 +92,10 @@ enable_artifacts_lambda  = false
 enable_concating_lambda  = false
 
 # Nothing exists for gdctb yet, so there are no Lambda log groups to adopt.
-# Remove this once the Lambdas have been created in both workspaces.
+# Keep this false through the applies that turn each Lambda on; Terraform
+# creates the log groups then. Remove it only once every enabled Lambda's log
+# group exists in both workspaces, or the import of a missing group fails the
+# plan.
 adopt_existing_lambda_log_groups = false
 
 # Lambda VPC settings

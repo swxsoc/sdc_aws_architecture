@@ -1,14 +1,20 @@
 # The projects and selected webhooks predate Terraform. These declarative
 # imports adopt them into the dedicated deployment state without recreation.
-# build_swxsoc_sdc_aws_base_architecture is new and is created, not imported.
+# Projects in local.new_codebuild_projects (the base architecture project and
+# the GDCTB projects and triggers) are created, not imported.
+locals {
+  adopted_pipeline_projects = { for name, project in local.codebuild_projects : name => project if !contains(local.new_codebuild_projects, name) }
+  adopted_support_projects  = { for name, project in local.support_projects : name => project if !contains(local.new_codebuild_projects, name) }
+}
+
 import {
-  for_each = var.adopt_existing_codebuild_projects ? { for name, project in local.codebuild_projects : name => project if !contains(local.new_codebuild_projects, name) } : {}
+  for_each = var.adopt_existing_codebuild_projects ? local.adopted_pipeline_projects : {}
   to       = aws_codebuild_project.pipeline[each.key]
   id       = each.key
 }
 
 import {
-  for_each = var.adopt_existing_codebuild_projects ? local.support_projects : {}
+  for_each = var.adopt_existing_codebuild_projects ? local.adopted_support_projects : {}
   to       = aws_codebuild_project.support[each.key]
   id       = each.key
 }

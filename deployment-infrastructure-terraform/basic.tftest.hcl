@@ -126,6 +126,20 @@ run "plan_deployment_projects" {
 
   assert {
     condition = (
+      length(local.adopted_pipeline_projects) == 23 &&
+      length(local.adopted_support_projects) == 10 &&
+      !contains(keys(local.adopted_pipeline_projects), "build_gdctb_sdc_aws_base_docker_image") &&
+      !contains(keys(local.adopted_pipeline_projects), "build_swxsoc_sdc_aws_base_architecture") &&
+      !contains(keys(local.adopted_support_projects), "trigger_rebuild_gdctb_cape_eea") &&
+      !contains(keys(local.adopted_support_projects), "trigger_rebuild_gdctb_craft") &&
+      contains(keys(local.adopted_support_projects), "trigger_rebuild_padre_craft") &&
+      contains(keys(local.adopted_pipeline_projects), "build_impax_sdc_aws_base_docker_image")
+    )
+    error_message = "With adoption enabled, the imports must cover exactly the 33 live projects and skip every new GDCTB project and trigger plus the base architecture project."
+  }
+
+  assert {
+    condition = (
       resource.aws_codebuild_project.support["trigger_rebuild_gdctb_cape_eea"].tags["Mission"] == "gdctb" &&
       strcontains(resource.aws_codebuild_project.support["trigger_rebuild_gdctb_cape_eea"].source[0].buildspec, "start_target_build \"build_gdctb_sdc_aws_base_docker_image\"") &&
       !strcontains(resource.aws_codebuild_project.support["trigger_rebuild_gdctb_cape_eea"].source[0].buildspec, "build_padre_sdc_aws_base_docker_image")

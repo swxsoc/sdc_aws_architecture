@@ -161,9 +161,9 @@ repository is in a new organization, add that organization and its connection
 there; an organization with no entry uses the account-level GitHub credential.
 Add each new project to `local.existing_service_roles` if it should adopt a
 role that already exists, or to `local.new_service_roles` to create one. Add
-each new project to `local.new_codebuild_projects` so the adoption imports
-skip it; GDCTB is the worked example of a mission created entirely by this
-root. Add a `local.dependency_trigger_projects` entry for each dependency
+each new project and trigger to `local.new_codebuild_projects` so the adoption
+imports skip it; GDCTB is the worked example of a mission created entirely by
+this root. Add a `local.dependency_trigger_projects` entry for each dependency
 repository that should rebuild the mission base image, with an empty
 `connection_arn` when its organization has no CodeConnection, and add the base
 image to the `trigger_rebuild_swxsoc` targets.
