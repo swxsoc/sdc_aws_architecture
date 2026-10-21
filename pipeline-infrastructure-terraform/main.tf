@@ -35,6 +35,12 @@ terraform {
 provider "aws" {
   region = var.deployment_region
 
+  # SMCE tags S3, RDS, and EC2 resources with SMCE_Owner (the creator) outside
+  # Terraform. Ignore it so it is neither reported as drift nor removed.
+  ignore_tags {
+    keys = ["SMCE_Owner"]
+  }
+
   default_tags {
     tags = local.standard_tags
   }
