@@ -4,31 +4,32 @@ This Terraform root owns the shared image-build, architecture-deployment, and
 support CodeBuild fleet. It has a dedicated S3 backend key, uses native S3
 lockfiles, and does not share state with either mission infrastructure root.
 
-## Managed projects (34)
+## Managed projects (42)
 
 The live account had 33 CodeBuild projects; this root adopts every one of them
-and adds one new project, for 34 managed projects.
+and adds one new base architecture project plus the eight GDC Trailblazer
+(gdctb) projects, for 42 managed projects.
 
 | Group | Projects | Count |
 | --- | --- | --- |
-| Mission base images | `build_<mission>_sdc_aws_base_docker_image` for hermes, impax, padre, swxsoc_pipeline | 4 |
-| Mission architecture | `build_<mission>_sdc_aws_pipeline_architecture` for the same four missions | 4 |
-| Mission Lambda images | processing, sorting, and artifact projects for every mission, plus PADRE concating | 13 |
+| Mission base images | `build_<mission>_sdc_aws_base_docker_image` for gdctb, hermes, impax, padre, swxsoc_pipeline | 5 |
+| Mission architecture | `build_<mission>_sdc_aws_pipeline_architecture` for the same five missions | 5 |
+| Mission Lambda images | processing, sorting, and artifact projects for every mission, plus PADRE and GDCTB concating | 17 |
 | Executor image | `build_aws_sdc_executor_lambda_function` | 1 |
 | Alert image | `build_aws_sdc_alert_lambda_function` | 1 |
 | Base architecture (new) | `build_swxsoc_sdc_aws_base_architecture` | 1 |
-| Dependency rebuild triggers | `trigger_rebuild_hermes_{core,eea,merit,nemisis,spani}`, `trigger_rebuild_padre_{craft,meddea,sharp}`, `trigger_rebuild_swxsoc` | 9 |
+| Dependency rebuild triggers | `trigger_rebuild_gdctb_{cape_eea,craft}`, `trigger_rebuild_hermes_{core,eea,merit,nemisis,spani}`, `trigger_rebuild_padre_{craft,meddea,sharp}`, `trigger_rebuild_swxsoc` | 11 |
 | Reprocessing | `padre-reprocessing-requests` | 1 |
 
-`aws_codebuild_project.pipeline` holds the 24 image and architecture projects
-and `aws_codebuild_project.support` holds the 10 support projects. Every
+`aws_codebuild_project.pipeline` holds the 30 image and architecture projects
+and `aws_codebuild_project.support` holds the 12 support projects. Every
 project gets an explicit `/aws/codebuild/<project>` log group with 90-day
 retention and the uniform `Mission`, `Service`, `Environment=Shared`,
 `Purpose`, `Project`, and `ManagedBy=terraform` tags.
 
 ### Service roles
 
-The 33 live projects already run under 25 IAM roles (the nine dependency
+The 33 live projects already run under 25 IAM roles (the dependency
 triggers share one). This root adopts those roles under their existing names
 and `/service-role/` path rather than creating replacements. On each adopted
 role Terraform manages the trust policy, tags, and one inline policy named
@@ -43,15 +44,17 @@ build loses a permission on the first apply. Retiring those legacy policies is
 a separate change, one role at a time, once builds are verified on the managed
 policy.
 
-Only `build_swxsoc_sdc_aws_base_architecture` gets a new role, because the
-project itself is new.
+`build_swxsoc_sdc_aws_base_architecture` and the six `build_gdctb_*` projects
+get new roles, because those projects are new. The two `trigger_rebuild_gdctb_*`
+triggers share the existing trigger role like every other trigger.
 
 ### Base architecture handoff
 
 Every architecture project clones this repository from the swxsoc GitHub
-organization, so all of them use the shared SWxSOC connection (iMPAX keeps the
-account-level OAuth credential) even when the mission's image builds use a
-mission-specific connection.
+organization, so all of them use the shared SWxSOC connection even when the
+mission's image builds use a mission-specific connection. The iMPAX and GDCTB
+image builds and the GDCTB triggers keep the account-level OAuth credential
+because the iMPAXSat and GDC-Trailblazer organizations have no CodeConnection.
 
 `build_swxsoc_sdc_aws_base_architecture` is the only project that applies the
 base root. The executor and alert image builds start it with
@@ -64,7 +67,7 @@ their buildspec pull requests only after this project exists.
 
 ### Support projects
 
-The nine `trigger_rebuild_*` projects watch a dependency repository and start
+The eleven `trigger_rebuild_*` projects watch a dependency repository and start
 the declared mission base-image builds. Their generated buildspec
 (`buildspecs/dependency-trigger.yml.tftpl`) classifies the source and maps it
 to an environment:
@@ -75,7 +78,7 @@ to an environment:
   other than `DEVELOPMENT`/`PRODUCTION`;
 - any other branch or pull request exits without starting downstream builds.
 
-`trigger_rebuild_swxsoc` fans out to all four mission base images; each
+`trigger_rebuild_swxsoc` fans out to all five mission base images; each
 mission trigger only rebuilds its own base image. The role for each trigger is
 scoped to `codebuild:StartBuild` on exactly its declared targets.
 
@@ -111,14 +114,15 @@ while `adopt_existing_codebuild_projects=true` (the default):
    HERMES and PADRE architecture webhooks are created, not imported: their
    GitHub hooks were on the retired `HERMES-SOC/sdc_aws_pipeline_architecture`
    repository, so the first apply replaced them;
-3. the 28 `/aws/codebuild/<project>` log groups that already exist. The six
+3. the 28 `/aws/codebuild/<project>` log groups that already exist. The
    remaining groups are created: the iMPAX architecture project, the new base
-   architecture project, and the four `trigger_rebuild_hermes_*` projects that
-   have never run.
+   architecture project, the four `trigger_rebuild_hermes_*` projects that
+   have never run, and the eight GDCTB projects.
 
 Imports also cover the 25 existing service roles. Creates in the same plan
-are the new base architecture project and its role, the managed inline policy
-on every role, and the webhooks that do not exist yet. In-place updates switch
+are the new base architecture project and its role, the eight GDCTB projects
+and their six roles, the managed inline policy on every role, and the webhooks
+that do not exist yet. In-place updates switch
 each project from its stale inline buildspec to `buildspec.yml` on `main`,
 enable Docker privileged mode for image builds, tag the roles, and apply tags
 and retention to projects and log groups. Projects keep the service role they
@@ -156,10 +160,13 @@ repository, through `local.github_org_connections`. If the mission's base-image
 repository is in a new organization, add that organization and its connection
 there; an organization with no entry uses the account-level GitHub credential.
 Add each new project to `local.existing_service_roles` if it should adopt a
-role that already exists, or to `local.new_service_roles` to create one. New projects
-do not need entries in the import sets because they do not exist yet. Add a
-`local.dependency_trigger_projects` entry for each dependency repository that
-should rebuild the mission base image.
+role that already exists, or to `local.new_service_roles` to create one. Add
+each new project and trigger to `local.new_codebuild_projects` so the adoption
+imports skip it; GDCTB is the worked example of a mission created entirely by
+this root. Add a `local.dependency_trigger_projects` entry for each dependency
+repository that should rebuild the mission base image, with an empty
+`connection_arn` when its organization has no CodeConnection, and add the base
+image to the `trigger_rebuild_swxsoc` targets.
 
 Image projects build on `main`, release tags, and pull requests. The repository
 buildspec skips deployment for pull requests. Architecture projects accept

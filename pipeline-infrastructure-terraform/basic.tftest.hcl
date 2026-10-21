@@ -690,3 +690,127 @@ run "listed_craft_keeps_its_position" {
     error_message = "A mission that already lists craft must keep its existing order."
   }
 }
+
+# gdctb.tfvars bootstraps a brand-new mission: every Lambda is disabled until
+# its image exists, craft is listed first by convention, and nothing is adopted.
+run "plan_gdctb_bootstrap" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "gdctb"
+    resource_purpose                     = "GDC Trailblazer GDCTB mission"
+    instrument_names                     = ["craft", "cape-eea"]
+    valid_data_levels                    = ["raw", "l0", "l1", "ql", "l2", "l3"]
+    timestream_database_name             = "gdctb_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "gdctb_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "gdctb-swsoc-incoming"
+    s3_server_access_logs_bucket_name    = "gdctb-swsoc-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "gdctb_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "gdctb_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "gdctb_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "gdctb_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "gdctb-swsoc-docker-lambda-base"
+    needs_concating                      = true
+    enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
+    enable_mattermost                    = true
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = false
+    enable_artifacts_lambda              = false
+    enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
+    rds_engine_version                   = "14.21"
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/gdctb/communications/mattermost"
+      id  = "swxsoc/dev/gdctb/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "gdctb"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
+  assert {
+    condition     = local.instrument_names == tolist(["craft", "cape-eea"])
+    error_message = "GDCTB lists craft first by convention, and a listed craft keeps its position."
+  }
+
+  assert {
+    condition = (
+      resource.aws_s3_bucket.sdc_buckets["gdctb-swsoc-incoming"].bucket == "dev-gdctb-swsoc-incoming" &&
+      resource.aws_s3_bucket.sdc_buckets["gdctb-cape-eea"].bucket == "dev-gdctb-cape-eea" &&
+      resource.aws_s3_bucket.sdc_buckets["gdctb-craft"].bucket == "dev-gdctb-craft" &&
+      resource.aws_s3_bucket.sdc_buckets["gdctb-cape-eea"].tags["Mission"] == "gdctb" &&
+      resource.aws_s3_bucket.sdc_buckets["gdctb-cape-eea"].tags["Purpose"] == "GDC Trailblazer GDCTB mission"
+    )
+    error_message = "GDCTB buckets should be named from the mission prefix and hyphenated instrument names."
+  }
+
+  assert {
+    condition = (
+      contains(keys(resource.aws_sns_topic.sns_topics), "gdctb-cape-eea") &&
+      contains(keys(resource.aws_sns_topic.sns_topics), "gdctb-craft") &&
+      contains(keys(resource.aws_sqs_queue.sqs_queue), "gdctb-cape-eea") &&
+      contains(keys(resource.aws_sqs_queue.sqs_queue), "gdctb-craft")
+    )
+    error_message = "Each GDCTB instrument should get its SNS topic and SQS queue."
+  }
+
+  assert {
+    condition = (
+      resource.aws_ecr_repository.processing_function_private_ecr.name == "dev-gdctb_sdc_aws_processing_lambda" &&
+      resource.aws_ecr_repository.sorting_function_private_ecr.name == "dev-gdctb_sdc_aws_sorting_lambda" &&
+      resource.aws_ecr_repository.artifacts_function_private_ecr.name == "dev-gdctb_sdc_aws_artifacts_lambda" &&
+      resource.aws_ecr_repository.concating_function_private_ecr[0].name == "dev-gdctb_sdc_aws_concating_lambda" &&
+      resource.aws_ecrpublic_repository.docker_base_public_ecr.repository_name == "dev-gdctb-swsoc-docker-lambda-base"
+    )
+    error_message = "GDCTB ECR repositories should match the names the GDC-Trailblazer buildspecs push to, including concating."
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_lambda_function.aws_sdc_processing_lambda_function) == 0 &&
+      length(resource.aws_lambda_function.sorting_lambda_function) == 0 &&
+      length(resource.aws_lambda_function.aws_sdc_artifacts_lambda_function) == 0 &&
+      length(resource.aws_lambda_function.aws_sdc_concating_lambda_function) == 0
+    )
+    error_message = "The GDCTB bootstrap plan must not create any Lambda before its image exists."
+  }
+
+  assert {
+    condition = (
+      resource.aws_secretsmanager_secret.rds_secret.name == "swxsoc/dev/gdctb/processing/rds" &&
+      resource.aws_db_instance.rds_instance.identifier == "dev-gdctb-cdftracker-db"
+    )
+    error_message = "GDCTB secrets and database should follow the mission-first naming convention."
+  }
+}
