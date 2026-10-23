@@ -15,6 +15,13 @@ run "plan_deployment_projects" {
   }
 
   override_data {
+    target = data.aws_codestarconnections_connection.gdctb[0]
+    values = {
+      arn = "arn:aws:codeconnections:us-east-1:123456789012:connection/00000000-0000-0000-0000-000000000000"
+    }
+  }
+
+  override_data {
     target = data.aws_partition.current
     values = {
       partition = "aws"
@@ -98,8 +105,9 @@ run "plan_deployment_projects" {
       resource.aws_codebuild_project.pipeline["build_padre_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.padre_codeconnection_arn &&
       resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_pipeline_architecture"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
       length(resource.aws_codebuild_project.pipeline["build_impax_sdc_aws_base_docker_image"].source[0].auth) == 0 &&
-      length(resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_base_docker_image"].source[0].auth) == 0 &&
-      length(resource.aws_codebuild_project.support["trigger_rebuild_gdctb_craft"].source[0].auth) == 0 &&
+      resource.aws_codebuild_project.pipeline["build_gdctb_sdc_aws_base_docker_image"].source[0].auth[0].resource == local.gdctb_codeconnection_arn &&
+      resource.aws_codebuild_project.support["trigger_rebuild_gdctb_craft"].source[0].auth[0].resource == local.gdctb_codeconnection_arn &&
+      resource.aws_codebuild_project.support["trigger_rebuild_gdctb_cape_eea"].source[0].auth[0].resource == local.gdctb_codeconnection_arn &&
       resource.aws_codebuild_project.support["trigger_rebuild_padre_craft"].source[0].auth[0].resource == var.padre_codeconnection_arn
     )
     error_message = "Each project must use the CodeConnection of the GitHub organization that owns its repository, or no connection when that organization has none."

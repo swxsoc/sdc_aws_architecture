@@ -52,9 +52,12 @@ triggers share the existing trigger role like every other trigger.
 
 Every architecture project clones this repository from the swxsoc GitHub
 organization, so all of them use the shared SWxSOC connection even when the
-mission's image builds use a mission-specific connection. The iMPAX and GDCTB
-image builds and the GDCTB triggers keep the account-level OAuth credential
-because the iMPAXSat and GDC-Trailblazer organizations have no CodeConnection.
+mission's image builds use a mission-specific connection. The iMPAX image
+builds keep the account-level OAuth credential because the iMPAXSat
+organization has no CodeConnection. The GDCTB base image build and triggers use
+the GDC-Trailblazer connection, which is created in the console and looked up
+by name (`gdctb_codeconnection_name`, default `swxsoc-connection-gh-gdctb`)
+so its ARN is not stored in the repository.
 
 `build_swxsoc_sdc_aws_base_architecture` is the only project that applies the
 base root. The executor and alert image builds start it with

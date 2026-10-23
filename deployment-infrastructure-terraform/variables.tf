@@ -28,6 +28,12 @@ variable "hermes_codeconnection_arn" {
   default     = "arn:aws:codestar-connections:us-east-1:351967858401:connection/4296e8d0-c3c9-4470-9d58-b955889ce226"
 }
 
+variable "gdctb_codeconnection_name" {
+  type        = string
+  description = "Name of the existing CodeConnection for the GDC-Trailblazer GitHub organization; empty falls back to the account-level GitHub credential"
+  default     = "swxsoc-connection-gh-gdctb"
+}
+
 variable "codebuild_log_retention_days" {
   type        = number
   description = "CloudWatch retention in days for every managed CodeBuild log group"

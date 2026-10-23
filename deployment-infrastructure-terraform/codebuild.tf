@@ -29,12 +29,14 @@ locals {
   # installation, so a project's connection follows the organization that owns
   # its source repository, not the mission it builds for. Webhook creation and
   # commit status reporting fail when the two disagree. An organization with no
-  # connection (iMPAXSat, GDC-Trailblazer) keeps the account-level GitHub
-  # credential.
+  # connection (iMPAXSat) keeps the account-level GitHub credential.
+  gdctb_codeconnection_arn = try(data.aws_codestarconnections_connection.gdctb[0].arn, "")
+
   github_org_connections = {
-    "HERMES-SOC" = var.hermes_codeconnection_arn
-    "PADRESat"   = var.padre_codeconnection_arn
-    "swxsoc"     = var.shared_codeconnection_arn
+    "GDC-Trailblazer" = local.gdctb_codeconnection_arn
+    "HERMES-SOC"      = var.hermes_codeconnection_arn
+    "PADRESat"        = var.padre_codeconnection_arn
+    "swxsoc"          = var.shared_codeconnection_arn
   }
 
   lambda_components = {
@@ -278,13 +280,13 @@ locals {
     trigger_rebuild_gdctb_cape_eea = {
       mission        = "gdctb"
       repository_url = "https://github.com/GDC-Trailblazer/gdctb_cape_eea"
-      connection_arn = ""
+      connection_arn = local.gdctb_codeconnection_arn
       targets        = ["build_gdctb_sdc_aws_base_docker_image"]
     }
     trigger_rebuild_gdctb_craft = {
       mission        = "gdctb"
       repository_url = "https://github.com/GDC-Trailblazer/gdctb_craft"
-      connection_arn = ""
+      connection_arn = local.gdctb_codeconnection_arn
       targets        = ["build_gdctb_sdc_aws_base_docker_image"]
     }
     trigger_rebuild_hermes_core = {

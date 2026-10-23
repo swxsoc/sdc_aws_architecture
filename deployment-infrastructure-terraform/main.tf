@@ -39,3 +39,10 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 data "aws_region" "current" {}
+
+# The GDC-Trailblazer connection is created in the console, so it is looked up
+# by name instead of carrying its ARN in the repository.
+data "aws_codestarconnections_connection" "gdctb" {
+  count = trimspace(var.gdctb_codeconnection_name) != "" ? 1 : 0
+  name  = var.gdctb_codeconnection_name
+}
