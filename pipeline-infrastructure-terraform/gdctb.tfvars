@@ -83,13 +83,16 @@ enable_mattermost = true
 mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
 
 # Lambda creation flags
-# The mission is new, so the first apply creates the buckets, topics, queues,
-# ECR repositories, and database before any image exists. Set each flag to
-# true once its image has been pushed by the gdctb CodeBuild projects.
-enable_processing_lambda = false
-enable_sorting_lambda    = false
-enable_artifacts_lambda  = false
-enable_concating_lambda  = false
+# The first apply created the buckets, topics, queues, ECR repositories, and
+# database before any image existed. The dev images have now been pushed by the
+# gdctb CodeBuild projects, so the Lambdas are enabled. These flags are shared
+# by every workspace: for the first apply of prod-gdctb, whose images do not
+# exist yet, pass -var enable_<name>_lambda=false and flip them after the prod
+# images are pushed. Apply with the immutable *_image_tag variables.
+enable_processing_lambda = true
+enable_sorting_lambda    = true
+enable_artifacts_lambda  = true
+enable_concating_lambda  = true
 
 # Nothing exists for gdctb yet, so there are no Lambda log groups to adopt.
 # Keep this false through the applies that turn each Lambda on; Terraform
