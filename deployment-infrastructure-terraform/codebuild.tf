@@ -3,6 +3,13 @@ locals {
   # image repository and enabled Lambda components. The standard project,
   # role, policy, webhook, and tags are generated below.
   missions = {
+    # demo is the lightweight end-to-end test mission: it exercises the same
+    # base-image, Lambda-image, and architecture projects as a real mission so
+    # pipeline changes can be tried without touching a live mission.
+    demo = {
+      base_repository_url = "https://github.com/swxsoc/demo_sdc_aws_base_docker_image"
+      lambda_components   = toset(["processing", "sorting", "artifacts"])
+    }
     gdctb = {
       base_repository_url = "https://github.com/GDC-Trailblazer/sdc_aws_base_docker_image"
       lambda_components   = toset(["processing", "sorting", "artifacts", "concating"])
@@ -199,9 +206,15 @@ locals {
     trigger_rebuild_swxsoc                              = "codebuild-trigger_rebuild-service-role"
   }
 
-  # GDCTB is the first mission created entirely by this root, so every one of
-  # its projects gets a role of its own, named like the base architecture role.
+  # GDCTB was the first mission created entirely by this root and demo is the
+  # second, so every one of their projects gets a role of its own, named like
+  # the base architecture role.
   new_service_roles = {
+    build_demo_sdc_aws_artifact_lambda        = "swxsoc-codebuild-demo-artifact-lambda"
+    build_demo_sdc_aws_base_docker_image      = "swxsoc-codebuild-demo-base-docker-image"
+    build_demo_sdc_aws_pipeline_architecture  = "swxsoc-codebuild-demo-pipeline-architecture"
+    build_demo_sdc_aws_processing_lambda      = "swxsoc-codebuild-demo-processing-lambda"
+    build_demo_sdc_aws_sorting_lambda         = "swxsoc-codebuild-demo-sorting-lambda"
     build_gdctb_sdc_aws_artifact_lambda       = "swxsoc-codebuild-gdctb-artifact-lambda"
     build_gdctb_sdc_aws_base_docker_image     = "swxsoc-codebuild-gdctb-base-docker-image"
     build_gdctb_sdc_aws_concating_lambda      = "swxsoc-codebuild-gdctb-concating-lambda"
@@ -242,8 +255,15 @@ locals {
 
   # Projects declared here do not exist in the account yet, so the adoption
   # imports skip them and the first apply creates them. Pipeline and support
-  # projects are both listed here.
+  # projects are both listed here. The demo projects stay listed even after
+  # they exist: the list only decides what is imported, and nothing
+  # pre-existing should ever be adopted under a demo name.
   new_codebuild_projects = toset([
+    "build_demo_sdc_aws_artifact_lambda",
+    "build_demo_sdc_aws_base_docker_image",
+    "build_demo_sdc_aws_pipeline_architecture",
+    "build_demo_sdc_aws_processing_lambda",
+    "build_demo_sdc_aws_sorting_lambda",
     "build_gdctb_sdc_aws_artifact_lambda",
     "build_gdctb_sdc_aws_base_docker_image",
     "build_gdctb_sdc_aws_concating_lambda",
@@ -342,6 +362,7 @@ locals {
       repository_url = "https://github.com/swxsoc/swxsoc"
       connection_arn = var.shared_codeconnection_arn
       targets = [
+        "build_demo_sdc_aws_base_docker_image",
         "build_gdctb_sdc_aws_base_docker_image",
         "build_hermes_sdc_aws_base_docker_image",
         "build_impax_sdc_aws_base_docker_image",

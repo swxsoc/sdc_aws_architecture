@@ -72,7 +72,7 @@ CI runs formatting and lint checks only: `terraform fmt`, `terraform validate` (
 
 The CodeBuild deployment job requires ``MISSION`` (or the legacy
 ``MISSION_NAME``) to be set explicitly, for example ``MISSION=hermes``,
-``MISSION=padre``, ``MISSION=gdctb``, or ``MISSION=swxsoc_pipeline``. It selects the existing
+``MISSION=padre``, ``MISSION=gdctb``, ``MISSION=demo``, or ``MISSION=swxsoc_pipeline``. It selects the existing
 ``<env>-<mission>`` workspace, reads the selected mission's Terraform
 variables, and resolves ECR image tags only for enabled Lambda functions that
 are not using an explicit image URI override. ``EXECUTOR`` and ``ALERT``
@@ -101,8 +101,9 @@ CodeBuild ownership
 
 The deployment root adopts all 33 existing CodeBuild projects through
 declarative ``import`` blocks and adds the dedicated
-``build_swxsoc_sdc_aws_base_architecture`` project plus the eight GDC
-Trailblazer (``gdctb``) projects, for 42 managed projects.
+``build_swxsoc_sdc_aws_base_architecture`` project, the eight GDC
+Trailblazer (``gdctb``) projects, and the five ``demo`` projects, for 47
+managed projects.
 It standardizes repository buildspecs, current managed images, Docker
 privileged mode for container builds, concurrency, GitHub status reporting,
 explicit 90-day log groups, and cost tags. The 25 existing service roles are
@@ -118,7 +119,9 @@ The eleven ``trigger_rebuild_*`` dependency projects and
 buildspecs and least-privilege roles. Dependency triggers rebuild their
 declared mission base images for ``DEVELOPMENT`` on ``main`` pushes and
 ``PRODUCTION`` on release tags, and skip every other branch.
-``trigger_rebuild_swxsoc`` fans out to all five mission base images.
+``trigger_rebuild_swxsoc`` fans out to all six mission base images, the
+``demo`` base image included, so each swxsoc package release is exercised by
+the demo pipeline alongside the live missions.
 
 The first apply of each root adopts existing resources: the deployment root
 imports projects, webhooks, and log groups; the base root imports the alert
@@ -168,7 +171,9 @@ Mattermost Notifications
 ------------------------
 Set ``comms_platform`` explicitly when a mission's application selects a
 communications backend. PADRE uses ``slack``; HERMES keeps legacy auto-detection;
-iMPAX, SWxSOC Pipeline, and GDCTB use ``mattermost``. For Mattermost, also set
+iMPAX, SWxSOC Pipeline, and GDCTB use ``mattermost``; the ``demo`` test
+mission leaves it empty so its first plan needs no external secret. For
+Mattermost, also set
 ``enable_mattermost = true``. Both Lambdas receive
 ``COMMS_PLATFORM=mattermost`` and the configured ``MATTERMOST_URL``. Terraform
 reads ``MATTERMOST_TOKEN`` and ``MATTERMOST_CHANNEL_ID`` from the mission and

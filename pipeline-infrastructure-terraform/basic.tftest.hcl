@@ -814,3 +814,179 @@ run "plan_gdctb_bootstrap" {
     error_message = "GDCTB secrets and database should follow the mission-first naming convention."
   }
 }
+
+# demo.tfvars is the lightweight test mission: craft plus one science
+# instrument, no concating, no Grafana, no communications secret, short log
+# retention, and every Lambda disabled until its image exists.
+run "plan_demo_bootstrap" {
+  command = plan
+
+  variables {
+    deployment_region                     = "us-east-1"
+    mission_name                          = "demo"
+    resource_purpose                      = "SWxSOC demo mission pipeline test bed"
+    instrument_names                      = ["craft", "myinst"]
+    valid_data_levels                     = ["raw", "l0", "l1", "ql", "l2", "l3"]
+    timestream_database_name              = "demo_sdc_aws_logs"
+    timestream_s3_logs_table_name         = "demo_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                  = "demo-swsoc-incoming"
+    s3_server_access_logs_bucket_name     = "demo-swsoc-s3-server-access-logs"
+    sorting_function_private_ecr_name     = "demo_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name   = "demo_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name  = "demo_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name   = "demo_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name           = "demo-swsoc-docker-lambda-base"
+    needs_concating                       = false
+    enable_grafana_secret                 = false
+    comms_platform                        = ""
+    enable_mattermost                     = false
+    enable_processing_lambda              = false
+    enable_sorting_lambda                 = false
+    enable_artifacts_lambda               = false
+    enable_concating_lambda               = false
+    adopt_existing_lambda_log_groups      = false
+    lambda_log_retention_days             = 14
+    s3_noncurrent_version_expiration_days = 7
+    rds_engine_version                    = "14.21"
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  assert {
+    condition     = local.instrument_names == tolist(["craft", "myinst"])
+    error_message = "The demo mission lists craft first and one science instrument."
+  }
+
+  assert {
+    condition = (
+      resource.aws_s3_bucket.sdc_buckets["demo-swsoc-incoming"].bucket == "dev-demo-swsoc-incoming" &&
+      resource.aws_s3_bucket.sdc_buckets["demo-craft"].bucket == "dev-demo-craft" &&
+      resource.aws_s3_bucket.sdc_buckets["demo-myinst"].bucket == "dev-demo-myinst" &&
+      length(resource.aws_s3_bucket.sdc_buckets) == 3 &&
+      resource.aws_s3_bucket.sdc_buckets["demo-myinst"].tags["Mission"] == "demo" &&
+      resource.aws_s3_bucket.sdc_buckets["demo-myinst"].tags["Purpose"] == "SWxSOC demo mission pipeline test bed"
+    )
+    error_message = "The demo mission should create exactly the incoming, craft, and myinst buckets with demo tags."
+  }
+
+  assert {
+    condition = alltrue([
+      for configuration in resource.aws_s3_bucket_lifecycle_configuration.versioned_buckets :
+      configuration.rule[0].noncurrent_version_expiration[0].noncurrent_days == 7
+    ])
+    error_message = "The demo buckets should expire noncurrent object versions after 7 days."
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_ecr_repository.concating_function_private_ecr) == 0 &&
+      resource.aws_ecr_repository.processing_function_private_ecr.name == "dev-demo_sdc_aws_processing_lambda" &&
+      resource.aws_ecrpublic_repository.docker_base_public_ecr.repository_name == "dev-demo-swsoc-docker-lambda-base"
+    )
+    error_message = "The demo mission should get the three Lambda repositories and the base repository the image buildspecs derive, and no concating repository."
+  }
+
+  assert {
+    condition = (
+      length(data.aws_secretsmanager_secret.mattermost) == 0 &&
+      length(data.aws_secretsmanager_secret.grafana) == 0
+    )
+    error_message = "The demo mission must not read any external secret, so its first plan needs nothing seeded by hand."
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_lambda_function.aws_sdc_processing_lambda_function) == 0 &&
+      length(resource.aws_lambda_function.sorting_lambda_function) == 0 &&
+      length(resource.aws_lambda_function.aws_sdc_artifacts_lambda_function) == 0 &&
+      length(resource.aws_lambda_function.aws_sdc_concating_lambda_function) == 0
+    )
+    error_message = "The demo bootstrap plan must not create any Lambda before its image exists."
+  }
+
+  assert {
+    condition = (
+      resource.aws_secretsmanager_secret.rds_secret.name == "swxsoc/dev/demo/processing/rds" &&
+      resource.aws_db_instance.rds_instance.identifier == "dev-demo-cdftracker-db" &&
+      resource.aws_db_instance.rds_instance.instance_class == "db.t4g.micro"
+    )
+    error_message = "The demo database should follow the mission-first naming convention on the smallest instance class."
+  }
+}
+
+# With an image pushed, a demo Lambda runs without any communications
+# configuration and with the shorter log retention.
+run "plan_demo_sorting_without_comms" {
+  command = plan
+
+  variables {
+    deployment_region                     = "us-east-1"
+    mission_name                          = "demo"
+    instrument_names                      = ["craft", "myinst"]
+    valid_data_levels                     = ["raw", "l0", "l1", "ql", "l2", "l3"]
+    timestream_database_name              = "demo_sdc_aws_logs"
+    timestream_s3_logs_table_name         = "demo_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                  = "demo-swsoc-incoming"
+    s3_server_access_logs_bucket_name     = "demo-swsoc-s3-server-access-logs"
+    sorting_function_private_ecr_name     = "demo_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name   = "demo_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name  = "demo_sdc_aws_processing_lambda"
+    docker_base_public_ecr_name           = "demo-swsoc-docker-lambda-base"
+    needs_concating                       = false
+    enable_grafana_secret                 = false
+    comms_platform                        = ""
+    enable_mattermost                     = false
+    enable_processing_lambda              = false
+    enable_sorting_lambda                 = true
+    enable_artifacts_lambda               = false
+    enable_concating_lambda               = false
+    adopt_existing_lambda_log_groups      = false
+    lambda_log_retention_days             = 14
+    s3_noncurrent_version_expiration_days = 7
+    sf_image_tag                          = "test-immutable-sha"
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.sorting_lambda_function[0].function_name == "dev-demo_sdc_aws_sorting_lambda_function" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["SWXSOC_MISSION"] == "demo" &&
+      !contains(keys(resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables), "COMMS_PLATFORM") &&
+      !contains(keys(resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables), "MATTERMOST_TOKEN")
+    )
+    error_message = "A demo Lambda selects the demo mission and carries no communications configuration."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_log_group.sorting[0].retention_in_days == 14 &&
+      resource.aws_cloudwatch_log_group.sorting[0].tags["Mission"] == "demo"
+    )
+    error_message = "Demo Lambda log groups keep the shorter 14-day retention."
+  }
+}
