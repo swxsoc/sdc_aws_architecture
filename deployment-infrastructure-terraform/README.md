@@ -188,10 +188,16 @@ development-only mission (demo) have no release-tag filter group; see below.
 and the processing, sorting, and artifact image projects) are generated from
 the same `local.missions` entry as any other mission, so a change to the
 shared buildspecs, the Lambda repositories, or this root can be tried on demo
-before it reaches a live mission. The base image repository
-`swxsoc/demo_sdc_aws_base_docker_image` must exist in the swxsoc GitHub
-organization before this root is applied, because creating a project's
-webhook needs the repository, and `swxsoc/sdc_aws_processing_lambda` needs a
+before it reaches a live mission. Demo has no base image repository of its
+own: `build_demo_sdc_aws_base_docker_image` builds
+`swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image` with `MISSION_NAME=demo`,
+sharing that repository the way every mission's Lambda projects share the
+Lambda repositories, and publishes the result to demo's own
+`dev-demo-swsoc-docker-lambda-base` public ECR. Two companion changes outside
+this repository are needed before the demo images can build: that base
+repository's buildspec must derive the image name and the Lambda projects it
+starts from `MISSION_NAME` (defaulting to `swxsoc_pipeline`, as the Lambda
+buildspecs already do), and `swxsoc/sdc_aws_processing_lambda` needs a
 `lambda_function/demo-requirements.txt`, which its buildspec selects for
 `MISSION_NAME=demo` and refuses to build without (sorting and artifacts use
 one shared `requirements.txt`).

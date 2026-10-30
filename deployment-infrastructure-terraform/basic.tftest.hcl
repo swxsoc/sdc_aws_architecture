@@ -42,7 +42,9 @@ run "plan_deployment_projects" {
 
   assert {
     condition = (
-      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].source[0].location == "https://github.com/swxsoc/demo_sdc_aws_base_docker_image" &&
+      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].source[0].location == "https://github.com/swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image" &&
+      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].source[0].location == resource.aws_codebuild_project.pipeline["build_swxsoc_pipeline_sdc_aws_base_docker_image"].source[0].location &&
+      [for v in resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].environment[0].environment_variable : v.value if v.name == "MISSION_NAME"] == ["demo"] &&
       resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
       resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].environment[0].privileged_mode &&
       resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_sorting_lambda"].tags["Mission"] == "demo" &&
@@ -52,7 +54,7 @@ run "plan_deployment_projects" {
       contains(keys(resource.aws_codebuild_project.pipeline), "build_demo_sdc_aws_artifact_lambda") &&
       !contains(keys(resource.aws_codebuild_project.pipeline), "build_demo_sdc_aws_concating_lambda")
     )
-    error_message = "The demo mission must get base, architecture, processing, sorting, and artifact projects on the shared SWxSOC connection, and no concating project."
+    error_message = "The demo mission must get base, architecture, processing, sorting, and artifact projects on the shared SWxSOC connection, with its base project building the shared swxsoc_pipeline base repository as demo, and no concating project."
   }
 
   assert {

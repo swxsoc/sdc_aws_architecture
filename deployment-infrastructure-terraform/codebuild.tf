@@ -5,9 +5,12 @@ locals {
   missions = {
     # demo is the lightweight end-to-end test mission: it exercises the same
     # base-image, Lambda-image, and architecture projects as a real mission so
-    # pipeline changes can be tried without touching a live mission.
+    # pipeline changes can be tried without touching a live mission. It has no
+    # base image repository of its own: its base project builds the
+    # swxsoc_pipeline base repository with MISSION_NAME=demo, the way every
+    # mission's Lambda projects share the Lambda repositories.
     demo = {
-      base_repository_url = "https://github.com/swxsoc/demo_sdc_aws_base_docker_image"
+      base_repository_url = "https://github.com/swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image"
       lambda_components   = toset(["processing", "sorting", "artifacts"])
     }
     gdctb = {

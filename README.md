@@ -112,12 +112,15 @@ and develop features without touching a live dev or prod pipeline.
   `name`, so the demo mission needs instruments named `craft` and `myinst`
   (lowercase, matching the `dev-demo-craft` and `dev-demo-myinst` buckets).
 - Bootstrap order, the same as gdctb:
-  1. Create the `swxsoc/demo_sdc_aws_base_docker_image` repository (a copy of
-     `swxsoc_pipeline_sdc_aws_base_docker_image` with the mission and project
-     names changed; the Lambda image buildspecs already derive
-     `demo-swsoc-docker-lambda-base` and `demo_sdc_aws_<component>_lambda`
-     from the mission name), and add `lambda_function/demo-requirements.txt`
-     to `swxsoc/sdc_aws_processing_lambda`, whose buildspec selects
+  1. Make the two companion changes in other repositories. Demo has no base
+     image repository: `build_demo_sdc_aws_base_docker_image` builds
+     `swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image` with
+     `MISSION_NAME=demo`, so that buildspec must derive the image name
+     (`demo-swsoc-docker-lambda-base`) and the `build_demo_*` Lambda projects
+     it starts from `MISSION_NAME`, keeping `swxsoc_pipeline` as the default
+     (the Lambda image buildspecs already derive their names that way). Then
+     add `lambda_function/demo-requirements.txt` to
+     `swxsoc/sdc_aws_processing_lambda`, whose buildspec selects
      `<mission>-requirements.txt` and exits if it is missing (the
      `swxsoc_pipeline-requirements.txt` there is the model; sorting and
      artifacts share one `requirements.txt` and need nothing).
