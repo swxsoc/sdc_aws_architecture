@@ -22,8 +22,9 @@ Each mission is configured using a tfvars file (for example, `padre.tfvars`, `he
 One matching entry in ``deployment-infrastructure-terraform/codebuild.tf``
 generates the mission's base-image, architecture, and enabled Lambda projects.
 The ``demo`` mission is a lightweight copy of that shape (craft plus one
-instrument, no concating, no external secrets) kept as an end-to-end test bed
-and cost baseline; try pipeline changes there before a live mission.
+instrument, no concating, Mattermost notifications to a demo channel as its
+only external secret) kept as an end-to-end test bed and cost baseline; try
+pipeline changes there before a live mission.
 
 Link to the `GitHub repository for Pipeline <https://github.com/swxsoc/sdc_aws_architecture>`_.
 

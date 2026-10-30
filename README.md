@@ -96,9 +96,18 @@ and develop features without touching a live dev or prod pipeline.
 
 - Shape: `mission_name = "demo"`, `instrument_names = ["craft", "myinst"]`,
   processing, sorting, and artifacts only (`needs_concating = false`), no
-  Grafana secret, no communications platform, 14-day Lambda log retention,
-  and 7-day expiry of noncurrent object versions. The first plan reads no
-  external secret, so nothing has to be seeded by hand.
+  Grafana secret, Mattermost notifications, 14-day Lambda log retention, and
+  7-day expiry of noncurrent object versions. The only external secret the
+  plan reads is the Mattermost one below.
+- Notifications: Sorting and Artifacts post to a demo Mattermost channel.
+  Create the channel and a bot token, then seed and tag
+  `swxsoc/dev/demo/communications/mattermost` (`token` and `channel_id` keys;
+  tags `Mission=demo`, `Service=communications`, `Environment=Development`,
+  `ManagedBy=external`) as described under Mattermost below, before the first
+  `dev-demo` plan. One secret serves one workspace, so a second demo channel
+  only comes into play through a second workspace's secret
+  (`swxsoc/prod/demo/communications/mattermost`), which is not needed while
+  demo is `dev-demo` only.
 - Only the `dev-demo` workspace is intended to exist; do not create
   `prod-demo`. The deployment root lists `demo` as a development-only mission,
   so release tags never start a production demo build: demo image projects
@@ -124,7 +133,8 @@ and develop features without touching a live dev or prod pipeline.
      `<mission>-requirements.txt` and exits if it is missing (the
      `swxsoc_pipeline-requirements.txt` there is the model; sorting and
      artifacts share one `requirements.txt` and need nothing).
-  2. Create the `dev-demo` workspace and apply `demo.tfvars` with every
+  2. Seed and tag the `swxsoc/dev/demo/communications/mattermost` secret,
+     then create the `dev-demo` workspace and apply `demo.tfvars` with every
      `enable_*_lambda` flag false to create the buckets, topics, queues, ECR
      repositories, Timestream table, and database.
   3. Apply the deployment root to create the five `build_demo_*` CodeBuild
@@ -142,18 +152,14 @@ and develop features without touching a live dev or prod pipeline.
   | RDS `db.t4g.micro`, single AZ | 12 |
   | RDS 30 GB gp2 storage | 3.50 |
   | KMS key for the RDS secret | 1 |
-  | Secrets Manager (RDS secret) | 0.40 |
+  | Secrets Manager (RDS secret and the external Mattermost secret) | 0.80 |
   | ECR private image storage (3 images) | about 0.50 |
   | S3, SNS, SQS, Timestream, CloudWatch Logs, Lambda at idle | under 1 |
-  | Total at idle | about 18 |
+  | Total at idle | about 19 |
 
   CodeBuild is billed per build minute on top of that, driven by pushes to
   the demo and Lambda repositories and by `trigger_rebuild_swxsoc`, which
   rebuilds the demo base image on every swxsoc package release.
-- To try notifications, create and tag
-  `swxsoc/dev/demo/communications/mattermost` as described under Mattermost
-  below, then set `comms_platform = "mattermost"` and
-  `enable_mattermost = true`.
 
 ### swxsoc_pipeline Notes
 - `swxsoc_pipeline.tfvars` uses mission-scoped names and starts with `instrument_names = ["reach"]` and `mission_name = "swxsoc_pipeline"`.
@@ -240,7 +246,7 @@ the same `Mission`, `Service`, and `Environment` tags to managed secrets.
 Communications platforms are explicit per mission: PADRE selects Slack,
 HERMES preserves legacy auto-detection, the existing iMPAX plus SWxSOC
 Pipeline Mattermost environments are adopted through their mission-specific
-external secrets, and GDCTB selects Mattermost from the start.
+external secrets, and GDCTB and demo select Mattermost from the start.
 
 Changing an existing Secrets Manager name creates a replacement because AWS
 does not support renaming secrets. Before applying a naming migration, copy any

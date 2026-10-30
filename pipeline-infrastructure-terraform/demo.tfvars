@@ -5,7 +5,8 @@
 # architecture builds, to give a baseline cost for one mission workspace, and
 # to provide somewhere to develop features without touching a live mission.
 # Keep it minimal: craft plus one science instrument, no concating, no Grafana,
-# and no external secrets. Only the dev-demo workspace is intended to exist.
+# and one external secret (Mattermost). Only the dev-demo workspace is
+# intended to exist.
 
 # AWS Deployment Region
 # Region that the pipeline will be deployed to
@@ -83,13 +84,15 @@ optional_s3_uploader_role_arns = []
 enable_grafana_secret = false
 
 # Notifications
-# No communications platform is configured, so no external secret has to exist
-# before the first plan. The Sorting and Artifacts Lambdas log an error when
-# the comms client cannot be built and carry on. To try notifications, create
-# and tag swxsoc/dev/demo/communications/mattermost (see the README) and set
-# comms_platform = "mattermost" and enable_mattermost = true.
-comms_platform    = ""
-enable_mattermost = false
+# Mattermost notifications for Sorting and Artifacts, posted to the demo
+# channel. The token and channel ID come from the external secret
+# swxsoc/dev/demo/communications/mattermost, which must be created and tagged
+# (Mission=demo, Service=communications, Environment=Development,
+# ManagedBy=external) before the first dev-demo plan; it is the only external
+# secret the demo mission reads.
+comms_platform    = "mattermost"
+enable_mattermost = true
+mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
 
 # Lambda creation flags
 # Nothing exists for demo yet. Keep every flag false for the first apply, which

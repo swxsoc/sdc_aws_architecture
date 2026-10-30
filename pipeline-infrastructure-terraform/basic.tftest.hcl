@@ -838,8 +838,8 @@ run "plan_demo_bootstrap" {
     docker_base_public_ecr_name           = "demo-swsoc-docker-lambda-base"
     needs_concating                       = false
     enable_grafana_secret                 = false
-    comms_platform                        = ""
-    enable_mattermost                     = false
+    comms_platform                        = "mattermost"
+    enable_mattermost                     = true
     enable_processing_lambda              = false
     enable_sorting_lambda                 = false
     enable_artifacts_lambda               = false
@@ -861,6 +861,28 @@ run "plan_demo_bootstrap" {
     target = data.aws_caller_identity.current
     values = {
       account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/demo/communications/mattermost"
+      id  = "swxsoc/dev/demo/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "demo"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"demo-channel-123\",\"token\":\"demo-token-123\"}"
     }
   }
 
@@ -900,10 +922,11 @@ run "plan_demo_bootstrap" {
 
   assert {
     condition = (
-      length(data.aws_secretsmanager_secret.mattermost) == 0 &&
+      local.mattermost_secret_name == "swxsoc/dev/demo/communications/mattermost" &&
+      length(data.aws_secretsmanager_secret.mattermost) == 1 &&
       length(data.aws_secretsmanager_secret.grafana) == 0
     )
-    error_message = "The demo mission must not read any external secret, so its first plan needs nothing seeded by hand."
+    error_message = "The demo mission reads exactly one external secret, the dev-demo Mattermost secret at the mission-first path, and no Grafana secret."
   }
 
   assert {
@@ -926,9 +949,9 @@ run "plan_demo_bootstrap" {
   }
 }
 
-# With an image pushed, a demo Lambda runs without any communications
-# configuration and with the shorter log retention.
-run "plan_demo_sorting_without_comms" {
+# With an image pushed, a demo Lambda posts to the demo Mattermost channel
+# from the dev-demo secret and keeps the shorter log retention.
+run "plan_demo_sorting_with_mattermost" {
   command = plan
 
   variables {
@@ -946,8 +969,8 @@ run "plan_demo_sorting_without_comms" {
     docker_base_public_ecr_name           = "demo-swsoc-docker-lambda-base"
     needs_concating                       = false
     enable_grafana_secret                 = false
-    comms_platform                        = ""
-    enable_mattermost                     = false
+    comms_platform                        = "mattermost"
+    enable_mattermost                     = true
     enable_processing_lambda              = false
     enable_sorting_lambda                 = true
     enable_artifacts_lambda               = false
@@ -972,14 +995,38 @@ run "plan_demo_sorting_without_comms" {
     }
   }
 
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/demo/communications/mattermost"
+      id  = "swxsoc/dev/demo/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "demo"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"demo-channel-123\",\"token\":\"demo-token-123\"}"
+    }
+  }
+
   assert {
     condition = (
       resource.aws_lambda_function.sorting_lambda_function[0].function_name == "dev-demo_sdc_aws_sorting_lambda_function" &&
       resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["SWXSOC_MISSION"] == "demo" &&
-      !contains(keys(resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables), "COMMS_PLATFORM") &&
-      !contains(keys(resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables), "MATTERMOST_TOKEN")
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["COMMS_PLATFORM"] == "mattermost" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["MATTERMOST_CHANNEL_ID"] == "demo-channel-123" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["MATTERMOST_TOKEN"] == "demo-token-123" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["MATTERMOST_URL"] == "https://mm.sciencecloud.nasa.gov:443"
     )
-    error_message = "A demo Lambda selects the demo mission and carries no communications configuration."
+    error_message = "A demo Lambda selects the demo mission and posts to the demo Mattermost channel from the dev-demo secret."
   }
 
   assert {
