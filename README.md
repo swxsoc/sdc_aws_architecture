@@ -91,29 +91,29 @@ terraform apply -var-file=<mission>.tfvars
 
 `demo.tfvars` is the lightweight end-to-end test mission. It runs the same
 base-image, Lambda-image, and architecture builds as a live mission, so it is
-the place to try a pipeline change, measure what one mission workspace costs,
-and develop features without touching a live dev or prod pipeline.
+the place to try a pipeline change, measure what a mission costs, and develop
+features without touching a live dev or prod pipeline. Like every mission it
+has a `dev-demo` and a `prod-demo` workspace, so release tags and the
+production deploy path are exercised too.
 
 - Shape: `mission_name = "demo"`, `instrument_names = ["craft", "myinst"]`,
   processing, sorting, and artifacts only (`needs_concating = false`), no
   Grafana secret, Mattermost notifications, 14-day Lambda log retention, and
   7-day expiry of noncurrent object versions. The only external secret the
   plan reads is the Mattermost one below.
-- Notifications: Sorting and Artifacts post to a demo Mattermost channel.
-  Create the channel and a bot token, then seed and tag
-  `swxsoc/dev/demo/communications/mattermost` (`token` and `channel_id` keys;
-  tags `Mission=demo`, `Service=communications`, `Environment=Development`,
-  `ManagedBy=external`) as described under Mattermost below, before the first
-  `dev-demo` plan. One secret serves one workspace, so a second demo channel
-  only comes into play through a second workspace's secret
-  (`swxsoc/prod/demo/communications/mattermost`), which is not needed while
-  demo is `dev-demo` only.
-- Only the `dev-demo` workspace is intended to exist; do not create
-  `prod-demo`. The deployment root lists `demo` as a development-only mission,
-  so release tags never start a production demo build: demo image projects
-  have no release-tag webhook filter (the Lambda repositories are shared, so a
-  live mission's tag would otherwise reach them), and `trigger_rebuild_swxsoc`
-  rebuilds the demo base image for `DEVELOPMENT` on a swxsoc release tag.
+- Notifications: Sorting and Artifacts post to one demo Mattermost channel
+  per environment. Create two channels and a bot token, then seed and tag
+  `swxsoc/dev/demo/communications/mattermost` and
+  `swxsoc/prod/demo/communications/mattermost` (`token` and `channel_id`
+  keys; tags `Mission=demo`, `Service=communications`,
+  `Environment=Development` or `Production`, `ManagedBy=external`) as
+  described under Mattermost below, before the first plan in each workspace.
+- Release tags behave as for any mission: a tag on a Lambda repository or on
+  the shared base image repository deploys to `prod-demo`, and a swxsoc
+  release rebuilds the demo base image for production through
+  `trigger_rebuild_swxsoc`. Expect the shared Lambda repositories' release
+  tags to reach `prod-demo` as well, since every mission's Lambda projects
+  watch the same repositories.
 - The `demo` mission already exists in the swxsoc package's default
   configuration and is selected inside the Lambdas by `SWXSOC_MISSION=demo`.
   Its instrument entries there must be aligned with Terraform before files can
@@ -133,10 +133,11 @@ and develop features without touching a live dev or prod pipeline.
      `<mission>-requirements.txt` and exits if it is missing (the
      `swxsoc_pipeline-requirements.txt` there is the model; sorting and
      artifacts share one `requirements.txt` and need nothing).
-  2. Seed and tag the `swxsoc/dev/demo/communications/mattermost` secret,
-     then create the `dev-demo` workspace and apply `demo.tfvars` with every
-     `enable_*_lambda` flag false to create the buckets, topics, queues, ECR
-     repositories, Timestream table, and database.
+  2. Seed and tag the `swxsoc/<dev|prod>/demo/communications/mattermost`
+     secrets, then create the `dev-demo` and `prod-demo` workspaces and apply
+     `demo.tfvars` in each with every `enable_*_lambda` flag false to create
+     the buckets, topics, queues, ECR repositories, Timestream table, and
+     database.
   3. Apply the deployment root to create the five `build_demo_*` CodeBuild
      projects, run `build_demo_sdc_aws_base_docker_image`, and once each
      Lambda image has been pushed set its `enable_*_lambda` flag to true.
@@ -144,8 +145,9 @@ and develop features without touching a live dev or prod pipeline.
      log groups.
 - Baseline cost. Almost all of the idle cost is the RDS instance; everything
   else is pay-per-use and near zero when no files are flowing. Estimated from
-  us-east-1 list prices for one dev workspace; confirm in Cost Explorer with
-  the `Mission=demo` cost allocation tag.
+  us-east-1 list prices for one workspace; `dev-demo` and `prod-demo` together
+  are about twice this. Confirm in Cost Explorer with the `Mission=demo` cost
+  allocation tag.
 
   | Resource | Approximate monthly cost (USD) |
   | --- | --- |
@@ -155,7 +157,8 @@ and develop features without touching a live dev or prod pipeline.
   | Secrets Manager (RDS secret and the external Mattermost secret) | 0.80 |
   | ECR private image storage (3 images) | about 0.50 |
   | S3, SNS, SQS, Timestream, CloudWatch Logs, Lambda at idle | under 1 |
-  | Total at idle | about 19 |
+  | Total at idle, per workspace | about 19 |
+  | Total at idle, both workspaces | about 38 |
 
   CodeBuild is billed per build minute on top of that, driven by pushes to
   the demo and Lambda repositories and by `trigger_rebuild_swxsoc`, which

@@ -186,3 +186,103 @@ run "reject_fractional_retention" {
     var.s3_noncurrent_version_expiration_days,
   ]
 }
+
+# prod-demo is a normal production workspace: unprefixed names, the production
+# Mattermost secret and channel, and the mission-first RDS secret path.
+run "plan_demo_production" {
+  command = plan
+
+  variables {
+    deployment_region                     = "us-east-1"
+    mission_name                          = "demo"
+    instrument_names                      = ["craft", "myinst"]
+    valid_data_levels                     = ["raw", "l0", "l1", "ql", "l2", "l3"]
+    timestream_database_name              = "demo_sdc_aws_logs"
+    timestream_s3_logs_table_name         = "demo_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                  = "demo-swsoc-incoming"
+    s3_server_access_logs_bucket_name     = "demo-swsoc-s3-server-access-logs"
+    sorting_function_private_ecr_name     = "demo_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name   = "demo_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name  = "demo_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name   = "demo_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name           = "demo-swsoc-docker-lambda-base"
+    needs_concating                       = false
+    enable_grafana_secret                 = false
+    comms_platform                        = "mattermost"
+    enable_mattermost                     = true
+    enable_processing_lambda              = false
+    enable_sorting_lambda                 = true
+    enable_artifacts_lambda               = false
+    enable_concating_lambda               = false
+    adopt_existing_lambda_log_groups      = false
+    lambda_log_retention_days             = 14
+    s3_noncurrent_version_expiration_days = 7
+    rds_engine_version                    = "14.21"
+    sf_image_tag                          = "test-immutable-sha"
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/prod/demo/communications/mattermost"
+      id  = "swxsoc/prod/demo/communications/mattermost"
+      tags = {
+        Environment = "Production"
+        ManagedBy   = "external"
+        Mission     = "demo"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"demo-prod-channel-456\",\"token\":\"demo-prod-token-456\"}"
+    }
+  }
+
+  assert {
+    condition = (
+      local.mattermost_secret_name == "swxsoc/prod/demo/communications/mattermost" &&
+      resource.aws_secretsmanager_secret.rds_secret.name == "swxsoc/prod/demo/processing/rds" &&
+      resource.aws_db_instance.rds_instance.identifier == "prod-demo-cdftracker-db"
+    )
+    error_message = "prod-demo reads the production demo Mattermost secret and uses the mission-first secret and database names."
+  }
+
+  assert {
+    condition = (
+      resource.aws_s3_bucket.sdc_buckets["demo-swsoc-incoming"].bucket == "demo-swsoc-incoming" &&
+      resource.aws_s3_bucket.sdc_buckets["demo-myinst"].bucket == "demo-myinst" &&
+      contains(keys(resource.aws_s3_bucket_lifecycle_configuration.versioned_buckets), "access-logs") &&
+      resource.aws_ecrpublic_repository.docker_base_public_ecr.repository_name == "demo-swsoc-docker-lambda-base"
+    )
+    error_message = "prod-demo buckets and repositories drop the dev- prefix and get the production access-log bucket."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.sorting_lambda_function[0].function_name == "demo_sdc_aws_sorting_lambda_function" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["MATTERMOST_CHANNEL_ID"] == "demo-prod-channel-456" &&
+      resource.aws_lambda_function.sorting_lambda_function[0].environment[0].variables["COMMS_PLATFORM"] == "mattermost" &&
+      resource.aws_cloudwatch_log_group.sorting[0].retention_in_days == 14
+    )
+    error_message = "The prod-demo sorting Lambda posts to the production demo channel and keeps the 14-day retention."
+  }
+}

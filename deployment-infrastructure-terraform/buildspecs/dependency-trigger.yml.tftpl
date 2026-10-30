@@ -79,18 +79,15 @@ phases:
         # The deadline outlasts the target's build timeout. Only throttling and
         # limit errors are retried; anything else, such as a denied call or a
         # missing project, fails the trigger immediately.
-        # A target may name its own environment: a development-only mission
-        # has no production repositories, so its base image is rebuilt for
-        # DEVELOPMENT even when a release tag resolved PRODUCTION above.
         START_DEADLINE=$(( $(date +%s) + ${start_deadline_minutes} * 60 ))
         start_target_build() {
-          local target=$1 target_environment=$${2:-$CDK_ENVIRONMENT} output retry_wait
-          echo "Starting $target for $target_environment..."
+          local target=$1 output retry_wait
+          echo "Starting $target for $CDK_ENVIRONMENT..."
           until output=$(aws codebuild start-build \
             --project-name "$target" \
             --source-version main \
             --environment-variables-override \
-              name=CDK_ENVIRONMENT,value="$target_environment",type=PLAINTEXT \
+              name=CDK_ENVIRONMENT,value="$CDK_ENVIRONMENT",type=PLAINTEXT \
             --query 'build.id' --output text 2>&1); do
             case "$output" in
               *AccountLimitExceededException*|*ThrottlingException*|*TooManyRequestsException*|*RequestLimitExceeded*|*"Rate exceeded"*) ;;

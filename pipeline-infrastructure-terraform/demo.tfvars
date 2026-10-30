@@ -5,8 +5,8 @@
 # architecture builds, to give a baseline cost for one mission workspace, and
 # to provide somewhere to develop features without touching a live mission.
 # Keep it minimal: craft plus one science instrument, no concating, no Grafana,
-# and one external secret (Mattermost). Only the dev-demo workspace is
-# intended to exist.
+# and one external secret per workspace (Mattermost). Like every mission it
+# has a dev-demo and a prod-demo workspace, so release tags are exercised too.
 
 # AWS Deployment Region
 # Region that the pipeline will be deployed to
@@ -56,7 +56,7 @@ sorting_function_private_ecr_name = "demo_sdc_aws_sorting_lambda"
 artifacts_function_private_ecr_name = "demo_sdc_aws_artifacts_lambda"
 
 # S3 Server Access Logs Bucket
-# Only created in a prod-* workspace, which the demo mission does not use.
+# Only created in the prod-demo workspace.
 s3_server_access_logs_bucket_name = "demo-swsoc-s3-server-access-logs"
 
 # Processing Lambda ECR Repository Name
@@ -69,8 +69,9 @@ concating_function_private_ecr_name = "demo_sdc_aws_concating_lambda"
 
 # Docker Base ECR Repository Name
 # The Terraform workspace prefix creates dev-demo-swsoc-docker-lambda-base in
-# dev. This is the <mission>-swsoc-docker-lambda-base name the Lambda image
-# buildspecs derive for any mission without a special case.
+# dev and demo-swsoc-docker-lambda-base in prod. This is the
+# <mission>-swsoc-docker-lambda-base name the Lambda image buildspecs derive
+# for any mission without a special case.
 docker_base_public_ecr_name = "demo-swsoc-docker-lambda-base"
 
 ## IAM Role for pushing to S3 Incoming Bucket
@@ -84,12 +85,13 @@ optional_s3_uploader_role_arns = []
 enable_grafana_secret = false
 
 # Notifications
-# Mattermost notifications for Sorting and Artifacts, posted to the demo
-# channel. The token and channel ID come from the external secret
-# swxsoc/dev/demo/communications/mattermost, which must be created and tagged
-# (Mission=demo, Service=communications, Environment=Development,
-# ManagedBy=external) before the first dev-demo plan; it is the only external
-# secret the demo mission reads.
+# Mattermost notifications for Sorting and Artifacts, posted to one demo
+# channel per environment. The token and channel ID come from the external
+# secret swxsoc/<environment>/demo/communications/mattermost, which must be
+# created and tagged (Mission=demo, Service=communications,
+# Environment=Development|Production, ManagedBy=external) before the first
+# plan in each workspace; it is the only external secret the demo mission
+# reads.
 comms_platform    = "mattermost"
 enable_mattermost = true
 mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
