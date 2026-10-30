@@ -144,8 +144,9 @@ run "plan_deployment_projects" {
       resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].tags["Service"] == "dependency-rebuild" &&
       strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "SWxSOC BUILD: DEPENDENCY REBUILD TRIGGER") &&
       strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "build_impax_sdc_aws_base_docker_image") &&
-      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "start_target_build \"build_gdctb_sdc_aws_base_docker_image\"") &&
-      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "start_target_build \"build_demo_sdc_aws_base_docker_image\"")
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "start_target_build \"build_gdctb_sdc_aws_base_docker_image\"\n") &&
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "start_target_build \"build_demo_sdc_aws_base_docker_image\" DEVELOPMENT\n") &&
+      !strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "start_target_build \"build_gdctb_sdc_aws_base_docker_image\" DEVELOPMENT")
     )
     error_message = "The SWxSOC dependency trigger must be tagged, bannered, and fan out to every mission base image."
   }
@@ -176,16 +177,23 @@ run "plan_deployment_projects" {
   }
 
   assert {
-    condition = alltrue([
-      for project_name in ["build_demo_sdc_aws_base_docker_image", "build_demo_sdc_aws_processing_lambda", "build_gdctb_sdc_aws_processing_lambda"] :
-      length(resource.aws_codebuild_webhook.image[project_name].filter_group) == 3 &&
-      anytrue(flatten([
-        for group in resource.aws_codebuild_webhook.image[project_name].filter_group : [
+    condition = (
+      length(resource.aws_codebuild_webhook.image["build_demo_sdc_aws_base_docker_image"].filter_group) == 2 &&
+      length(resource.aws_codebuild_webhook.image["build_demo_sdc_aws_processing_lambda"].filter_group) == 2 &&
+      !anytrue(flatten([
+        for group in resource.aws_codebuild_webhook.image["build_demo_sdc_aws_processing_lambda"].filter_group : [
           for filter in group.filter : filter.type == "HEAD_REF" && filter.pattern == "^refs/tags/.+"
         ]
-      ]))
-    ])
-    error_message = "Demo image webhooks build on main, release tags, and pull requests like every other mission's, so a release deploys to prod-demo."
+      ])) &&
+      length(resource.aws_codebuild_webhook.image["build_gdctb_sdc_aws_processing_lambda"].filter_group) == 3 &&
+      anytrue(flatten([
+        for group in resource.aws_codebuild_webhook.image["build_gdctb_sdc_aws_processing_lambda"].filter_group : [
+          for filter in group.filter : filter.type == "HEAD_REF" && filter.pattern == "^refs/tags/.+"
+        ]
+      ])) &&
+      length(resource.aws_codebuild_webhook.image["build_aws_sdc_executor_lambda_function"].filter_group) == 3
+    )
+    error_message = "Demo image webhooks must build on main and pull requests only, while live mission and shared image webhooks keep the release-tag filter."
   }
 
   assert {
