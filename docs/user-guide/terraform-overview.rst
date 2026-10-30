@@ -121,7 +121,10 @@ declared mission base images for ``DEVELOPMENT`` on ``main`` pushes and
 ``PRODUCTION`` on release tags, and skip every other branch.
 ``trigger_rebuild_swxsoc`` fans out to all six mission base images, the
 ``demo`` base image included, so each swxsoc package release is exercised by
-the demo pipeline alongside the live missions.
+the demo pipeline alongside the live missions. ``demo`` is a development-only
+mission with no ``prod-demo`` workspace, so its base image is rebuilt for
+``DEVELOPMENT`` even on a release tag and its image projects have no
+release-tag webhook filter.
 
 The first apply of each root adopts existing resources: the deployment root
 imports projects, webhooks, and log groups; the base root imports the alert

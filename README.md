@@ -99,9 +99,12 @@ and develop features without touching a live dev or prod pipeline.
   Grafana secret, no communications platform, 14-day Lambda log retention,
   and 7-day expiry of noncurrent object versions. The first plan reads no
   external secret, so nothing has to be seeded by hand.
-- Only the `dev-demo` workspace is intended to exist. Do not create
-  `prod-demo` or cut release tags on demo repositories, which would deploy to
-  production.
+- Only the `dev-demo` workspace is intended to exist; do not create
+  `prod-demo`. The deployment root lists `demo` as a development-only mission,
+  so release tags never start a production demo build: demo image projects
+  have no release-tag webhook filter (the Lambda repositories are shared, so a
+  live mission's tag would otherwise reach them), and `trigger_rebuild_swxsoc`
+  rebuilds the demo base image for `DEVELOPMENT` on a swxsoc release tag.
 - The `demo` mission already exists in the swxsoc package's default
   configuration and is selected inside the Lambdas by `SWXSOC_MISSION=demo`.
   Its instrument entries there must be aligned with Terraform before files can
@@ -113,7 +116,11 @@ and develop features without touching a live dev or prod pipeline.
      `swxsoc_pipeline_sdc_aws_base_docker_image` with the mission and project
      names changed; the Lambda image buildspecs already derive
      `demo-swsoc-docker-lambda-base` and `demo_sdc_aws_<component>_lambda`
-     from the mission name).
+     from the mission name), and add `lambda_function/demo-requirements.txt`
+     to `swxsoc/sdc_aws_processing_lambda`, whose buildspec selects
+     `<mission>-requirements.txt` and exits if it is missing (the
+     `swxsoc_pipeline-requirements.txt` there is the model; sorting and
+     artifacts share one `requirements.txt` and need nothing).
   2. Create the `dev-demo` workspace and apply `demo.tfvars` with every
      `enable_*_lambda` flag false to create the buckets, topics, queues, ECR
      repositories, Timestream table, and database.

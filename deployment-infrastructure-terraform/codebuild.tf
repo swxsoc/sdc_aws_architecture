@@ -32,6 +32,14 @@ locals {
     }
   }
 
+  # A development-only mission has a dev-<mission> workspace and no production
+  # one, so none of its production ECR repositories exist. Its image projects
+  # get no release-tag webhook filter (the Lambda repositories are shared, so
+  # a live mission's release tag would otherwise start a production build for
+  # it too), and a dependency trigger rebuilds its base image for DEVELOPMENT
+  # even on a swxsoc release tag.
+  development_only_missions = toset(["demo"])
+
   # Each CodeConnection is bound to one GitHub organization's app
   # installation, so a project's connection follows the organization that owns
   # its source repository, not the mission it builds for. Webhook creation and
@@ -385,7 +393,12 @@ locals {
     project_name => templatefile("${path.module}/buildspecs/dependency-trigger.yml.tftpl", {
       mission                = project.mission
       start_deadline_minutes = local.dependency_trigger_start_deadline_minutes
-      targets                = join("\n", [for target in project.targets : "start_target_build \"${target}\""])
+      targets = join("\n", [
+        for target in project.targets :
+        contains(local.development_only_missions, try(local.mission_base_projects[target].mission, ""))
+        ? "start_target_build \"${target}\" DEVELOPMENT"
+        : "start_target_build \"${target}\""
+      ])
     })
   }
 
@@ -736,6 +749,8 @@ resource "aws_codebuild_project" "pipeline" {
 
 # Image repositories build on main and release tags. Pull requests also run the
 # guarded buildspec for a CodeBuild status, but the buildspec refuses deployment.
+# A development-only mission's projects skip the release-tag filter: a tag
+# would build for PRODUCTION, and the mission has no production repositories.
 resource "aws_codebuild_webhook" "image" {
   for_each = local.image_projects
 
@@ -753,14 +768,17 @@ resource "aws_codebuild_webhook" "image" {
     }
   }
 
-  filter_group {
-    filter {
-      type    = "EVENT"
-      pattern = "PUSH"
-    }
-    filter {
-      type    = "HEAD_REF"
-      pattern = "^refs/tags/.+"
+  dynamic "filter_group" {
+    for_each = contains(local.development_only_missions, each.value.mission) ? [] : ["release-tags"]
+    content {
+      filter {
+        type    = "EVENT"
+        pattern = "PUSH"
+      }
+      filter {
+        type    = "HEAD_REF"
+        pattern = "^refs/tags/.+"
+      }
     }
   }
 

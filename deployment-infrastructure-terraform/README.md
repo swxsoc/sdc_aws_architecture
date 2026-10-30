@@ -85,8 +85,10 @@ to an environment:
 `trigger_rebuild_swxsoc` fans out to all six mission base images, the demo
 base image included, so every swxsoc package release is exercised by the demo
 pipeline alongside the live missions; each mission trigger only rebuilds its
-own base image. The role for each trigger is
-scoped to `codebuild:StartBuild` on exactly its declared targets.
+own base image. A target whose mission is in `local.development_only_missions`
+(demo) is always started with `CDK_ENVIRONMENT=DEVELOPMENT`, release tag or
+not, because that mission has no production repositories. The role for each
+trigger is scoped to `codebuild:StartBuild` on exactly its declared targets.
 
 Support projects allow two concurrent builds, the image and architecture
 projects only one. CodeBuild throttles a build that would exceed the limit
@@ -176,7 +178,8 @@ repository that should rebuild the mission base image, with an empty
 image to the `trigger_rebuild_swxsoc` targets.
 
 Image projects build on `main`, release tags, and pull requests. The repository
-buildspec skips deployment for pull requests.
+buildspec skips deployment for pull requests. The image projects of a
+development-only mission (demo) have no release-tag filter group; see below.
 
 ### The demo mission
 
@@ -188,8 +191,19 @@ shared buildspecs, the Lambda repositories, or this root can be tried on demo
 before it reaches a live mission. The base image repository
 `swxsoc/demo_sdc_aws_base_docker_image` must exist in the swxsoc GitHub
 organization before this root is applied, because creating a project's
-webhook needs the repository. A release tag on a demo repository would deploy
-to a `prod-demo` workspace that is deliberately not created; do not tag demo
-repositories. Architecture projects accept
-pull-request validation webhooks only; image projects invoke them explicitly
-with the mission, environment, component, and immutable image tag.
+webhook needs the repository, and `swxsoc/sdc_aws_processing_lambda` needs a
+`lambda_function/demo-requirements.txt`, which its buildspec selects for
+`MISSION_NAME=demo` and refuses to build without (sorting and artifacts use
+one shared `requirements.txt`).
+
+Demo has a `dev-demo` workspace and no `prod-demo`, so `demo` is listed in
+`local.development_only_missions`. A release tag anywhere would otherwise
+start production demo builds against ECR repositories that do not exist: the
+Lambda repositories are shared, so a live mission's release tag reaches every
+mission's Lambda project, and a swxsoc release tag makes
+`trigger_rebuild_swxsoc` request `PRODUCTION`. For a development-only mission
+the image webhooks therefore carry only the `main` and pull-request filter
+groups, and the dependency trigger starts its base image for `DEVELOPMENT`.
+Architecture projects accept pull-request validation webhooks only; image
+projects invoke them explicitly with the mission, environment, component, and
+immutable image tag.
