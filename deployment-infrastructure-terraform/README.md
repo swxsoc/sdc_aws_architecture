@@ -4,24 +4,24 @@ This Terraform root owns the shared image-build, architecture-deployment, and
 support CodeBuild fleet. It has a dedicated S3 backend key, uses native S3
 lockfiles, and does not share state with either mission infrastructure root.
 
-## Managed projects (42)
+## Managed projects (47)
 
 The live account had 33 CodeBuild projects; this root adopts every one of them
-and adds one new base architecture project plus the eight GDC Trailblazer
-(gdctb) projects, for 42 managed projects.
+and adds one new base architecture project, the eight GDC Trailblazer (gdctb)
+projects, and the five demo mission projects, for 47 managed projects.
 
 | Group | Projects | Count |
 | --- | --- | --- |
-| Mission base images | `build_<mission>_sdc_aws_base_docker_image` for gdctb, hermes, impax, padre, swxsoc_pipeline | 5 |
-| Mission architecture | `build_<mission>_sdc_aws_pipeline_architecture` for the same five missions | 5 |
-| Mission Lambda images | processing, sorting, and artifact projects for every mission, plus PADRE and GDCTB concating | 17 |
+| Mission base images | `build_<mission>_sdc_aws_base_docker_image` for demo, gdctb, hermes, impax, padre, swxsoc_pipeline | 6 |
+| Mission architecture | `build_<mission>_sdc_aws_pipeline_architecture` for the same six missions | 6 |
+| Mission Lambda images | processing, sorting, and artifact projects for every mission, plus PADRE and GDCTB concating | 20 |
 | Executor image | `build_aws_sdc_executor_lambda_function` | 1 |
 | Alert image | `build_aws_sdc_alert_lambda_function` | 1 |
 | Base architecture (new) | `build_swxsoc_sdc_aws_base_architecture` | 1 |
 | Dependency rebuild triggers | `trigger_rebuild_gdctb_{cape_eea,craft}`, `trigger_rebuild_hermes_{core,eea,merit,nemisis,spani}`, `trigger_rebuild_padre_{craft,meddea,sharp}`, `trigger_rebuild_swxsoc` | 11 |
 | Reprocessing | `padre-reprocessing-requests` | 1 |
 
-`aws_codebuild_project.pipeline` holds the 30 image and architecture projects
+`aws_codebuild_project.pipeline` holds the 35 image and architecture projects
 and `aws_codebuild_project.support` holds the 12 support projects. Every
 project gets an explicit `/aws/codebuild/<project>` log group with 90-day
 retention and the uniform `Mission`, `Service`, `Environment=Shared`,
@@ -44,9 +44,10 @@ build loses a permission on the first apply. Retiring those legacy policies is
 a separate change, one role at a time, once builds are verified on the managed
 policy.
 
-`build_swxsoc_sdc_aws_base_architecture` and the six `build_gdctb_*` projects
-get new roles, because those projects are new. The two `trigger_rebuild_gdctb_*`
-triggers share the existing trigger role like every other trigger.
+`build_swxsoc_sdc_aws_base_architecture`, the six `build_gdctb_*` projects,
+and the five `build_demo_*` projects get new roles, because those projects are
+new. The two `trigger_rebuild_gdctb_*` triggers share the existing trigger role
+like every other trigger.
 
 ### Base architecture handoff
 
@@ -81,9 +82,13 @@ to an environment:
   other than `DEVELOPMENT`/`PRODUCTION`;
 - any other branch or pull request exits without starting downstream builds.
 
-`trigger_rebuild_swxsoc` fans out to all five mission base images; each
-mission trigger only rebuilds its own base image. The role for each trigger is
-scoped to `codebuild:StartBuild` on exactly its declared targets.
+`trigger_rebuild_swxsoc` fans out to all six mission base images, the demo
+base image included, so every swxsoc package release is exercised by the demo
+pipeline alongside the live missions; each mission trigger only rebuilds its
+own base image. A target whose mission is in `local.development_only_missions`
+(demo) is always started with `CDK_ENVIRONMENT=DEVELOPMENT`, release tag or
+not, because that mission has no production repositories. The role for each
+trigger is scoped to `codebuild:StartBuild` on exactly its declared targets.
 
 Support projects allow two concurrent builds, the image and architecture
 projects only one. CodeBuild throttles a build that would exceed the limit
@@ -120,12 +125,12 @@ while `adopt_existing_codebuild_projects=true` (the default):
 3. the 28 `/aws/codebuild/<project>` log groups that already exist. The
    remaining groups are created: the iMPAX architecture project, the new base
    architecture project, the four `trigger_rebuild_hermes_*` projects that
-   have never run, and the eight GDCTB projects.
+   have never run, the eight GDCTB projects, and the five demo projects.
 
 Imports also cover the 25 existing service roles. Creates in the same plan
 are the new base architecture project and its role, the eight GDCTB projects
-and their six roles, the managed inline policy on every role, and the webhooks
-that do not exist yet. In-place updates switch
+and their six roles, the five demo projects and their five roles, the managed
+inline policy on every role, and the webhooks that do not exist yet. In-place updates switch
 each project from its stale inline buildspec to `buildspec.yml` on `main`,
 enable Docker privileged mode for image builds, tag the roles, and apply tags
 and retention to projects and log groups. Projects keep the service role they
@@ -166,12 +171,45 @@ Add each new project to `local.existing_service_roles` if it should adopt a
 role that already exists, or to `local.new_service_roles` to create one. Add
 each new project and trigger to `local.new_codebuild_projects` so the adoption
 imports skip it; GDCTB is the worked example of a mission created entirely by
-this root. Add a `local.dependency_trigger_projects` entry for each dependency
+this root, and demo is the smallest one (no concating, no instrument
+triggers). Add a `local.dependency_trigger_projects` entry for each dependency
 repository that should rebuild the mission base image, with an empty
 `connection_arn` when its organization has no CodeConnection, and add the base
 image to the `trigger_rebuild_swxsoc` targets.
 
 Image projects build on `main`, release tags, and pull requests. The repository
-buildspec skips deployment for pull requests. Architecture projects accept
-pull-request validation webhooks only; image projects invoke them explicitly
-with the mission, environment, component, and immutable image tag.
+buildspec skips deployment for pull requests. The image projects of a
+development-only mission (demo) have no release-tag filter group; see below.
+
+### The demo mission
+
+`demo` is the lightweight end-to-end test mission. Its five projects
+(`build_demo_sdc_aws_base_docker_image`, `build_demo_sdc_aws_pipeline_architecture`,
+and the processing, sorting, and artifact image projects) are generated from
+the same `local.missions` entry as any other mission, so a change to the
+shared buildspecs, the Lambda repositories, or this root can be tried on demo
+before it reaches a live mission. Demo has no base image repository of its
+own: `build_demo_sdc_aws_base_docker_image` builds
+`swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image` with `MISSION_NAME=demo`,
+sharing that repository the way every mission's Lambda projects share the
+Lambda repositories, and publishes the result to demo's own
+`dev-demo-swsoc-docker-lambda-base` public ECR. Two companion changes outside
+this repository are needed before the demo images can build: that base
+repository's buildspec must derive the image name and the Lambda projects it
+starts from `MISSION_NAME` (defaulting to `swxsoc_pipeline`, as the Lambda
+buildspecs already do), and `swxsoc/sdc_aws_processing_lambda` needs a
+`lambda_function/demo-requirements.txt`, which its buildspec selects for
+`MISSION_NAME=demo` and refuses to build without (sorting and artifacts use
+one shared `requirements.txt`).
+
+Demo has a `dev-demo` workspace and no `prod-demo`, so `demo` is listed in
+`local.development_only_missions`. A release tag anywhere would otherwise
+start production demo builds against ECR repositories that do not exist: the
+Lambda repositories are shared, so a live mission's release tag reaches every
+mission's Lambda project, and a swxsoc release tag makes
+`trigger_rebuild_swxsoc` request `PRODUCTION`. For a development-only mission
+the image webhooks therefore carry only the `main` and pull-request filter
+groups, and the dependency trigger starts its base image for `DEVELOPMENT`.
+Architecture projects accept pull-request validation webhooks only; image
+projects invoke them explicitly with the mission, environment, component, and
+immutable image tag.

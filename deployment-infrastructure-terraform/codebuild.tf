@@ -3,6 +3,16 @@ locals {
   # image repository and enabled Lambda components. The standard project,
   # role, policy, webhook, and tags are generated below.
   missions = {
+    # demo is the lightweight end-to-end test mission: it exercises the same
+    # base-image, Lambda-image, and architecture projects as a real mission so
+    # pipeline changes can be tried without touching a live mission. It has no
+    # base image repository of its own: its base project builds the
+    # swxsoc_pipeline base repository with MISSION_NAME=demo, the way every
+    # mission's Lambda projects share the Lambda repositories.
+    demo = {
+      base_repository_url = "https://github.com/swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image"
+      lambda_components   = toset(["processing", "sorting", "artifacts"])
+    }
     gdctb = {
       base_repository_url = "https://github.com/GDC-Trailblazer/sdc_aws_base_docker_image"
       lambda_components   = toset(["processing", "sorting", "artifacts", "concating"])
@@ -24,6 +34,14 @@ locals {
       lambda_components   = toset(["processing", "sorting", "artifacts"])
     }
   }
+
+  # A development-only mission has a dev-<mission> workspace and no production
+  # one, so none of its production ECR repositories exist. Its image projects
+  # get no release-tag webhook filter (the Lambda repositories are shared, so
+  # a live mission's release tag would otherwise start a production build for
+  # it too), and a dependency trigger rebuilds its base image for DEVELOPMENT
+  # even on a swxsoc release tag.
+  development_only_missions = toset(["demo"])
 
   # Each CodeConnection is bound to one GitHub organization's app
   # installation, so a project's connection follows the organization that owns
@@ -199,9 +217,15 @@ locals {
     trigger_rebuild_swxsoc                              = "codebuild-trigger_rebuild-service-role"
   }
 
-  # GDCTB is the first mission created entirely by this root, so every one of
-  # its projects gets a role of its own, named like the base architecture role.
+  # GDCTB was the first mission created entirely by this root and demo is the
+  # second, so every one of their projects gets a role of its own, named like
+  # the base architecture role.
   new_service_roles = {
+    build_demo_sdc_aws_artifact_lambda        = "swxsoc-codebuild-demo-artifact-lambda"
+    build_demo_sdc_aws_base_docker_image      = "swxsoc-codebuild-demo-base-docker-image"
+    build_demo_sdc_aws_pipeline_architecture  = "swxsoc-codebuild-demo-pipeline-architecture"
+    build_demo_sdc_aws_processing_lambda      = "swxsoc-codebuild-demo-processing-lambda"
+    build_demo_sdc_aws_sorting_lambda         = "swxsoc-codebuild-demo-sorting-lambda"
     build_gdctb_sdc_aws_artifact_lambda       = "swxsoc-codebuild-gdctb-artifact-lambda"
     build_gdctb_sdc_aws_base_docker_image     = "swxsoc-codebuild-gdctb-base-docker-image"
     build_gdctb_sdc_aws_concating_lambda      = "swxsoc-codebuild-gdctb-concating-lambda"
@@ -242,8 +266,15 @@ locals {
 
   # Projects declared here do not exist in the account yet, so the adoption
   # imports skip them and the first apply creates them. Pipeline and support
-  # projects are both listed here.
+  # projects are both listed here. The demo projects stay listed even after
+  # they exist: the list only decides what is imported, and nothing
+  # pre-existing should ever be adopted under a demo name.
   new_codebuild_projects = toset([
+    "build_demo_sdc_aws_artifact_lambda",
+    "build_demo_sdc_aws_base_docker_image",
+    "build_demo_sdc_aws_pipeline_architecture",
+    "build_demo_sdc_aws_processing_lambda",
+    "build_demo_sdc_aws_sorting_lambda",
     "build_gdctb_sdc_aws_artifact_lambda",
     "build_gdctb_sdc_aws_base_docker_image",
     "build_gdctb_sdc_aws_concating_lambda",
@@ -342,6 +373,7 @@ locals {
       repository_url = "https://github.com/swxsoc/swxsoc"
       connection_arn = var.shared_codeconnection_arn
       targets = [
+        "build_demo_sdc_aws_base_docker_image",
         "build_gdctb_sdc_aws_base_docker_image",
         "build_hermes_sdc_aws_base_docker_image",
         "build_impax_sdc_aws_base_docker_image",
@@ -364,7 +396,12 @@ locals {
     project_name => templatefile("${path.module}/buildspecs/dependency-trigger.yml.tftpl", {
       mission                = project.mission
       start_deadline_minutes = local.dependency_trigger_start_deadline_minutes
-      targets                = join("\n", [for target in project.targets : "start_target_build \"${target}\""])
+      targets = join("\n", [
+        for target in project.targets :
+        contains(local.development_only_missions, try(local.mission_base_projects[target].mission, ""))
+        ? "start_target_build \"${target}\" DEVELOPMENT"
+        : "start_target_build \"${target}\""
+      ])
     })
   }
 
@@ -715,6 +752,8 @@ resource "aws_codebuild_project" "pipeline" {
 
 # Image repositories build on main and release tags. Pull requests also run the
 # guarded buildspec for a CodeBuild status, but the buildspec refuses deployment.
+# A development-only mission's projects skip the release-tag filter: a tag
+# would build for PRODUCTION, and the mission has no production repositories.
 resource "aws_codebuild_webhook" "image" {
   for_each = local.image_projects
 
@@ -732,14 +771,17 @@ resource "aws_codebuild_webhook" "image" {
     }
   }
 
-  filter_group {
-    filter {
-      type    = "EVENT"
-      pattern = "PUSH"
-    }
-    filter {
-      type    = "HEAD_REF"
-      pattern = "^refs/tags/.+"
+  dynamic "filter_group" {
+    for_each = contains(local.development_only_missions, each.value.mission) ? [] : ["release-tags"]
+    content {
+      filter {
+        type    = "EVENT"
+        pattern = "PUSH"
+      }
+      filter {
+        type    = "HEAD_REF"
+        pattern = "^refs/tags/.+"
+      }
     }
   }
 
