@@ -174,9 +174,7 @@ Mattermost Notifications
 ------------------------
 Set ``comms_platform`` explicitly when a mission's application selects a
 communications backend. PADRE uses ``slack``; HERMES keeps legacy auto-detection;
-iMPAX, SWxSOC Pipeline, and GDCTB use ``mattermost``; the ``demo`` test
-mission leaves it empty so its first plan needs no external secret. For
-Mattermost, also set
+iMPAX, SWxSOC Pipeline, and GDCTB use ``mattermost``. For Mattermost, also set
 ``enable_mattermost = true``. Both Lambdas receive
 ``COMMS_PLATFORM=mattermost`` and the configured ``MATTERMOST_URL``. Terraform
 reads ``MATTERMOST_TOKEN`` and ``MATTERMOST_CHANNEL_ID`` from the mission and
