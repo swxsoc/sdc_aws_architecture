@@ -4,11 +4,12 @@ This Terraform root owns the shared image-build, architecture-deployment, and
 support CodeBuild fleet. It has a dedicated S3 backend key, uses native S3
 lockfiles, and does not share state with either mission infrastructure root.
 
-## Managed projects (47)
+## Managed projects (48)
 
 The live account had 33 CodeBuild projects; this root adopts every one of them
 and adds one new base architecture project, the eight GDC Trailblazer (gdctb)
-projects, and the five demo mission projects, for 47 managed projects.
+projects, the five demo mission projects, and the demo smoke test, for 48
+managed projects.
 
 | Group | Projects | Count |
 | --- | --- | --- |
@@ -20,9 +21,10 @@ projects, and the five demo mission projects, for 47 managed projects.
 | Base architecture (new) | `build_swxsoc_sdc_aws_base_architecture` | 1 |
 | Dependency rebuild triggers | `trigger_rebuild_gdctb_{cape_eea,craft}`, `trigger_rebuild_hermes_{core,eea,merit,nemisis,spani}`, `trigger_rebuild_padre_{craft,meddea,sharp}`, `trigger_rebuild_swxsoc` | 11 |
 | Reprocessing | `padre-reprocessing-requests` | 1 |
+| Smoke test | `demo-smoke-test` | 1 |
 
 `aws_codebuild_project.pipeline` holds the 35 image and architecture projects
-and `aws_codebuild_project.support` holds the 12 support projects. Every
+and `aws_codebuild_project.support` holds the 13 support projects. Every
 project gets an explicit `/aws/codebuild/<project>` log group with 90-day
 retention and the uniform `Mission`, `Service`, `Environment=Shared`,
 `Purpose`, `Project`, and `ManagedBy=terraform` tags.
@@ -109,7 +111,25 @@ prints the build banner and then processes newly added `requests/*.json` files
 (excluding `requests/submit/`). Its role can invoke Lambda functions and read
 mission S3 objects, and nothing else.
 
-Neither support template writes secret values to the log.
+`demo-smoke-test` (`demo_smoke_test.tf`, `buildspecs/demo-smoke-test.yml.tftpl`)
+is the demo mission's end-to-end check. It clones this repository and runs
+`scripts/demo_smoke_test.py`, which uploads one synthetic
+`demo_craft_l0_<time>_v0.0.1.cdf` to `dev-demo-swsoc-incoming` and then waits,
+bounded, for the sorted copy in `dev-demo-craft`, a higher-level output from
+the processing Lambda, the Timestream record, and the Mattermost post, and
+deletes what it created. Any missing stage fails the build. The MetaTracker
+row check is skipped in CodeBuild (`SMOKE_TEST_ARGS=--skip-rds`) because the
+RDS security group admits only the Lambda and Grafana security groups; run the
+script by hand from an allowed host to include it. An EventBridge rule starts
+the project daily through its own `swxsoc-events-demo-smoke-test` role; the
+rule is created disabled and is switched on with
+`enable_demo_smoke_test_schedule = true` once `dev-demo` is bootstrapped and a
+demo instrument package exists, since every run fails at the processing stage
+until then. The project's role can list, read, write, and delete objects in
+the three dev-demo buckets, read the `swxsoc/dev/demo/*` secrets, and query
+the dev-demo Timestream table, and nothing else.
+
+No support template writes secret values to the log.
 
 ## First apply and import order
 
@@ -213,3 +233,9 @@ groups, and the dependency trigger starts its base image for `DEVELOPMENT`.
 Architecture projects accept pull-request validation webhooks only; image
 projects invoke them explicitly with the mission, environment, component, and
 immutable image tag.
+
+The `demo-smoke-test` support project (see "Support projects") is what turns
+demo from configuration into evidence: because `trigger_rebuild_swxsoc`
+rebuilds and redeploys the demo images on every swxsoc release, a scheduled
+smoke run exercises each release through sorting, processing, and artifacts
+before a live mission's release tag does.

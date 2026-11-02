@@ -102,8 +102,8 @@ CodeBuild ownership
 The deployment root adopts all 33 existing CodeBuild projects through
 declarative ``import`` blocks and adds the dedicated
 ``build_swxsoc_sdc_aws_base_architecture`` project, the eight GDC
-Trailblazer (``gdctb``) projects, and the five ``demo`` projects, for 47
-managed projects.
+Trailblazer (``gdctb``) projects, the five ``demo`` projects, and the
+``demo-smoke-test`` project, for 48 managed projects.
 It standardizes repository buildspecs, current managed images, Docker
 privileged mode for container builds, concurrency, GitHub status reporting,
 explicit 90-day log groups, and cost tags. The 25 existing service roles are
@@ -114,9 +114,9 @@ image repositories build the image and explicitly start the matching
 architecture project; the executor and alert images start the base
 architecture project.
 
-The eleven ``trigger_rebuild_*`` dependency projects and
-``padre-reprocessing-requests`` are managed as support projects with generated
-buildspecs and least-privilege roles. Dependency triggers rebuild their
+The eleven ``trigger_rebuild_*`` dependency projects,
+``padre-reprocessing-requests``, and ``demo-smoke-test`` are managed as support
+projects with generated buildspecs and least-privilege roles. Dependency triggers rebuild their
 declared mission base images for ``DEVELOPMENT`` on ``main`` pushes and
 ``PRODUCTION`` on release tags, and skip every other branch.
 ``trigger_rebuild_swxsoc`` fans out to all six mission base images, the
@@ -124,7 +124,11 @@ declared mission base images for ``DEVELOPMENT`` on ``main`` pushes and
 the demo pipeline alongside the live missions. ``demo`` is a development-only
 mission with no ``prod-demo`` workspace, so its base image is rebuilt for
 ``DEVELOPMENT`` even on a release tag and its image projects have no
-release-tag webhook filter.
+release-tag webhook filter. ``demo-smoke-test`` runs
+``scripts/demo_smoke_test.py`` from this repository on a schedule (created
+disabled) or on demand: it pushes one synthetic file through the ``dev-demo``
+pipeline and fails unless sorting, processing, Timestream, and Mattermost all
+show it.
 
 The first apply of each root adopts existing resources: the deployment root
 imports projects, webhooks, and log groups; the base root imports the alert

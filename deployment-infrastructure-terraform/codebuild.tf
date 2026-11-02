@@ -226,6 +226,7 @@ locals {
     build_demo_sdc_aws_pipeline_architecture  = "swxsoc-codebuild-demo-pipeline-architecture"
     build_demo_sdc_aws_processing_lambda      = "swxsoc-codebuild-demo-processing-lambda"
     build_demo_sdc_aws_sorting_lambda         = "swxsoc-codebuild-demo-sorting-lambda"
+    demo-smoke-test                           = "swxsoc-codebuild-demo-smoke-test"
     build_gdctb_sdc_aws_artifact_lambda       = "swxsoc-codebuild-gdctb-artifact-lambda"
     build_gdctb_sdc_aws_base_docker_image     = "swxsoc-codebuild-gdctb-base-docker-image"
     build_gdctb_sdc_aws_concating_lambda      = "swxsoc-codebuild-gdctb-concating-lambda"
@@ -282,6 +283,7 @@ locals {
     "build_gdctb_sdc_aws_processing_lambda",
     "build_gdctb_sdc_aws_sorting_lambda",
     "build_swxsoc_sdc_aws_base_architecture",
+    "demo-smoke-test",
     "trigger_rebuild_gdctb_cape_eea",
     "trigger_rebuild_gdctb_craft",
   ])
@@ -441,6 +443,7 @@ locals {
         targets = []
       }
     },
+    local.demo_smoke_test_support_projects,
   )
 
   existing_support_webhooks = toset([
@@ -658,6 +661,56 @@ resource "aws_iam_role_policy" "codebuild" {
           Effect   = "Allow"
           Action   = ["codebuild:StartBuild"]
           Resource = [for target in each.value.targets : "arn:${data.aws_partition.current.partition}:codebuild:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:project/${target}"]
+        },
+      ] : [],
+      contains(each.value.kinds, "smoke-test") ? [
+        {
+          Sid      = "SmokeTestListBuckets"
+          Effect   = "Allow"
+          Action   = ["s3:ListBucket"]
+          Resource = [for bucket in local.demo_smoke_test_buckets : "arn:${data.aws_partition.current.partition}:s3:::${bucket}"]
+        },
+        {
+          Sid      = "SmokeTestObjects"
+          Effect   = "Allow"
+          Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+          Resource = [for bucket in local.demo_smoke_test_buckets : "arn:${data.aws_partition.current.partition}:s3:::${bucket}/*"]
+        },
+        {
+          Sid      = "SmokeTestSecrets"
+          Effect   = "Allow"
+          Action   = ["secretsmanager:GetSecretValue"]
+          Resource = ["arn:${data.aws_partition.current.partition}:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${local.demo_smoke_test.secret_path_root}/*"]
+        },
+        {
+          Sid      = "SmokeTestTimestreamEndpoints"
+          Effect   = "Allow"
+          Action   = ["timestream:DescribeEndpoints", "timestream:SelectValues"]
+          Resource = ["*"]
+        },
+        {
+          Sid      = "SmokeTestTimestreamQuery"
+          Effect   = "Allow"
+          Action   = ["timestream:Select", "timestream:DescribeTable"]
+          Resource = ["arn:${data.aws_partition.current.partition}:timestream:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:database/${local.demo_smoke_test.timestream_database}/table/${local.demo_smoke_test.timestream_table}"]
+        },
+      ] : [],
+      # Kept apart from the statements above because its Condition gives it a
+      # different object type, which a single conditional cannot unify.
+      contains(each.value.kinds, "smoke-test") ? [
+        {
+          # The RDS secret is encrypted with the demo workspace's own KMS key,
+          # which this root does not know; allow decryption only through
+          # Secrets Manager.
+          Sid      = "SmokeTestSecretKeys"
+          Effect   = "Allow"
+          Action   = ["kms:Decrypt"]
+          Resource = ["*"]
+          Condition = {
+            StringEquals = {
+              "kms:ViaService" = "secretsmanager.${data.aws_region.current.name}.amazonaws.com"
+            }
+          }
         },
       ] : [],
       contains(each.value.kinds, "reprocessing") ? [

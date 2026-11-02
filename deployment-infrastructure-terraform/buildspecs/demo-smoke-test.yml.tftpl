@@ -1,0 +1,63 @@
+version: 0.2
+
+# Runs scripts/demo_smoke_test.py from this repository: one synthetic file
+# through the ${mission} pipeline, with each stage verified. The project's
+# environment variables select the mission and instrument and carry extra
+# script arguments (SMOKE_TEST_ARGS); a manual start can override any of them.
+env:
+  shell: bash
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - |
+        BANNER_SOURCE=$${CODEBUILD_WEBHOOK_TRIGGER:-$${CODEBUILD_SOURCE_VERSION:-manual}}
+        BANNER_PROJECT=$${CODEBUILD_BUILD_ID%%:*}
+        BANNER_COMMIT=$${CODEBUILD_RESOLVED_SOURCE_VERSION:-unknown}
+        printf '\n%s\n' '================================================================================'
+        printf '  SWxSOC BUILD: DEMO SMOKE TEST\n'
+        printf '%s\n' '================================================================================'
+        printf '  Environment : Development\n'
+        printf '  Mission     : %s\n' "$${SWXSOC_MISSION:-${mission}}"
+        printf '  Service     : smoke-test\n'
+        printf '  Action      : push one synthetic file through the pipeline and verify each stage\n'
+        printf '  Project     : %s\n' "$${BANNER_PROJECT:-local}"
+        printf '  Build       : %s\n' "$${CODEBUILD_BUILD_NUMBER:-local}"
+        printf '  Trigger     : %s\n' "$BANNER_SOURCE"
+        printf '  Source ref  : %s\n' "$${CODEBUILD_SOURCE_VERSION:-unknown}"
+        printf '  Commit      : %.12s\n' "$BANNER_COMMIT"
+        printf '%s\n\n' '================================================================================'
+      - |
+        # runtime-versions selects Python 3.12 with `pyenv global`, but the
+        # managed image does not put that interpreter first on PATH, so make
+        # sure python and pip both come from it.
+        if command -v pyenv > /dev/null 2>&1; then
+          PYENV_SELECTED_VERSION=$(pyenv global | head -n 1)
+          PYENV_SELECTED_BIN="$(pyenv root)/versions/$${PYENV_SELECTED_VERSION}/bin"
+          if [ -x "$${PYENV_SELECTED_BIN}/python" ]; then
+            export PATH="$${PYENV_SELECTED_BIN}:$${PATH}"
+          else
+            echo "pyenv version $${PYENV_SELECTED_VERSION} has no interpreter at $${PYENV_SELECTED_BIN}" >&2
+            exit 1
+          fi
+        fi
+        python --version
+        python -m pip install --upgrade pip
+        python -m pip install -r scripts/demo_smoke_test-requirements.txt
+
+  build:
+    commands:
+      - |
+        set -euo pipefail
+        # SMOKE_TEST_ARGS is a space-separated argument list by design.
+        # shellcheck disable=SC2086
+        python scripts/demo_smoke_test.py \
+          --mission "$${SWXSOC_MISSION:-${mission}}" \
+          --instrument "$${SMOKE_TEST_INSTRUMENT:-craft}" \
+          $${SMOKE_TEST_ARGS:-}
+
+  post_build:
+    commands:
+      - echo "Smoke test finished on $(date -u +%Y-%m-%dT%H:%M:%SZ) with status $${CODEBUILD_BUILD_SUCCEEDING}"
