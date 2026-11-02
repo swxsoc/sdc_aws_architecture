@@ -220,7 +220,12 @@ starts from `MISSION_NAME` (defaulting to `swxsoc_pipeline`, as the Lambda
 buildspecs already do), and `swxsoc/sdc_aws_processing_lambda` needs a
 `lambda_function/demo-requirements.txt`, which its buildspec selects for
 `MISSION_NAME=demo` and refuses to build without (sorting and artifacts use
-one shared `requirements.txt`).
+one shared `requirements.txt`). The base buildspec change must be merged
+before this root is applied with the demo projects in it: until then
+`build_demo_sdc_aws_base_docker_image` ignores `MISSION_NAME`, publishes to
+the live `dev-swxsoc-pipeline-docker-lambda-base` repository, and starts the
+`build_swxsoc_pipeline_*` Lambda builds, and its webhook would do so on the
+next push to that repository's `main`.
 
 Demo has a `dev-demo` workspace and no `prod-demo`, so `demo` is listed in
 `local.development_only_missions`. A release tag anywhere would otherwise

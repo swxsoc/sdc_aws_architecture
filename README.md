@@ -115,24 +115,43 @@ and develop features without touching a live dev or prod pipeline.
   live mission's tag would otherwise reach them), and `trigger_rebuild_swxsoc`
   rebuilds the demo base image for `DEVELOPMENT` on a swxsoc release tag.
 - The `demo` mission already exists in the swxsoc package's default
-  configuration and is selected inside the Lambdas by `SWXSOC_MISSION=demo`.
-  Its instrument entries there must be aligned with Terraform before files can
-  be routed end to end: the package derives bucket names from each instrument's
-  `name`, so the demo mission needs instruments named `craft` and `myinst`
-  (lowercase, matching the `dev-demo-craft` and `dev-demo-myinst` buckets).
+  configuration and is selected inside the Lambdas by `SWXSOC_MISSION=demo`,
+  but as shipped it cannot route or process a file. Its instruments are
+  `MyInstrument1` and `MyInstrument2`: the package derives bucket names from
+  each instrument's `name`, so those are not even legal bucket names, there
+  is no `craft`, there are two science instruments against Terraform's one,
+  and its data levels have no `raw`. Its `instrument_package` points at
+  `demo_myinst1`, which exists nowhere, and the processing Lambda re-raises a
+  failed import, so every sorted file would error and be retried. The
+  package's demo entry therefore needs instruments `craft`
+  (`instrument_package: demo_craft`) and `myinst` (lowercase, matching the
+  `dev-demo-craft` and `dev-demo-myinst` buckets), a `raw` level, and an
+  instrument package per instrument. `swxsoc/demo_craft`, generated from
+  `swxsoc/instrument_pkg_template`, is the first; until a `myinst` package
+  exists only craft files process end to end, and the smoke test uses craft.
 - Bootstrap order, the same as gdctb:
-  1. Make the two companion changes in other repositories. Demo has no base
-     image repository: `build_demo_sdc_aws_base_docker_image` builds
+  1. Make the companion changes in other repositories, in this order.
+     First, and before the deployment root is applied in step 3: demo has no
+     base image repository, so `build_demo_sdc_aws_base_docker_image` builds
      `swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image` with
-     `MISSION_NAME=demo`, so that buildspec must derive the image name
+     `MISSION_NAME=demo`, and that buildspec must derive the image name
      (`demo-swsoc-docker-lambda-base`) and the `build_demo_*` Lambda projects
      it starts from `MISSION_NAME`, keeping `swxsoc_pipeline` as the default
-     (the Lambda image buildspecs already derive their names that way). Then
+     (the Lambda image buildspecs already derive their names that way). This
+     is a hard gate, not a nicety: until that change is merged the demo base
+     project ignores `MISSION_NAME`, publishes to the live
+     `dev-swxsoc-pipeline-docker-lambda-base` repository, and starts the three
+     `build_swxsoc_pipeline_*` Lambda builds, redeploying `dev-swxsoc_pipeline`;
+     once the deployment root is applied, the demo project's webhook does that
+     on the next push to that repository's `main`. Second, create the
+     `swxsoc/demo_craft` instrument package (see the swxsoc bullet above) and
      add `lambda_function/demo-requirements.txt` to
-     `swxsoc/sdc_aws_processing_lambda`, whose buildspec selects
+     `swxsoc/sdc_aws_processing_lambda` listing `swxsoc`, `swxsoc[tracker]`,
+     `psycopg2-binary`, and `demo_craft`; that buildspec selects
      `<mission>-requirements.txt` and exits if it is missing (the
      `swxsoc_pipeline-requirements.txt` there is the model; sorting and
-     artifacts share one `requirements.txt` and need nothing).
+     artifacts share one `requirements.txt` and need nothing). Third, change
+     the swxsoc package's demo mission configuration as described above.
   2. Seed and tag the `swxsoc/dev/demo/communications/mattermost` secret,
      then create the `dev-demo` workspace and apply `demo.tfvars` with every
      `enable_*_lambda` flag false to create the buckets, topics, queues, ECR

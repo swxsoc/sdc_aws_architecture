@@ -815,9 +815,10 @@ run "plan_gdctb_bootstrap" {
   }
 }
 
-# demo.tfvars is the lightweight test mission: craft plus one science
-# instrument, no concating, no Grafana, no communications secret, short log
-# retention, and every Lambda disabled until its image exists.
+# demo is the lightweight test mission: craft plus one science instrument, no
+# concating, no Grafana, Mattermost as its only external secret, short log
+# retention, and every Lambda disabled until its image exists. These runs
+# re-state the values; demo.tftest.hcl validates demo.tfvars itself.
 run "plan_demo_bootstrap" {
   command = plan
 

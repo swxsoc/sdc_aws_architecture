@@ -40,6 +40,9 @@ jobs:
           # production test file runs under its own prod-* workspace.
           TF_WORKSPACE=dev-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=basic.tftest.hcl
           TF_WORKSPACE=prod-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=production.tftest.hcl
+          # demo.tftest.hcl reads the checked-in demo.tfvars; a -var-file
+          # applies to every test file, so it runs on its own.
+          TF_WORKSPACE=dev-demo TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=demo.tftest.hcl -var-file=demo.tfvars
         else
           echo "No Terraform tests found."
         fi
