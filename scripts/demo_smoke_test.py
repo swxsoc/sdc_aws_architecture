@@ -28,9 +28,9 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Callable
+from datetime import UTC, datetime, timedelta
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -163,8 +163,8 @@ class SmokeTest:
         self.timestream = session.client("timestream-query")
         self.secrets = session.client("secretsmanager")
         # Allow a minute of clock skew between this host and S3.
-        self.started_at = datetime.now(timezone.utc) - timedelta(seconds=60)
-        self.stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        self.started_at = datetime.now(UTC) - timedelta(seconds=60)
+        self.stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
         self.filename = target.filename(self.stamp)
         self.stem = self.filename.rsplit(".", 1)[0]
         self.created: list[tuple[str, str]] = []
@@ -283,7 +283,7 @@ class SmokeTest:
             self.report.record("metatracker", "SKIP", "--skip-rds", started)
             return
         try:
-            import psycopg2  # noqa: PLC0415 - optional, only needed for this check
+            import psycopg2  # optional dependency, only this check needs it
         except ImportError:
             self.report.record(
                 "metatracker", "FAIL", "psycopg2 is not installed", started
@@ -300,7 +300,14 @@ class SmokeTest:
                 sslmode="require",
                 connect_timeout=15,
             )
-        except (ClientError, BotoCoreError, KeyError, Exception) as error:
+        except (
+            ClientError,
+            BotoCoreError,
+            KeyError,
+            ValueError,
+            OSError,
+            psycopg2.Error,
+        ) as error:
             self.report.record("metatracker", "FAIL", str(error), started)
             return
 
@@ -322,7 +329,7 @@ class SmokeTest:
 
         try:
             detail = wait_for(found, self.args.timeout, self.args.poll_interval)
-        except Exception as error:  # psycopg2 errors are not BotoCore errors
+        except (psycopg2.Error, OSError) as error:
             self.report.record("metatracker", "FAIL", str(error), started)
             return
         finally:
@@ -369,7 +376,7 @@ class SmokeTest:
 
         try:
             detail = wait_for(found, self.args.timeout, self.args.poll_interval)
-        except Exception as error:  # urllib raises several unrelated types
+        except (OSError, ValueError) as error:  # URLError and bad JSON included
             self.report.record("mattermost", "FAIL", str(error), started)
             return
         if detail:
