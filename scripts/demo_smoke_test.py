@@ -36,7 +36,20 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 DEFAULT_MATTERMOST_URL = "https://mm.sciencecloud.nasa.gov:443"
-PLACEHOLDER_BODY = b"SWxSOC pipeline smoke test placeholder\n"
+
+
+def synthetic_l0(start: datetime, rows: int = 10) -> bytes:
+    """A level-0 payload demo_craft can process: a CSV of ``time,counts``.
+
+    demo_craft's ``process_file`` reads this table and writes the level-1
+    CSV next to it; any header of ``time,counts`` with one row per second
+    will do, so the content is deliberately trivial.
+    """
+    lines = ["time,counts"]
+    for second in range(rows):
+        moment = start + timedelta(seconds=second)
+        lines.append(f"{moment.strftime('%Y-%m-%dT%H:%M:%S.000')},{100 + second}")
+    return ("\n".join(lines) + "\n").encode()
 
 
 @dataclass
@@ -87,8 +100,10 @@ class Target:
 
     def filename(self, stamp: str) -> str:
         # The swxsoc standard format with no mode or descriptor:
-        # {mission}_{instrument}_{level}_{time}_v{version}.cdf
-        return f"{self.mission}_{self.instrument}_{self.level}_{stamp}_v0.0.1.cdf"
+        # {mission}_{instrument}_{level}_{time}_v{version}.csv
+        # demo_craft reads and writes CSV; the processing Lambda accepts
+        # .bin, .cdf, .fits, and .csv.
+        return f"{self.mission}_{self.instrument}_{self.level}_{stamp}_v0.0.1.csv"
 
 
 @dataclass
@@ -177,7 +192,7 @@ class SmokeTest:
             self.s3.put_object(
                 Bucket=self.target.incoming_bucket,
                 Key=self.filename,
-                Body=PLACEHOLDER_BODY,
+                Body=synthetic_l0(self.started_at),
                 Metadata={"swxsoc-smoke-test": self.stamp},
             )
         except (ClientError, BotoCoreError) as error:

@@ -126,9 +126,11 @@ and develop features without touching a live dev or prod pipeline.
   package's demo entry therefore needs instruments `craft`
   (`instrument_package: demo_craft`) and `myinst` (lowercase, matching the
   `dev-demo-craft` and `dev-demo-myinst` buckets), a `raw` level, and an
-  instrument package per instrument. `swxsoc/demo_craft`, generated from
-  `swxsoc/instrument_pkg_template`, is the first; until a `myinst` package
-  exists only craft files process end to end, and the smoke test uses craft.
+  instrument package per instrument. `swxsoc/demo_craft` (tag `v0.0.1`,
+  generated from `swxsoc/instrument_pkg_template`) is the first: its
+  `process_file` turns one l0 CSV into one l1 CSV and stops, with no CDF
+  library. Until a `myinst` package exists only craft files process end to
+  end, and the smoke test uses craft.
 - Bootstrap order, the same as gdctb:
   1. Make the companion changes in other repositories, in this order.
      First, and before the deployment root is applied in step 3: demo has no
@@ -143,11 +145,12 @@ and develop features without touching a live dev or prod pipeline.
      `dev-swxsoc-pipeline-docker-lambda-base` repository, and starts the three
      `build_swxsoc_pipeline_*` Lambda builds, redeploying `dev-swxsoc_pipeline`;
      once the deployment root is applied, the demo project's webhook does that
-     on the next push to that repository's `main`. Second, create the
-     `swxsoc/demo_craft` instrument package (see the swxsoc bullet above) and
-     add `lambda_function/demo-requirements.txt` to
+     on the next push to that repository's `main`. Second, add
+     `lambda_function/demo-requirements.txt` to
      `swxsoc/sdc_aws_processing_lambda` listing `swxsoc`, `swxsoc[tracker]`,
-     `psycopg2-binary`, and `demo_craft`; that buildspec selects
+     `psycopg2-binary`, and
+     `demo_craft @ git+https://github.com/swxsoc/demo_craft.git@v0.0.1`
+     (the package exists; see the swxsoc bullet above); that buildspec selects
      `<mission>-requirements.txt` and exits if it is missing (the
      `swxsoc_pipeline-requirements.txt` there is the model; sorting and
      artifacts share one `requirements.txt` and need nothing). Third, change
@@ -163,12 +166,12 @@ and develop features without touching a live dev or prod pipeline.
      log groups.
 - Smoke test: the deployment root's `demo-smoke-test` CodeBuild project runs
   `scripts/demo_smoke_test.py`, which uploads one synthetic
-  `demo_craft_l0_<time>_v0.0.1.cdf` to `dev-demo-swsoc-incoming` and verifies
+  `demo_craft_l0_<time>_v0.0.1.csv` to `dev-demo-swsoc-incoming` and verifies
   the sorted copy in `dev-demo-craft`, a processed output, the Timestream
   record, and the Mattermost post, then deletes what it created; any missing
   stage fails the build. Its daily schedule is created disabled
   (`enable_demo_smoke_test_schedule` in the deployment root); turn it on after
-  step 3 and once a demo instrument package exists, and start the project by
+  step 3, once the processing image includes `demo_craft`, and start the project by
   hand from CodeBuild at any time. To check names and access first, run
   `python scripts/demo_smoke_test.py --dry-run` with credentials for the
   account; `--help` lists the options, including `--skip-rds` for a host the

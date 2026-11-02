@@ -114,7 +114,7 @@ mission S3 objects, and nothing else.
 `demo-smoke-test` (`demo_smoke_test.tf`, `buildspecs/demo-smoke-test.yml.tftpl`)
 is the demo mission's end-to-end check. It clones this repository and runs
 `scripts/demo_smoke_test.py`, which uploads one synthetic
-`demo_craft_l0_<time>_v0.0.1.cdf` to `dev-demo-swsoc-incoming` and then waits,
+`demo_craft_l0_<time>_v0.0.1.csv` to `dev-demo-swsoc-incoming` and then waits,
 bounded, for the sorted copy in `dev-demo-craft`, a higher-level output from
 the processing Lambda, the Timestream record, and the Mattermost post, and
 deletes what it created. Any missing stage fails the build. The MetaTracker
@@ -123,9 +123,9 @@ RDS security group admits only the Lambda and Grafana security groups; run the
 script by hand from an allowed host to include it. An EventBridge rule starts
 the project daily through its own `swxsoc-events-demo-smoke-test` role; the
 rule is created disabled and is switched on with
-`enable_demo_smoke_test_schedule = true` once `dev-demo` is bootstrapped and a
-demo instrument package exists, since every run fails at the processing stage
-until then. The project's role can list, read, write, and delete objects in
+`enable_demo_smoke_test_schedule = true` once `dev-demo` is bootstrapped and
+the processing image includes `demo_craft`, since every run fails at the
+processing stage until then. The project's role can list, read, write, and delete objects in
 the three dev-demo buckets, read the `swxsoc/dev/demo/*` secrets, and query
 the dev-demo Timestream table, and nothing else.
 
