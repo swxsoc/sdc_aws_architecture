@@ -84,7 +84,9 @@ lambda_vpc_subnet_ids = ["subnet-0972d4965ef8eb1e8", "subnet-0e24325c69b9a1f74"]
 
 # RDS ingress allowlists
 rds_additional_security_group_ids = ["sg-002dbe7887ac759c5"] # Grafana EC2 webDMZ
-rds_ingress_cidr_blocks           = []
+rds_ingress_cidr_blocks = [
+  "169.154.132.174/32", # MCP server, read-only database access
+]
 
 # RDS engine version (must exist in target region)
 rds_engine_version = "14.21"

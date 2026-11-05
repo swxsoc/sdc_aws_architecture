@@ -70,7 +70,10 @@ comms_platform = "slack"
 
 # RDS ingress allowlists
 rds_additional_security_group_ids = ["sg-002dbe7887ac759c5"] # Grafana EC2 webDMZ
-rds_ingress_cidr_blocks           = []
+rds_ingress_cidr_blocks = [
+  "169.154.132.174/32", # MCP server, read-only database access
+  "86.21.42.229/32",    # previously hand-added to the RDS security group; no description
+]
 
 # Staged secret migration: keep the processing Lambda on the existing
 # value-bearing Grafana secret until swxsoc/<env>/padre/processing/grafana
