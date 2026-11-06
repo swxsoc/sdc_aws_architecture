@@ -351,6 +351,17 @@ variable "rds_ingress_cidr_blocks" {
   default     = []
 }
 
+variable "rds_operator_prefix_list_name" {
+  type        = string
+  description = <<-EOT
+    Name of a customer-managed prefix list whose entries may reach RDS. The
+    list is created and edited outside Terraform (aws ec2 create/modify
+    managed-prefix-list), so operator addresses never appear in this
+    repository and a full apply cannot remove them. Empty disables the lookup.
+  EOT
+  default     = ""
+}
+
 variable "rds_engine_version" {
   type        = string
   description = "Postgres engine version for the RDS instance"

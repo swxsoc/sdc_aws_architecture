@@ -68,9 +68,11 @@ optional_s3_uploader_role_arn = "arn:aws:iam::815232357003:role/data-transfer-12
 # PADRE's live Sorting and Artifacts functions explicitly select Slack.
 comms_platform = "slack"
 
-# RDS ingress allowlists
+# RDS ingress allowlists. Operator addresses are not kept in this repository:
+# they are entries of the customer-managed prefix list named below, edited with
+# `aws ec2 modify-managed-prefix-list` and left untouched by Terraform.
 rds_additional_security_group_ids = ["sg-002dbe7887ac759c5"] # Grafana EC2 webDMZ
-rds_ingress_cidr_blocks           = []
+rds_operator_prefix_list_name     = "swxsoc-rds-operator-access"
 
 # Staged secret migration: keep the processing Lambda on the existing
 # value-bearing Grafana secret until swxsoc/<env>/padre/processing/grafana
