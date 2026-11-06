@@ -814,3 +814,95 @@ run "plan_gdctb_bootstrap" {
     error_message = "GDCTB secrets and database should follow the mission-first naming convention."
   }
 }
+
+run "plan_rds_operator_prefix_list" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["reach"]
+    include_craft_instrument             = false
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = true
+    enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
+    enable_mattermost                    = true
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = true
+    enable_artifacts_lambda              = false
+    enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
+    sf_image_tag                         = "test-immutable-sha"
+    rds_operator_prefix_list_name        = "swxsoc-rds-operator-access"
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
+  override_data {
+    target = data.aws_ec2_managed_prefix_list.rds_operators[0]
+    values = {
+      id   = "pl-0123456789abcdef0"
+      name = "swxsoc-rds-operator-access"
+    }
+  }
+
+  assert {
+    condition = length([
+      for rule in resource.aws_security_group.rds_sg.ingress : rule
+      if contains(coalesce(rule.prefix_list_ids, []), "pl-0123456789abcdef0") && rule.from_port == 5432 && rule.to_port == 5432
+    ]) == 1
+    error_message = "RDS should allow Postgres from the operator prefix list when one is named."
+  }
+
+  assert {
+    condition = length([
+      for rule in resource.aws_security_group.rds_sg.ingress : rule
+      if length(coalesce(rule.cidr_blocks, [])) > 0
+    ]) == 0
+    error_message = "No operator CIDR blocks should be written into the RDS security group from this repository."
+  }
+}

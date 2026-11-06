@@ -156,6 +156,14 @@ resource "aws_secretsmanager_secret_version" "secret" {
 #   name = local.is_production ? "${var.mission_name}_database" : "dev_${var.mission_name}_database"
 # }
 
+# Operator access to RDS is granted through a customer-managed prefix list
+# that is maintained outside Terraform. Terraform only references the list by
+# name; its entries (and their descriptions) live in the AWS account.
+data "aws_ec2_managed_prefix_list" "rds_operators" {
+  count = var.rds_operator_prefix_list_name == "" ? 0 : 1
+  name  = var.rds_operator_prefix_list_name
+}
+
 resource "aws_security_group" "rds_sg" {
   vpc_id = data.aws_vpc.default.id
 
@@ -174,6 +182,17 @@ resource "aws_security_group" "rds_sg" {
       to_port     = 5432
       protocol    = "tcp"
       cidr_blocks = var.rds_ingress_cidr_blocks
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = data.aws_ec2_managed_prefix_list.rds_operators
+    content {
+      description     = "Operator access via the ${ingress.value.name} prefix list"
+      from_port       = 5432
+      to_port         = 5432
+      protocol        = "tcp"
+      prefix_list_ids = [ingress.value.id]
     }
   }
 
