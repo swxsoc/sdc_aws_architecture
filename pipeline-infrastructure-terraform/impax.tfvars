@@ -82,11 +82,11 @@ enable_concating_lambda  = false
 # Lambda VPC settings
 lambda_vpc_subnet_ids = ["subnet-0972d4965ef8eb1e8", "subnet-0e24325c69b9a1f74"]
 
-# RDS ingress allowlists
+# RDS ingress allowlists. Operator addresses are not kept in this repository:
+# they are entries of the customer-managed prefix list named below, edited with
+# `aws ec2 modify-managed-prefix-list` and left untouched by Terraform.
 rds_additional_security_group_ids = ["sg-002dbe7887ac759c5"] # Grafana EC2 webDMZ
-rds_ingress_cidr_blocks = [
-  "169.154.132.174/32", # MCP server, read-only database access
-]
+rds_operator_prefix_list_name     = "swxsoc-rds-operator-access"
 
 # RDS engine version (must exist in target region)
 rds_engine_version = "14.21"
