@@ -36,8 +36,25 @@ run "plan_deployment_projects" {
   }
 
   assert {
-    condition     = length(resource.aws_codebuild_project.pipeline) == 30 && length(resource.aws_codebuild_project.support) == 12
-    error_message = "The complete live fleet, its base deployment project, and the GDCTB mission should produce 42 managed CodeBuild projects."
+    condition     = length(resource.aws_codebuild_project.pipeline) == 35 && length(resource.aws_codebuild_project.support) == 13
+    error_message = "The complete live fleet, its base deployment project, the GDCTB mission, the demo mission, and the demo smoke test should produce 48 managed CodeBuild projects."
+  }
+
+  assert {
+    condition = (
+      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].source[0].location == "https://github.com/swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image" &&
+      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].source[0].location == resource.aws_codebuild_project.pipeline["build_swxsoc_pipeline_sdc_aws_base_docker_image"].source[0].location &&
+      [for v in resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].environment[0].environment_variable : v.value if v.name == "MISSION_NAME"] == ["demo"] &&
+      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_base_docker_image"].environment[0].privileged_mode &&
+      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_sorting_lambda"].tags["Mission"] == "demo" &&
+      resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_sorting_lambda"].tags["Service"] == "sorting" &&
+      !resource.aws_codebuild_project.pipeline["build_demo_sdc_aws_pipeline_architecture"].environment[0].privileged_mode &&
+      contains(keys(resource.aws_codebuild_project.pipeline), "build_demo_sdc_aws_processing_lambda") &&
+      contains(keys(resource.aws_codebuild_project.pipeline), "build_demo_sdc_aws_artifact_lambda") &&
+      !contains(keys(resource.aws_codebuild_project.pipeline), "build_demo_sdc_aws_concating_lambda")
+    )
+    error_message = "The demo mission must get base, architecture, processing, sorting, and artifact projects on the shared SWxSOC connection, with its base project building the shared swxsoc_pipeline base repository as demo, and no concating project."
   }
 
   assert {
@@ -115,7 +132,7 @@ run "plan_deployment_projects" {
 
   assert {
     condition = (
-      length(resource.aws_cloudwatch_log_group.codebuild) == 42 &&
+      length(resource.aws_cloudwatch_log_group.codebuild) == 48 &&
       resource.aws_cloudwatch_log_group.codebuild["trigger_rebuild_hermes_core"].retention_in_days == 90 &&
       resource.aws_cloudwatch_log_group.codebuild["trigger_rebuild_hermes_core"].tags["Mission"] == "hermes"
     )
@@ -127,7 +144,9 @@ run "plan_deployment_projects" {
       resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].tags["Service"] == "dependency-rebuild" &&
       strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "SWxSOC BUILD: DEPENDENCY REBUILD TRIGGER") &&
       strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "build_impax_sdc_aws_base_docker_image") &&
-      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "build_gdctb_sdc_aws_base_docker_image")
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "start_target_build \"build_gdctb_sdc_aws_base_docker_image\"\n") &&
+      strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "start_target_build \"build_demo_sdc_aws_base_docker_image\" DEVELOPMENT\n") &&
+      !strcontains(resource.aws_codebuild_project.support["trigger_rebuild_swxsoc"].source[0].buildspec, "start_target_build \"build_gdctb_sdc_aws_base_docker_image\" DEVELOPMENT")
     )
     error_message = "The SWxSOC dependency trigger must be tagged, bannered, and fan out to every mission base image."
   }
@@ -137,13 +156,16 @@ run "plan_deployment_projects" {
       length(local.adopted_pipeline_projects) == 23 &&
       length(local.adopted_support_projects) == 10 &&
       !contains(keys(local.adopted_pipeline_projects), "build_gdctb_sdc_aws_base_docker_image") &&
+      !contains(keys(local.adopted_pipeline_projects), "build_demo_sdc_aws_base_docker_image") &&
+      !contains(keys(local.adopted_pipeline_projects), "build_demo_sdc_aws_pipeline_architecture") &&
       !contains(keys(local.adopted_pipeline_projects), "build_swxsoc_sdc_aws_base_architecture") &&
       !contains(keys(local.adopted_support_projects), "trigger_rebuild_gdctb_cape_eea") &&
       !contains(keys(local.adopted_support_projects), "trigger_rebuild_gdctb_craft") &&
+      !contains(keys(local.adopted_support_projects), "demo-smoke-test") &&
       contains(keys(local.adopted_support_projects), "trigger_rebuild_padre_craft") &&
       contains(keys(local.adopted_pipeline_projects), "build_impax_sdc_aws_base_docker_image")
     )
-    error_message = "With adoption enabled, the imports must cover exactly the 33 live projects and skip every new GDCTB project and trigger plus the base architecture project."
+    error_message = "With adoption enabled, the imports must cover exactly the 33 live projects and skip every new GDCTB and demo project, the GDCTB triggers, the demo smoke test, and the base architecture project."
   }
 
   assert {
@@ -157,7 +179,30 @@ run "plan_deployment_projects" {
 
   assert {
     condition = (
-      length(resource.aws_iam_role.codebuild) == 32 &&
+      length(resource.aws_codebuild_webhook.image["build_demo_sdc_aws_base_docker_image"].filter_group) == 2 &&
+      length(resource.aws_codebuild_webhook.image["build_demo_sdc_aws_processing_lambda"].filter_group) == 2 &&
+      !anytrue(flatten([
+        for group in resource.aws_codebuild_webhook.image["build_demo_sdc_aws_processing_lambda"].filter_group : [
+          for filter in group.filter : filter.type == "HEAD_REF" && filter.pattern == "^refs/tags/.+"
+        ]
+      ])) &&
+      length(resource.aws_codebuild_webhook.image["build_gdctb_sdc_aws_processing_lambda"].filter_group) == 3 &&
+      anytrue(flatten([
+        for group in resource.aws_codebuild_webhook.image["build_gdctb_sdc_aws_processing_lambda"].filter_group : [
+          for filter in group.filter : filter.type == "HEAD_REF" && filter.pattern == "^refs/tags/.+"
+        ]
+      ])) &&
+      length(resource.aws_codebuild_webhook.image["build_aws_sdc_executor_lambda_function"].filter_group) == 3
+    )
+    error_message = "Demo image webhooks must build on main and pull requests only, while live mission and shared image webhooks keep the release-tag filter."
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_iam_role.codebuild) == 38 &&
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-demo-sorting-lambda"].path == "/" &&
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-demo-sorting-lambda"].tags["Mission"] == "demo" &&
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-demo-sorting-lambda"].tags["Service"] == "sorting" &&
       resource.aws_iam_role.codebuild["codebuild-trigger_rebuild-service-role"].path == "/service-role/" &&
       resource.aws_iam_role.codebuild["swxsoc-codebuild-swxsoc-base-architecture"].path == "/" &&
       resource.aws_iam_role.codebuild["swxsoc-codebuild-gdctb-processing-lambda"].path == "/" &&
@@ -167,14 +212,55 @@ run "plan_deployment_projects" {
       resource.aws_iam_role.codebuild["codebuild-trigger_rebuild-service-role"].tags["Service"] == "dependency-rebuild" &&
       resource.aws_iam_role_policy.codebuild["codebuild-trigger_rebuild-service-role"].name == "swxsoc-codebuild-managed"
     )
-    error_message = "The 25 live service roles must be adopted under their existing names and paths, with new roles for the base architecture project and each GDCTB project."
+    error_message = "The 25 live service roles must be adopted under their existing names and paths, with new roles for the base architecture project, each GDCTB and demo project, and the demo smoke test."
   }
 
   assert {
     condition = alltrue([
-      for target in ["build_gdctb_sdc_aws_base_docker_image", "build_hermes_sdc_aws_base_docker_image", "build_impax_sdc_aws_base_docker_image", "build_padre_sdc_aws_base_docker_image", "build_swxsoc_pipeline_sdc_aws_base_docker_image"] :
+      for target in ["build_demo_sdc_aws_base_docker_image", "build_gdctb_sdc_aws_base_docker_image", "build_hermes_sdc_aws_base_docker_image", "build_impax_sdc_aws_base_docker_image", "build_padre_sdc_aws_base_docker_image", "build_swxsoc_pipeline_sdc_aws_base_docker_image"] :
       strcontains(resource.aws_iam_role_policy.codebuild["codebuild-trigger_rebuild-service-role"].policy, "project/${target}")
     ])
     error_message = "The shared trigger role's managed policy must cover every base image the eleven triggers start."
+  }
+
+  assert {
+    condition = (
+      resource.aws_codebuild_project.support["demo-smoke-test"].tags["Mission"] == "demo" &&
+      resource.aws_codebuild_project.support["demo-smoke-test"].tags["Service"] == "smoke-test" &&
+      resource.aws_codebuild_project.support["demo-smoke-test"].source[0].location == "https://github.com/swxsoc/sdc_aws_architecture" &&
+      resource.aws_codebuild_project.support["demo-smoke-test"].source[0].auth[0].resource == var.shared_codeconnection_arn &&
+      !resource.aws_codebuild_project.support["demo-smoke-test"].environment[0].privileged_mode &&
+      strcontains(resource.aws_codebuild_project.support["demo-smoke-test"].source[0].buildspec, "SWxSOC BUILD: DEMO SMOKE TEST") &&
+      strcontains(resource.aws_codebuild_project.support["demo-smoke-test"].source[0].buildspec, "scripts/demo_smoke_test.py") &&
+      [for v in resource.aws_codebuild_project.support["demo-smoke-test"].environment[0].environment_variable : v.value if v.name == "SWXSOC_MISSION"] == ["demo"] &&
+      [for v in resource.aws_codebuild_project.support["demo-smoke-test"].environment[0].environment_variable : v.value if v.name == "SMOKE_TEST_INSTRUMENT"] == ["craft"] &&
+      resource.aws_cloudwatch_log_group.codebuild["demo-smoke-test"].tags["Service"] == "smoke-test"
+    )
+    error_message = "The demo smoke test must run this repository's script from the shared connection, tagged as the demo smoke-test service."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_event_rule.demo_smoke_test.state == "DISABLED" &&
+      resource.aws_cloudwatch_event_rule.demo_smoke_test.schedule_expression == "cron(0 13 * * ? *)" &&
+      resource.aws_cloudwatch_event_target.demo_smoke_test.rule == resource.aws_cloudwatch_event_rule.demo_smoke_test.name &&
+      strcontains(resource.aws_iam_role.demo_smoke_test_schedule.assume_role_policy, "events.amazonaws.com")
+    )
+    error_message = "The smoke test schedule must exist, default to disabled, and start the project through the EventBridge role."
+  }
+
+  assert {
+    condition = (
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-demo-smoke-test"].path == "/" &&
+      resource.aws_iam_role.codebuild["swxsoc-codebuild-demo-smoke-test"].tags["Mission"] == "demo" &&
+      strcontains(resource.aws_iam_role_policy.codebuild["swxsoc-codebuild-demo-smoke-test"].policy, "arn:aws:s3:::dev-demo-swsoc-incoming/*") &&
+      strcontains(resource.aws_iam_role_policy.codebuild["swxsoc-codebuild-demo-smoke-test"].policy, "arn:aws:s3:::dev-demo-craft") &&
+      strcontains(resource.aws_iam_role_policy.codebuild["swxsoc-codebuild-demo-smoke-test"].policy, "secret:swxsoc/dev/demo/*") &&
+      strcontains(resource.aws_iam_role_policy.codebuild["swxsoc-codebuild-demo-smoke-test"].policy, "database/dev-demo_sdc_aws_logs/table/dev-demo_sdc_aws_s3_bucket_log_table") &&
+      !strcontains(resource.aws_iam_role_policy.codebuild["swxsoc-codebuild-demo-smoke-test"].policy, "gdctb") &&
+      !strcontains(resource.aws_iam_role_policy.codebuild["swxsoc-codebuild-demo-smoke-test"].policy, "lambda:InvokeFunction") &&
+      !strcontains(resource.aws_iam_role_policy.codebuild["swxsoc-codebuild-demo-smoke-test"].policy, "s3:*")
+    )
+    error_message = "The smoke test role must reach only the dev-demo buckets, secrets, and Timestream table."
   }
 }

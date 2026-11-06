@@ -44,7 +44,7 @@ jobs:
         python -m pip install ruff
     - name: Ruff format
       run: |
-        ruff format --check --diff docs
+        ruff format --check --diff docs scripts
     - name: Ruff lint
       run: |
-        ruff check docs
+        ruff check docs scripts
