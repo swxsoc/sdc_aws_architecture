@@ -59,7 +59,8 @@ def post(url: str, token: str, channel_id: str, message: str) -> None:
         response.read()
 
 
-def handler(event, context):  # noqa: ARG001 - Lambda signature
+def handler(event, context):
+    """Lambda entry point; ``context`` is unused."""
     url = os.environ["MATTERMOST_URL"]
     token = os.environ["MATTERMOST_TOKEN"]
     channel_id = os.environ["MATTERMOST_CHANNEL_ID"]

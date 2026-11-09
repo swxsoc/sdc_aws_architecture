@@ -355,7 +355,8 @@ def reconcile(settings: Settings, session, now: datetime | None = None) -> Repor
                 incoming, now, settings.window, settings.grace, settings.ignore_key
             )
         )
-    except Exception as error:  # noqa: BLE001 - every check reports, none aborts
+    # Every check reports its own failure as a check error; none aborts the run.
+    except Exception as error:
         log.exception("incoming bucket check failed")
         report.check_errors.append(f"incoming: {error}")
 
@@ -368,7 +369,7 @@ def reconcile(settings: Settings, session, now: datetime | None = None) -> Repor
             objects, settings.data_levels, now, settings.window, settings.grace
         )
         report.reconciled = len(candidates)
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         log.exception("instrument bucket listing failed")
         report.check_errors.append(f"instrument buckets: {error}")
 
@@ -387,7 +388,7 @@ def reconcile(settings: Settings, session, now: datetime | None = None) -> Repor
                     failed_status_sql(settings.status_table, settings.window)
                 )
                 report.failed_processing = int(rows[0][0] or 0) if rows else 0
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             log.exception("metatracker check failed")
             report.check_errors.append(f"metatracker: {error}")
 
@@ -399,14 +400,15 @@ def reconcile(settings: Settings, session, now: datetime | None = None) -> Repor
             ),
         )
         report.missing_timestream = missing_from_timestream(candidates, recorded)
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         log.exception("timestream check failed")
         report.check_errors.append(f"timestream: {error}")
 
     return report
 
 
-def handler(event, context):  # noqa: ARG001 - Lambda signature
+def handler(event, context):
+    """Lambda entry point; ``event`` and ``context`` are unused."""
     import boto3
 
     settings = Settings.from_environment()

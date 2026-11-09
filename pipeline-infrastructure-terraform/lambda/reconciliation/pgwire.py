@@ -21,6 +21,7 @@ import os
 import socket
 import ssl
 import struct
+from typing import Self
 
 PROTOCOL_VERSION = 196608  # 3.0
 SSL_REQUEST_CODE = 80877103
@@ -196,7 +197,7 @@ class Connection:
         finally:
             self._sock.close()
 
-    def __enter__(self) -> Connection:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc_info: object) -> None:

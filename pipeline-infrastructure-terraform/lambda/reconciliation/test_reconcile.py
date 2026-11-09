@@ -76,12 +76,12 @@ class ProcessedCandidates(unittest.TestCase):
 
 
 class MissingRecords(unittest.TestCase):
-    candidates = [
+    candidates = (
         obj("padre-craft", "raw/2026/11/08/a_l0.csv", timedelta(hours=3)),
         obj("padre-craft", "l1/2026/11/08/b_l1.csv", timedelta(hours=3)),
         obj("padre-craft", "l1/2026/11/08/c_l1.csv", timedelta(hours=3)),
         obj("padre-craft", "raw/2026/11/08/d_l0.csv", timedelta(hours=3)),
-    ]
+    )
 
     def test_metatracker_matches_stem_full_key_or_bare_filename(self):
         missing = reconcile.missing_from_metatracker(
