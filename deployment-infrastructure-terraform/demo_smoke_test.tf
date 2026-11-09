@@ -15,7 +15,7 @@ locals {
     # produces; this root has no view of that workspace, so they are spelled
     # out here and checked by the deployment tests.
     incoming_bucket     = "dev-demo-swsoc-incoming"
-    instrument_buckets  = ["dev-demo-craft", "dev-demo-myinst"]
+    instrument_buckets  = ["dev-demo-craft"]
     timestream_database = "dev-demo_sdc_aws_logs"
     timestream_table    = "dev-demo_sdc_aws_s3_bucket_log_table"
     secret_path_root    = "swxsoc/dev/demo"

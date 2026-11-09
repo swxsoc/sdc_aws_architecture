@@ -126,7 +126,7 @@ rule is created disabled and is switched on with
 `enable_demo_smoke_test_schedule = true` once `dev-demo` is bootstrapped and
 the processing image includes `demo_craft`, since every run fails at the
 processing stage until then. The project's role can list, read, write, and delete objects in
-the three dev-demo buckets, read the `swxsoc/dev/demo/*` secrets, and query
+the two dev-demo buckets, read the `swxsoc/dev/demo/*` secrets, and query
 the dev-demo Timestream table, and nothing else.
 
 No support template writes secret values to the log.
@@ -213,14 +213,17 @@ own: `build_demo_sdc_aws_base_docker_image` builds
 `swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image` with `MISSION_NAME=demo`,
 sharing that repository the way every mission's Lambda projects share the
 Lambda repositories, and publishes the result to demo's own
-`dev-demo-swsoc-docker-lambda-base` public ECR. Two companion changes outside
+`dev-demo-swsoc-docker-lambda-base` public ECR. Three companion changes outside
 this repository are needed before the demo images can build: that base
 repository's buildspec must derive the image name and the Lambda projects it
 starts from `MISSION_NAME` (defaulting to `swxsoc_pipeline`, as the Lambda
-buildspecs already do), and `swxsoc/sdc_aws_processing_lambda` needs a
+buildspecs already do); `swxsoc/sdc_aws_processing_lambda` needs a
 `lambda_function/demo-requirements.txt`, which its buildspec selects for
 `MISSION_NAME=demo` and refuses to build without (sorting and artifacts use
-one shared `requirements.txt`). The base buildspec change must be merged
+one shared `requirements.txt`; merged on 2026-11-09); and the swxsoc package's
+`demo` mission entry must list `craft` with `instrument_package: demo_craft`
+and a `csv` file extension, since the Lambda images install swxsoc from
+`main` at build time. The base buildspec change must be merged
 before this root is applied with the demo projects in it: until then
 `build_demo_sdc_aws_base_docker_image` ignores `MISSION_NAME`, publishes to
 the live `dev-swxsoc-pipeline-docker-lambda-base` repository, and starts the

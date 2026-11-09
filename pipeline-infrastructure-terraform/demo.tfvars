@@ -4,9 +4,9 @@
 # pipeline infrastructure with the real base-image, Lambda-image, and
 # architecture builds, to give a baseline cost for one mission workspace, and
 # to provide somewhere to develop features without touching a live mission.
-# Keep it minimal: craft plus one science instrument, no concating, no Grafana,
-# and one external secret (Mattermost). Only the dev-demo workspace is
-# intended to exist.
+# Keep it minimal: craft only, an unconfigured stock mission, no concating, no
+# Grafana, and one external secret (Mattermost). Only the dev-demo workspace
+# is intended to exist.
 
 # AWS Deployment Region
 # Region that the pipeline will be deployed to
@@ -23,11 +23,12 @@ mission_name = "demo"
 resource_purpose = "SWxSOC demo mission pipeline test bed"
 
 # Instrument Names Used in the Mission.
-# craft is listed first by convention. myinst is the single science instrument;
-# its name must match the instrument name of the demo mission in the swxsoc
-# package configuration. Keep this order: the processing bucket notifications
-# are indexed by list position.
-instrument_names = ["craft", "myinst"]
+# demo is the stock mission: craft, the generic spacecraft instrument every
+# mission has, and nothing else. Its name must match the instrument name of
+# the demo mission in the swxsoc package configuration. A science instrument
+# would be appended after craft; the processing bucket notifications are
+# indexed by list position, so craft stays first.
+instrument_names = ["craft"]
 
 # Valid Data Levels
 # This is a list of the valid data levels for the mission

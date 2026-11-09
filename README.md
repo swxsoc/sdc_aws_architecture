@@ -96,7 +96,8 @@ base-image, Lambda-image, and architecture builds as a live mission, so it is
 the place to try a pipeline change, measure what one mission workspace costs,
 and develop features without touching a live dev or prod pipeline.
 
-- Shape: `mission_name = "demo"`, `instrument_names = ["craft", "myinst"]`,
+- Shape: `mission_name = "demo"`, `instrument_names = ["craft"]` (craft only:
+  the unconfigured stock mission every mission starts from),
   processing, sorting, and artifacts only (`needs_concating = false`), no
   Grafana secret, Mattermost notifications, 14-day Lambda log retention, and
   7-day expiry of noncurrent object versions. The only external secret the
@@ -119,18 +120,17 @@ and develop features without touching a live dev or prod pipeline.
   but as shipped it cannot route or process a file. Its instruments are
   `MyInstrument1` and `MyInstrument2`: the package derives bucket names from
   each instrument's `name`, so those are not even legal bucket names, there
-  is no `craft`, there are two science instruments against Terraform's one,
-  and its data levels have no `raw`. Its `instrument_package` points at
-  `demo_myinst1`, which exists nowhere, and the processing Lambda re-raises a
-  failed import, so every sorted file would error and be retried. The
-  package's demo entry therefore needs instruments `craft`
-  (`instrument_package: demo_craft`) and `myinst` (lowercase, matching the
-  `dev-demo-craft` and `dev-demo-myinst` buckets), a `raw` level, and an
-  instrument package per instrument. `swxsoc/demo_craft` (tag `v0.0.1`,
-  generated from `swxsoc/instrument_pkg_template`) is the first: its
-  `process_file` turns one l0 CSV into one l1 CSV and stops, with no CDF
-  library. Until a `myinst` package exists only craft files process end to
-  end, and the smoke test uses craft.
+  is no `craft`, its data levels have no `raw`, and its `instrument_package`
+  points at `demo_myinst1`, which exists nowhere; the processing Lambda
+  re-raises a failed import, so every sorted file would error and be retried.
+  The package's demo entry therefore needs a single instrument, `craft`
+  (`instrument_package: demo_craft`, matching the `dev-demo-craft` bucket),
+  a `raw` level, and `file_extension: csv`. `swxsoc/demo_craft` (tag
+  `v0.0.1`, generated from `swxsoc/instrument_pkg_template`) is that package:
+  its `process_file` turns one l0 CSV into one l1 CSV and stops, with no CDF
+  library. demo is the stock mission, craft and nothing else; a real mission
+  adds its science instruments on top of that shape. No legacy mission entry
+  changes.
 - Bootstrap order, the same as gdctb:
   1. Make the companion changes in other repositories, in this order.
      First, and before the deployment root is applied in step 3: demo has no

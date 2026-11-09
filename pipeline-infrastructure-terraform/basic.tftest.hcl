@@ -815,7 +815,7 @@ run "plan_gdctb_bootstrap" {
   }
 }
 
-# demo is the lightweight test mission: craft plus one science instrument, no
+# demo is the lightweight test mission: craft only (the stock mission), no
 # concating, no Grafana, Mattermost as its only external secret, short log
 # retention, and every Lambda disabled until its image exists. These runs
 # re-state the values; demo.tftest.hcl validates demo.tfvars itself.
@@ -826,7 +826,7 @@ run "plan_demo_bootstrap" {
     deployment_region                     = "us-east-1"
     mission_name                          = "demo"
     resource_purpose                      = "SWxSOC demo mission pipeline test bed"
-    instrument_names                      = ["craft", "myinst"]
+    instrument_names                      = ["craft"]
     valid_data_levels                     = ["raw", "l0", "l1", "ql", "l2", "l3"]
     timestream_database_name              = "demo_sdc_aws_logs"
     timestream_s3_logs_table_name         = "demo_sdc_aws_s3_bucket_log_table"
@@ -888,20 +888,19 @@ run "plan_demo_bootstrap" {
   }
 
   assert {
-    condition     = local.instrument_names == tolist(["craft", "myinst"])
-    error_message = "The demo mission lists craft first and one science instrument."
+    condition     = local.instrument_names == tolist(["craft"])
+    error_message = "The demo mission is craft only: the stock mission shape."
   }
 
   assert {
     condition = (
       resource.aws_s3_bucket.sdc_buckets["demo-swsoc-incoming"].bucket == "dev-demo-swsoc-incoming" &&
       resource.aws_s3_bucket.sdc_buckets["demo-craft"].bucket == "dev-demo-craft" &&
-      resource.aws_s3_bucket.sdc_buckets["demo-myinst"].bucket == "dev-demo-myinst" &&
-      length(resource.aws_s3_bucket.sdc_buckets) == 3 &&
-      resource.aws_s3_bucket.sdc_buckets["demo-myinst"].tags["Mission"] == "demo" &&
-      resource.aws_s3_bucket.sdc_buckets["demo-myinst"].tags["Purpose"] == "SWxSOC demo mission pipeline test bed"
+      length(resource.aws_s3_bucket.sdc_buckets) == 2 &&
+      resource.aws_s3_bucket.sdc_buckets["demo-craft"].tags["Mission"] == "demo" &&
+      resource.aws_s3_bucket.sdc_buckets["demo-craft"].tags["Purpose"] == "SWxSOC demo mission pipeline test bed"
     )
-    error_message = "The demo mission should create exactly the incoming, craft, and myinst buckets with demo tags."
+    error_message = "The demo mission should create exactly the incoming and craft buckets with demo tags."
   }
 
   assert {
@@ -958,7 +957,7 @@ run "plan_demo_sorting_with_mattermost" {
   variables {
     deployment_region                     = "us-east-1"
     mission_name                          = "demo"
-    instrument_names                      = ["craft", "myinst"]
+    instrument_names                      = ["craft"]
     valid_data_levels                     = ["raw", "l0", "l1", "ql", "l2", "l3"]
     timestream_database_name              = "demo_sdc_aws_logs"
     timestream_s3_logs_table_name         = "demo_sdc_aws_s3_bucket_log_table"

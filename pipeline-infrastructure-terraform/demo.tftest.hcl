@@ -79,8 +79,8 @@ run "demo_tfvars_bootstrap" {
   }
 
   assert {
-    condition     = sort(keys(resource.aws_s3_bucket.sdc_buckets)) == sort(["demo-craft", "demo-myinst", "demo-swsoc-incoming"])
-    error_message = "demo.tfvars must create exactly the incoming, craft, and myinst buckets."
+    condition     = sort(keys(resource.aws_s3_bucket.sdc_buckets)) == sort(["demo-craft", "demo-swsoc-incoming"])
+    error_message = "demo.tfvars must create exactly the incoming and craft buckets: demo is craft only."
   }
 
   # Names other repositories derive from the mission name, which demo.tfvars
@@ -177,12 +177,12 @@ run "demo_tfvars_all_lambdas" {
   # data level -> processing and artifacts Lambdas
   assert {
     condition = (
-      length(resource.aws_s3_bucket_notification.pf_bucket_notification) == 2 &&
+      length(resource.aws_s3_bucket_notification.pf_bucket_notification) == 1 &&
       alltrue([for n in resource.aws_s3_bucket_notification.pf_bucket_notification : length(n.topic) == length(var.valid_data_levels)]) &&
-      sort(keys(resource.aws_sns_topic_subscription.pf_sns_topic_subscription)) == sort(["demo-craft", "demo-myinst"]) &&
-      sort(keys(resource.aws_sns_topic_subscription.af_sns_topic_subscription)) == sort(["demo-craft", "demo-myinst"])
+      keys(resource.aws_sns_topic_subscription.pf_sns_topic_subscription) == ["demo-craft"] &&
+      keys(resource.aws_sns_topic_subscription.af_sns_topic_subscription) == ["demo-craft"]
     )
-    error_message = "Each instrument bucket must fan out every data level to the processing and artifacts Lambdas."
+    error_message = "The craft bucket, the only instrument bucket, must fan out every data level to the processing and artifacts Lambdas."
   }
 
   assert {
