@@ -144,6 +144,37 @@ root. It keeps the legacy `gdc_test_kafka` GCN secret through the explicit
 All three S3 backends use native lockfiles. Terraform execution roles need
 access to both the state object and its `.tflock` object.
 
+### Pipeline health
+
+Every `<env>-<mission>` workspace of the pipeline root now gets a feedback
+loop for its chain (land, sort, notify, process, record), defined in
+`pipeline-infrastructure-terraform/pipeline_health.tf` and documented in
+`docs/user-guide/pipeline-health.rst` with the stage/evidence/alarm/gap table:
+
+- an SNS alert topic `<env>-<mission>-pipeline-alerts`;
+- CloudWatch alarms per Lambda stage (errors, throttles, duration near the
+  timeout, and a log metric filter for the failures the handlers swallow),
+  per instrument topic (delivery failures) and per instrument queue (oldest
+  message age), plus a composite alarm `<env>-<mission>-pipeline-unhealthy`;
+- a scheduled reconciliation Lambda (`lambda/reconciliation`, Python 3.12,
+  no third-party dependencies) that lists the mission buckets and compares
+  them with the MetaTracker rows in RDS and the Timestream records, publishing
+  `UnsortedIncomingObjects`, `MissingMetaTrackerRows`,
+  `MissingTimestreamRecords` and friends to `SWxSOC/Pipeline/<env>-<mission>`,
+  each with an alarm; it joins the Lambda VPC to reach RDS and skips that
+  check where `enable_lambda_vpc` is false;
+- a dashboard `<env>-<mission>-pipeline` showing the chain left to right.
+
+`enable_pipeline_alarms` and `enable_pipeline_reconciliation` default to true
+and only ever create new resources; no existing bucket, topic, queue, Lambda
+or role changes. Nothing is delivered until a mission opts in with
+`pipeline_alert_emails` or `enable_pipeline_alerts_mattermost` (a notifier
+Lambda in `lambda/alert_notifier` that reuses the mission's Mattermost
+secret). The health resources are created by a reviewed full
+`terraform apply -var-file=<mission>.tfvars` per workspace; the image
+deployment builds apply targeted plans and will not create them. The Lambda
+sources have unit tests (`make lambda-test`) and are linted by ruff in CI.
+
 ### Resource tags
 
 The base and pipeline roots enforce `Mission`, `Service`, `Environment`,

@@ -16,6 +16,10 @@ terraform {
       source  = "cyrilgdn/postgresql"
       version = "1.22.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "2.7.0"
+    }
 
   }
 
