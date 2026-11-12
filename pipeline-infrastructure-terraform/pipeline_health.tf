@@ -26,8 +26,11 @@ locals {
   # that mean a stage failed on a file. The handlers catch every exception
   # and return a 500 body, so AWS/Lambda Errors alone misses most failures;
   # the patterns below are the lines the sources write on those paths.
-  # Comms (Slack/Mattermost) errors are deliberately absent: they do not
-  # affect the data record and PADRE's artifacts log one on every file.
+  # The artifacts handler logs its failures as {'status': 'ERROR', ...}
+  # lines ("Error Processing Artifacts" is only in the response it returns,
+  # never in the log), and so do the comms clients. Comms (Slack/Mattermost)
+  # errors do not affect the data record and PADRE's artifacts log one on
+  # every file, so every line that names a comms platform is excluded.
   monitored_lambdas = merge(
     local.enable_sorting_lambda ? {
       sorting = {
@@ -50,7 +53,7 @@ locals {
         function_name     = aws_lambda_function.aws_sdc_artifacts_lambda_function[0].function_name
         timeout           = aws_lambda_function.aws_sdc_artifacts_lambda_function[0].timeout
         log_group         = aws_cloudwatch_log_group.artifacts[0].name
-        log_error_pattern = "?\"Error Processing Artifacts\" ?\"Timestream Client could not be initialized\""
+        log_error_pattern = "\"'status': 'ERROR'\" -\"comms client\" -\"Slack\" -\"slack\" -\"Mattermost\" -\"mattermost\" -\"message_ts\""
       }
     } : {},
     local.enable_concating_lambda ? {
@@ -255,7 +258,7 @@ data "archive_file" "pipeline_reconciliation" {
   count       = local.enable_pipeline_reconciliation ? 1 : 0
   type        = "zip"
   source_dir  = "${path.module}/lambda/reconciliation"
-  excludes    = ["test_reconcile.py", "__pycache__"]
+  excludes    = ["test_reconcile.py", "test_pgwire.py", "__pycache__"]
   output_path = "${path.module}/build/pipeline_reconciliation.zip"
 }
 

@@ -3,9 +3,17 @@
 The managed Python runtime ships no PostgreSQL driver and this repository does
 not vendor one, so the reconciliation Lambda speaks the frontend/backend
 protocol (version 3.0) directly. It supports exactly what the reconciliation
-needs: a TLS-wrapped connection when the server offers it, MD5 and
-SCRAM-SHA-256 password authentication, simple-query execution and text-format
-result rows. Everything else in the protocol is out of scope.
+needs: a mandatory, verified TLS connection, MD5 and SCRAM-SHA-256 password
+authentication, simple-query execution and text-format result rows.
+Everything else in the protocol is out of scope.
+
+The server is authenticated before any credential is sent. Amazon RDS
+certificates chain to Amazon's own RDS roots, which are in no public trust
+store, so the roots are packaged next to this module as
+``rds-global-bundle.pem``. That file is an unmodified copy of
+https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem (every
+region's RSA2048, RSA4096 and ECC384 roots; the earliest expires in 2061).
+Replace it with a fresh download if AWS adds a region or a root.
 
 Only ``connect`` and ``Connection.query`` are public. Values are interpolated
 by the caller through ``quote_literal`` and ``quote_identifier``; there is no
@@ -21,6 +29,7 @@ import os
 import socket
 import ssl
 import struct
+from pathlib import Path
 from typing import Self
 
 PROTOCOL_VERSION = 196608  # 3.0
@@ -32,6 +41,8 @@ AUTH_MD5 = 5
 AUTH_SASL = 10
 AUTH_SASL_CONTINUE = 11
 AUTH_SASL_FINAL = 12
+
+RDS_CA_BUNDLE = Path(__file__).with_name("rds-global-bundle.pem")
 
 
 class PostgresError(Exception):
@@ -63,7 +74,7 @@ def _cstring(value: str) -> bytes:
 class Connection:
     """One authenticated session. Use :func:`connect` to create it."""
 
-    def __init__(self, sock: socket.socket | ssl.SSLSocket):
+    def __init__(self, sock: ssl.SSLSocket):
         self._sock = sock
         self._buffer = b""
 
@@ -254,6 +265,21 @@ class _Scram:
             raise PostgresError("SCRAM server signature mismatch")
 
 
+def tls_context(cafile: str | os.PathLike[str] | None = None) -> ssl.SSLContext:
+    """Return a client context that trusts only ``cafile``.
+
+    The default is the packaged Amazon RDS root bundle. The context requires
+    a certificate that chains to one of those roots and matches the host
+    name, over TLS 1.2 or later.
+    """
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.check_hostname = True
+    context.load_verify_locations(cafile=os.fspath(cafile or RDS_CA_BUNDLE))
+    return context
+
+
 def connect(
     host: str,
     port: int,
@@ -261,28 +287,36 @@ def connect(
     user: str,
     password: str,
     timeout: float = 15.0,
-    require_ssl: bool = False,
+    ssl_context: ssl.SSLContext | None = None,
 ) -> Connection:
-    """Open and authenticate a connection.
+    """Open and authenticate a connection over verified TLS.
 
-    TLS is negotiated when the server offers it (the equivalent of
-    ``sslmode=prefer``, or ``require`` when ``require_ssl`` is true). The
-    server certificate is not verified: the Lambda reaches RDS inside the
-    VPC and the RDS certificate authority is not in the runtime's trust store.
+    TLS is mandatory (the equivalent of ``sslmode=verify-full``): a server
+    that refuses it, presents a certificate that does not chain to the
+    trusted roots, or presents one for another host name is rejected before
+    the startup message, so no user name or password reaches it.
+    ``ssl_context`` replaces the default :func:`tls_context`; it must verify
+    the certificate and the host name.
     """
+    context = ssl_context or tls_context()
+    if context.verify_mode != ssl.CERT_REQUIRED or not context.check_hostname:
+        raise PostgresError("ssl_context must verify the certificate and host name")
     sock = socket.create_connection((host, port), timeout=timeout)
     try:
         sock.sendall(struct.pack("!II", 8, SSL_REQUEST_CODE))
+        # Exactly one byte: nothing the peer sends before the handshake is
+        # ever read as protocol data.
         answer = sock.recv(1)
-        if answer == b"S":
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-            sock = context.wrap_socket(sock, server_hostname=host)
-        elif require_ssl:
-            raise PostgresError("server refused TLS and require_ssl is set")
-        elif answer != b"N":
+        if answer == b"N":
+            raise PostgresError("server refused TLS; refusing to send credentials")
+        if answer != b"S":
             raise PostgresError(f"unexpected SSLRequest answer {answer!r}")
+        try:
+            sock = context.wrap_socket(sock, server_hostname=host)
+        except ssl.SSLError as error:
+            raise PostgresError(
+                f"TLS verification of {host} failed: {error}"
+            ) from error
 
         params = b"".join(
             _cstring(key) + _cstring(value)

@@ -408,18 +408,25 @@ variable "enable_pipeline_alerts_mattermost" {
 
 variable "pipeline_reconciliation_interval_minutes" {
   type        = number
-  description = "Minutes between reconciliation runs; also the period of the alarms on the reconciliation metrics."
+  description = "Minutes between reconciliation runs; also the period of the alarms on the reconciliation metrics. The window must cover this interval plus the grace period."
   default     = 60
 
   validation {
     condition     = var.pipeline_reconciliation_interval_minutes >= 5 && var.pipeline_reconciliation_interval_minutes <= 1440 && floor(var.pipeline_reconciliation_interval_minutes) == var.pipeline_reconciliation_interval_minutes
     error_message = "pipeline_reconciliation_interval_minutes must be a whole number of minutes between 5 and 1440."
   }
+
+  # On this variable because the grace validation already reads the window;
+  # a window validation that read the grace back would be a dependency cycle.
+  validation {
+    condition     = var.pipeline_reconciliation_interval_minutes + var.pipeline_reconciliation_grace_minutes <= var.pipeline_reconciliation_window_hours * 60
+    error_message = "pipeline_reconciliation_interval_minutes plus pipeline_reconciliation_grace_minutes must fit inside pipeline_reconciliation_window_hours, so every object is inside the window on at least one run after its grace period."
+  }
 }
 
 variable "pipeline_reconciliation_window_hours" {
   type        = number
-  description = "How far back each reconciliation run looks at object creation times. Timestream keeps 30 days, so the window must not exceed 720 hours."
+  description = "How far back each reconciliation run looks at object creation times. Timestream keeps 30 days, so the window must not exceed 720 hours. It must cover the run interval plus the grace period, or an object that is too fresh for one run is already outside the window at the next and is never judged."
   default     = 24
 
   validation {

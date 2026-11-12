@@ -1,11 +1,12 @@
 """Unit tests for the pure parts of the reconciliation Lambda.
 
 Run from this directory with ``python -m unittest``. They need neither AWS
-nor a database; ``pgwire`` is covered separately against a live PostgreSQL.
+nor a database; ``pgwire`` has its own tests in ``test_pgwire.py``.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from datetime import UTC, datetime, timedelta
@@ -171,3 +172,53 @@ class Metrics(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AffectedKeys(unittest.TestCase):
+    def test_batches_keep_every_key_in_order_within_the_size_limit(self):
+        keys = [f"s3://dev-demo-craft/l0/2026/11/file_{n:05d}.csv" for n in range(900)]
+        batches = list(reconcile.key_batches(keys, max_bytes=4000))
+        self.assertGreater(len(batches), 1)
+        self.assertEqual([key for batch in batches for key in batch], keys)
+        for batch in batches:
+            self.assertLessEqual(len(json.dumps(batch)), 4000)
+
+    def test_an_oversized_key_is_logged_alone_rather_than_dropped(self):
+        keys = ["a", "b" * 500, "c"]
+        self.assertEqual(
+            list(reconcile.key_batches(keys, max_bytes=100)),
+            [["a"], ["b" * 500], ["c"]],
+        )
+
+    def test_entries_list_keys_the_bounded_summary_leaves_out(self):
+        count = reconcile.MAX_LOGGED_KEYS + 150
+        report = reconcile.Report(
+            missing_metatracker=[f"s3://bucket/l0/{n:04d}.csv" for n in range(count)],
+            unsorted=["ingest/a.dat"],
+        )
+        self.assertEqual(
+            len(report.summary()["missing_metatracker"]), reconcile.MAX_LOGGED_KEYS
+        )
+        entries = list(reconcile.affected_key_entries("demo", report))
+        logged = {
+            check: [
+                key for e in entries if e["affected_keys"] == check for key in e["keys"]
+            ]
+            for check in ("unsorted", "missing_metatracker", "missing_timestream")
+        }
+        self.assertEqual(logged["missing_metatracker"], report.missing_metatracker)
+        self.assertEqual(logged["unsorted"], ["ingest/a.dat"])
+        self.assertEqual(logged["missing_timestream"], [])
+        for entry in entries:
+            self.assertEqual(entry["mission"], "demo")
+            self.assertLessEqual(
+                len(json.dumps(entry)), reconcile.KEY_BATCH_BYTES + 1000
+            )
+        metatracker = [
+            e for e in entries if e["affected_keys"] == "missing_metatracker"
+        ]
+        self.assertEqual({e["total"] for e in metatracker}, {count})
+        self.assertEqual(
+            [e["batch"] for e in metatracker],
+            list(range(1, metatracker[0]["batches"] + 1)),
+        )

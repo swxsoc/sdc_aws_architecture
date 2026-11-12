@@ -96,10 +96,13 @@ health check, none of them about the pipeline.
    * - Record
      - A Timestream row with ``file_key`` = the object key; a comms post.
      - none
-     - The handler returns 500 on any exception; a Timestream client that
-       cannot be created is only logged. Comms errors are logged on every
-       PADRE file (the Slack token lacks a scope) and are harmless to the
-       data record, which is why they are excluded from the alarm below.
+     - The handler returns 500 on any exception and logs it as a
+       ``{'status': 'ERROR', ...}`` line (``Error Processing Artifacts`` is
+       only in the response it returns, never in the log); a Timestream
+       client that cannot be created is only logged, in the same form. Comms
+       errors use that form too, are logged on every PADRE file (the Slack
+       token lacks a scope) and are harmless to the data record, which is why
+       they are excluded from the alarm below.
    * - Whole chain
      - Only by hand: list a bucket, query the database, query Timestream and
        compare.
@@ -172,9 +175,10 @@ quiet pipeline is not an alarming one.
      - A metric filter on each Lambda log group counts failure lines; > 0
        alarms. Sorting: ``Issue parsing file``, ``Error sorting file``,
        ``does not exist in bucket``. Processing: ``Error Processing Event``
-       and any ``'status': 'ERROR'`` line. Artifacts: ``Error Processing
-       Artifacts`` and ``Timestream Client could not be initialized``.
-       Concating: ``ERROR:`` and ``Traceback``.
+       and any ``'status': 'ERROR'`` line. Artifacts: any
+       ``'status': 'ERROR'`` line that does not contain ``comms client``,
+       ``Slack``, ``slack``, ``Mattermost``, ``mattermost`` or
+       ``message_ts``. Concating: ``ERROR:`` and ``Traceback``.
      - The exceptions the handlers swallow. This is the alarm that would have
        fired on the MetaTracker foreign-key failure.
    * - ``<instrument>-topic-delivery-failures``
@@ -241,16 +245,35 @@ objects, not metrics:
 * publishes those numbers plus ``ReconciledObjects``,
   ``IncomingObjectsInWindow``, ``ReconciliationRuns`` and
   ``ReconciliationCheckErrors`` to the namespace
-  ``SWxSOC/Pipeline/<env>-<mission>``, and logs every missing key so the
-  CloudWatch log doubles as the replay list.
+  ``SWxSOC/Pipeline/<env>-<mission>``, and logs every affected key so the
+  CloudWatch log doubles as the replay list. The run summary carries at most
+  200 keys per check; the complete lists follow it as ``affected_keys``
+  entries (``unsorted``, ``missing_metatracker``, ``missing_timestream``),
+  split into numbered batches of about 100 KB so each fits one log event.
+
+The window must cover the run interval plus the grace period
+(``pipeline_reconciliation_window_hours * 60 >=
+pipeline_reconciliation_interval_minutes +
+pipeline_reconciliation_grace_minutes``), and Terraform rejects a
+configuration that does not. Otherwise an object too fresh to judge at one
+run would already be outside the window at the next and would never be
+checked.
 
 The RDS security group admits only the Lambda and Grafana security groups, so
 the reconciliation Lambda joins the mission's Lambda security group and
 subnets whenever ``enable_lambda_vpc`` is true, exactly like the processing
 Lambda. It reads the mission's RDS secret and speaks the PostgreSQL wire
-protocol itself (``pgwire.py``, MD5 and SCRAM-SHA-256 authentication over TLS
-when the server offers it), because the managed Python runtime ships no
-PostgreSQL driver and the repository does not vendor one. When
+protocol itself (``pgwire.py``, MD5 and SCRAM-SHA-256 authentication), because
+the managed Python runtime ships no PostgreSQL driver and the repository does
+not vendor one. The connection is always TLS with the server verified, the
+equivalent of ``sslmode=verify-full``: the certificate must chain to an Amazon
+RDS root and match the endpoint's host name before the user name or password
+is sent, and a server that refuses TLS is refused. The RDS roots are in no
+public trust store, so ``rds-global-bundle.pem`` (an unmodified copy of
+https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem) is packaged
+with the Lambda; replace it with a fresh download if AWS adds a region or a
+root. A failed verification is a ``metatracker`` check error, which raises
+the ``reconciliation-check-errors`` alarm. When
 ``enable_lambda_vpc`` is false the database check is skipped and said so in
 the log; the S3 and Timestream checks still run.
 
@@ -297,9 +320,11 @@ and an assertion in ``production.tftest.hcl``. The Lambda sources are under
 ``archive`` provider at plan time (the ``build/`` output is ignored by git).
 Their unit tests run with ``make lambda-test`` and in the codestyle workflow,
 which also runs ruff over them. ``pgwire.py`` was verified against a real
-PostgreSQL 16 for MD5, SCRAM-SHA-256 and cleartext authentication, plain and
-through a TLS-terminating proxy, since the managed test providers cannot reach
-a database.
+PostgreSQL 16 for MD5, SCRAM-SHA-256 and cleartext authentication, since the
+managed test providers cannot reach a database. ``test_pgwire.py`` covers the
+TLS handling with a fake server: a server that refuses TLS, a certificate
+outside the trusted roots and a trusted certificate for another host name are
+each rejected before any credential is sent.
 
 Known gaps
 ----------

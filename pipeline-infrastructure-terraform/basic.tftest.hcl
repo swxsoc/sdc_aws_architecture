@@ -1247,13 +1247,15 @@ run "plan_pipeline_health_defaults" {
       resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["processing"].log_group_name == "/aws/lambda/dev-swxsoc_pipeline_sdc_aws_processing_lambda_function" &&
       strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["processing"].pattern, "Error Processing Event") &&
       strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["sorting"].pattern, "Issue parsing file") &&
-      !strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["artifacts"].pattern, "'status': 'ERROR'") &&
+      startswith(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["artifacts"].pattern, "\"'status': 'ERROR'\" -") &&
+      !strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["artifacts"].pattern, "?") &&
+      alltrue([for term in ["comms client", "Slack", "slack", "Mattermost", "mattermost", "message_ts"] : strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["artifacts"].pattern, " -\"${term}\"")]) &&
       resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["processing"].metric_transformation[0].namespace == "SWxSOC/Pipeline/dev-swxsoc-pipeline" &&
       resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["processing"].metric_transformation[0].name == "ProcessingLogErrors" &&
       resource.aws_cloudwatch_metric_alarm.lambda_log_errors["processing"].metric_name == "ProcessingLogErrors" &&
       resource.aws_cloudwatch_metric_alarm.lambda_log_errors["processing"].namespace == "SWxSOC/Pipeline/dev-swxsoc-pipeline"
     )
-    error_message = "Log metric filters should count each stage's failure lines (comms errors excluded for artifacts) into the workspace namespace that the alarm reads."
+    error_message = "Log metric filters should count each stage's failure lines (for artifacts every ERROR entry except comms errors) into the workspace namespace that the alarm reads."
   }
 
   assert {
@@ -1581,5 +1583,60 @@ run "reject_mattermost_alerts_without_mattermost" {
 
   expect_failures = [
     var.enable_pipeline_alerts_mattermost,
+  ]
+}
+
+# A window shorter than the run interval plus the grace period leaves objects
+# that are never judged: too fresh at one run, outside the window at the next.
+# Here a daily run meets the default 24 hour window and 60 minute grace.
+run "reject_reconciliation_window_shorter_than_interval_plus_grace" {
+  command = plan
+
+  variables {
+    deployment_region                        = "us-east-1"
+    mission_name                             = "swxsoc_pipeline"
+    instrument_names                         = ["reach"]
+    include_craft_instrument                 = false
+    valid_data_levels                        = ["raw", "l0", "l1"]
+    timestream_database_name                 = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name            = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                     = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name        = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name        = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name      = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name     = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name      = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name              = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                          = false
+    enable_grafana_secret                    = false
+    comms_platform                           = "slack"
+    enable_mattermost                        = false
+    enable_processing_lambda                 = false
+    enable_sorting_lambda                    = true
+    enable_artifacts_lambda                  = false
+    enable_concating_lambda                  = false
+    adopt_existing_lambda_log_groups         = false
+    sf_image_tag                             = "test-immutable-sha"
+    pipeline_reconciliation_interval_minutes = 1440
+    pipeline_reconciliation_window_hours     = 24
+    pipeline_reconciliation_grace_minutes    = 60
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  expect_failures = [
+    var.pipeline_reconciliation_interval_minutes,
   ]
 }

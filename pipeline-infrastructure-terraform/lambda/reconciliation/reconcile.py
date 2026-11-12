@@ -9,9 +9,10 @@ with what the pipeline recorded about it:
   MetaTracker row (``<mission>_science_file``) and a Timestream record.
 
 The counts are published as CloudWatch metrics in the workspace's namespace,
-and every missing key is logged so the log doubles as the replay list. The
-checks are independent: one that cannot run (RDS unreachable, say) counts as
-a check error and the others still report.
+and every affected key is logged, in ``affected_keys`` entries of bounded
+size, so the log doubles as the replay list however many files a run finds.
+The checks are independent: one that cannot run (RDS unreachable, say) counts
+as a check error and the others still report.
 
 Configuration comes from environment variables set by Terraform; see
 ``pipeline_health.tf``. ``boto3`` is imported lazily so the pure functions can
@@ -24,7 +25,7 @@ import json
 import logging
 import os
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -34,7 +35,12 @@ log = logging.getLogger("reconcile")
 log.setLevel(logging.INFO)
 
 IDENTIFIER = re.compile(r"^[A-Za-z0-9_]+$")
+# The run summary carries at most this many keys per check; the complete
+# lists go to the log in batches (see ``key_batches``).
 MAX_LOGGED_KEYS = 200
+# Serialized size of one batch of keys. A CloudWatch log event holds 256 KB
+# and an S3 key is at most 1024 bytes, so a batch always fits in one event.
+KEY_BATCH_BYTES = 100_000
 SQL_CHUNK = 500
 
 
@@ -145,6 +151,14 @@ class Report:
             "skipped": self.skipped,
         }
 
+    def affected_keys(self) -> dict[str, list[str]]:
+        """Every key each check flagged, untruncated."""
+        return {
+            "unsorted": self.unsorted,
+            "missing_metatracker": self.missing_metatracker,
+            "missing_timestream": self.missing_timestream,
+        }
+
 
 # -- pure logic ---------------------------------------------------------------
 
@@ -231,6 +245,42 @@ def missing_from_timestream(
         for obj in candidates
         if obj.key not in recorded_keys and obj.basename not in recorded_keys
     ]
+
+
+def key_batches(
+    keys: Iterable[str], max_bytes: int = KEY_BATCH_BYTES
+) -> Iterator[list[str]]:
+    """Split ``keys`` into lists whose JSON form stays within ``max_bytes``.
+
+    Every key is yielded exactly once and in order. A single key larger than
+    ``max_bytes`` still gets a batch of its own rather than being dropped.
+    """
+    batch: list[str] = []
+    size = 0
+    for key in keys:
+        cost = len(json.dumps(key)) + 2
+        if batch and size + cost > max_bytes:
+            yield batch
+            batch, size = [], 0
+        batch.append(key)
+        size += cost
+    if batch:
+        yield batch
+
+
+def affected_key_entries(mission: str, report: Report) -> Iterator[dict[str, object]]:
+    """The log entries that together list every affected key of a run."""
+    for check, keys in report.affected_keys().items():
+        batches = list(key_batches(keys))
+        for number, batch in enumerate(batches, start=1):
+            yield {
+                "mission": mission,
+                "affected_keys": check,
+                "batch": number,
+                "batches": len(batches),
+                "total": len(keys),
+                "keys": batch,
+            }
 
 
 def metatracker_sql(table: str, column: str, values: Iterable[str]) -> str:
@@ -419,4 +469,7 @@ def handler(event, context):
     )
     summary = report.summary()
     log.info(json.dumps({"mission": settings.mission, **summary}, default=str))
+    # The summary is bounded; these entries are the complete replay list.
+    for entry in affected_key_entries(settings.mission, report):
+        log.info(json.dumps(entry))
     return summary
