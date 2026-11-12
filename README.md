@@ -27,7 +27,7 @@ This repository contains Terraform configurations for managing AWS infrastructur
 - Uses separate workspaces for each mission's environments
 - Two workspaces per mission: development (dev) and production (prod)
 - Components:
-  - Mission-specific configurations (`hermes.tfvars`, `padre.tfvars`, `impax.tfvars`, `gdctb.tfvars`)
+  - Mission-specific configurations (`hermes.tfvars`, `padre.tfvars`, `impax.tfvars`, `gdctb.tfvars`, `demo.tfvars`)
   - Lambda functions for artifacts, processing, and sorting
   - Pipeline-specific infrastructure
   - New general pipeline config: `swxsoc_pipeline.tfvars` (REACH as the first instrument, mission name `swxsoc_pipeline`)
@@ -36,12 +36,14 @@ This repository contains Terraform configurations for managing AWS infrastructur
 - Managed in `deployment-infrastructure-terraform/`
 - Uses a dedicated S3 state key and the default workspace
 - Declaratively imports all 33 live CodeBuild projects and adds one dedicated
-  base-architecture project plus the six GDC Trailblazer (gdctb) projects, for
-  42 managed projects in total
+  base-architecture project, the six GDC Trailblazer (gdctb) projects, and the
+  five demo mission projects, and the demo smoke test, for 48 managed projects
+  in total
 - Owns their predictable service roles, policies, webhooks, log groups, and tags
 - Generates a mission's standard projects from one entry in `local.missions`
-- Manages the eleven dependency rebuild triggers and the PADRE reprocessing job
-  as least-privilege support projects with generated buildspecs
+- Manages the eleven dependency rebuild triggers, the PADRE reprocessing job,
+  and the demo smoke test as least-privilege support projects with generated
+  buildspecs
 
 ## Getting Started
 
@@ -86,6 +88,113 @@ terraform apply -var-file=<mission>.tfvars
   `swxsoc/<dev|prod>/gdctb/processing/grafana` holds the API key for the
   GDCTB Grafana instance (http://grafana.gdctb.swsoc.smce.nasa.gov/), which is
   deployed from the `sdc_aws_grafana` repository alongside the other missions.
+
+### demo Notes
+
+`demo.tfvars` is the lightweight end-to-end test mission. It runs the same
+base-image, Lambda-image, and architecture builds as a live mission, so it is
+the place to try a pipeline change, measure what one mission workspace costs,
+and develop features without touching a live dev or prod pipeline.
+
+- Shape: `mission_name = "demo"`, `instrument_names = ["craft"]` (craft only:
+  the unconfigured stock mission every mission starts from),
+  processing, sorting, and artifacts only (`needs_concating = false`), no
+  Grafana secret, Mattermost notifications, 14-day Lambda log retention, and
+  7-day expiry of noncurrent object versions. The only external secret the
+  plan reads is the Mattermost one below.
+- Notifications: Sorting and Artifacts post to a demo Mattermost channel.
+  Create the channel and a bot token, then seed and tag
+  `swxsoc/dev/demo/communications/mattermost` (`token` and `channel_id` keys;
+  tags `Mission=demo`, `Service=communications`, `Environment=Development`,
+  `ManagedBy=external`) as described under Mattermost below, before the first
+  `dev-demo` plan. One secret serves one workspace, so demo needs one channel
+  while it is `dev-demo` only.
+- Only the `dev-demo` workspace is intended to exist; do not create
+  `prod-demo`. The deployment root lists `demo` as a development-only mission,
+  so release tags never start a production demo build: demo image projects
+  have no release-tag webhook filter (the Lambda repositories are shared, so a
+  live mission's tag would otherwise reach them), and `trigger_rebuild_swxsoc`
+  rebuilds the demo base image for `DEVELOPMENT` on a swxsoc release tag.
+- The `demo` mission already exists in the swxsoc package's default
+  configuration and is selected inside the Lambdas by `SWXSOC_MISSION=demo`,
+  but as shipped it cannot route or process a file. Its instruments are
+  `MyInstrument1` and `MyInstrument2`: the package derives bucket names from
+  each instrument's `name`, so those are not even legal bucket names, there
+  is no `craft`, its data levels have no `raw`, and its `instrument_package`
+  points at `demo_myinst1`, which exists nowhere; the processing Lambda
+  re-raises a failed import, so every sorted file would error and be retried.
+  The package's demo entry therefore needs a single instrument, `craft`
+  (`instrument_package: demo_craft`, matching the `dev-demo-craft` bucket),
+  a `raw` level, and `file_extension: csv`. `swxsoc/demo_craft` (tag
+  `v0.0.1`, generated from `swxsoc/instrument_pkg_template`) is that package:
+  its `process_file` turns one l0 CSV into one l1 CSV and stops, with no CDF
+  library. demo is the stock mission, craft and nothing else; a real mission
+  adds its science instruments on top of that shape. No legacy mission entry
+  changes.
+- Bootstrap order, the same as gdctb:
+  1. Make the companion changes in other repositories, in this order.
+     First, and before the deployment root is applied in step 3: demo has no
+     base image repository, so `build_demo_sdc_aws_base_docker_image` builds
+     `swxsoc/swxsoc_pipeline_sdc_aws_base_docker_image` with
+     `MISSION_NAME=demo`, and that buildspec must derive the image name
+     (`demo-swsoc-docker-lambda-base`) and the `build_demo_*` Lambda projects
+     it starts from `MISSION_NAME`, keeping `swxsoc_pipeline` as the default
+     (the Lambda image buildspecs already derive their names that way). This
+     is a hard gate, not a nicety: until that change is merged the demo base
+     project ignores `MISSION_NAME`, publishes to the live
+     `dev-swxsoc-pipeline-docker-lambda-base` repository, and starts the three
+     `build_swxsoc_pipeline_*` Lambda builds, redeploying `dev-swxsoc_pipeline`;
+     once the deployment root is applied, the demo project's webhook does that
+     on the next push to that repository's `main`. Second, add
+     `lambda_function/demo-requirements.txt` to
+     `swxsoc/sdc_aws_processing_lambda` listing `swxsoc`, `swxsoc[tracker]`,
+     `psycopg2-binary`, and
+     `demo_craft @ git+https://github.com/swxsoc/demo_craft.git@v0.0.1`
+     (the package exists; see the swxsoc bullet above); that buildspec selects
+     `<mission>-requirements.txt` and exits if it is missing (the
+     `swxsoc_pipeline-requirements.txt` there is the model; sorting and
+     artifacts share one `requirements.txt` and need nothing). Third, change
+     the swxsoc package's demo mission configuration as described above.
+  2. Seed and tag the `swxsoc/dev/demo/communications/mattermost` secret,
+     then create the `dev-demo` workspace and apply `demo.tfvars` with every
+     `enable_*_lambda` flag false to create the buckets, topics, queues, ECR
+     repositories, Timestream table, and database.
+  3. Apply the deployment root to create the five `build_demo_*` CodeBuild
+     projects, run `build_demo_sdc_aws_base_docker_image`, and once each
+     Lambda image has been pushed set its `enable_*_lambda` flag to true.
+     Keep `adopt_existing_lambda_log_groups = false`; those applies create the
+     log groups.
+- Smoke test: the deployment root's `demo-smoke-test` CodeBuild project runs
+  `scripts/demo_smoke_test.py`, which uploads one synthetic
+  `demo_craft_l0_<time>_v0.0.1.csv` to `dev-demo-swsoc-incoming` and verifies
+  the sorted copy in `dev-demo-craft`, a processed output, the Timestream
+  record, and the Mattermost post, then deletes what it created; any missing
+  stage fails the build. Its daily schedule is created disabled
+  (`enable_demo_smoke_test_schedule` in the deployment root); turn it on after
+  step 3, once the processing image includes `demo_craft`, and start the project by
+  hand from CodeBuild at any time. To check names and access first, run
+  `python scripts/demo_smoke_test.py --dry-run` with credentials for the
+  account; `--help` lists the options, including `--skip-rds` for a host the
+  RDS security group does not admit.
+- Baseline cost. Almost all of the idle cost is the RDS instance; everything
+  else is pay-per-use and near zero when no files are flowing. Estimated from
+  us-east-1 list prices for one dev workspace; confirm in Cost Explorer with
+  the `Mission=demo` cost allocation tag.
+
+  | Resource | Approximate monthly cost (USD) |
+  | --- | --- |
+  | RDS `db.t4g.micro`, single AZ | 12 |
+  | RDS 30 GB gp2 storage | 3.50 |
+  | KMS key for the RDS secret | 1 |
+  | Secrets Manager (RDS secret and the external Mattermost secret) | 0.80 |
+  | ECR private image storage (3 images) | about 0.50 |
+  | S3, SNS, SQS, Timestream, CloudWatch Logs, Lambda at idle | under 1 |
+  | Total at idle | about 19 |
+
+  CodeBuild is billed per build minute on top of that, driven by pushes to
+  the demo and Lambda repositories and by `trigger_rebuild_swxsoc`, which
+  rebuilds the demo base image on every swxsoc package release. The daily
+  smoke test adds a few build minutes a day, under 2 USD a month.
 
 ### swxsoc_pipeline Notes
 - `swxsoc_pipeline.tfvars` uses mission-scoped names and starts with `instrument_names = ["reach"]` and `mission_name = "swxsoc_pipeline"`.
@@ -172,7 +281,7 @@ the same `Mission`, `Service`, and `Environment` tags to managed secrets.
 Communications platforms are explicit per mission: PADRE selects Slack,
 HERMES preserves legacy auto-detection, the existing iMPAX plus SWxSOC
 Pipeline Mattermost environments are adopted through their mission-specific
-external secrets, and GDCTB selects Mattermost from the start.
+external secrets, and GDCTB and demo select Mattermost from the start.
 
 Changing an existing Secrets Manager name creates a replacement because AWS
 does not support renaming secrets. Before applying a naming migration, copy any

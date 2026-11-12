@@ -44,3 +44,20 @@ variable "codebuild_log_retention_days" {
     error_message = "codebuild_log_retention_days must be a CloudWatch Logs supported retention period."
   }
 }
+
+variable "enable_demo_smoke_test_schedule" {
+  type        = bool
+  description = "Whether the demo-smoke-test project runs on demo_smoke_test_schedule. Leave false until the dev-demo workspace is bootstrapped and a demo instrument package exists; the project can always be started by hand."
+  default     = false
+}
+
+variable "demo_smoke_test_schedule" {
+  type        = string
+  description = "EventBridge schedule expression for the demo mission smoke test"
+  default     = "cron(0 13 * * ? *)"
+
+  validation {
+    condition     = can(regex("^(cron|rate)\\(.+\\)$", var.demo_smoke_test_schedule))
+    error_message = "demo_smoke_test_schedule must be an EventBridge cron(...) or rate(...) expression."
+  }
+}
