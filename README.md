@@ -145,16 +145,15 @@ and develop features without touching a live dev or prod pipeline.
      `dev-swxsoc-pipeline-docker-lambda-base` repository, and starts the three
      `build_swxsoc_pipeline_*` Lambda builds, redeploying `dev-swxsoc_pipeline`;
      once the deployment root is applied, the demo project's webhook does that
-     on the next push to that repository's `main`. Second, add
-     `lambda_function/demo-requirements.txt` to
-     `swxsoc/sdc_aws_processing_lambda` listing `swxsoc`, `swxsoc[tracker]`,
-     `psycopg2-binary`, and
-     `demo_craft @ git+https://github.com/swxsoc/demo_craft.git@v0.0.1`
-     (the package exists; see the swxsoc bullet above); that buildspec selects
-     `<mission>-requirements.txt` and exits if it is missing (the
-     `swxsoc_pipeline-requirements.txt` there is the model; sorting and
-     artifacts share one `requirements.txt` and need nothing). Third, change
-     the swxsoc package's demo mission configuration as described above.
+     on the next push to that repository's `main`. Second, and already done
+     (merged on 2026-11-09): `swxsoc/sdc_aws_processing_lambda` carries
+     `lambda_function/demo-requirements.txt` listing `swxsoc`,
+     `swxsoc[tracker]`, `psycopg2-binary`, and
+     `demo_craft @ git+https://github.com/swxsoc/demo_craft.git@v0.0.1`;
+     that buildspec selects `<mission>-requirements.txt` and exits if it is
+     missing (sorting and artifacts share one `requirements.txt` and need
+     nothing). Third, change the swxsoc package's demo mission configuration
+     as described above.
   2. Seed and tag the `swxsoc/dev/demo/communications/mattermost` secret,
      then create the `dev-demo` workspace and apply `demo.tfvars` with every
      `enable_*_lambda` flag false to create the buckets, topics, queues, ECR
