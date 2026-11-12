@@ -52,7 +52,7 @@ tf-test-base:
 	@cd "$(TF_BASE_DIR)" && terraform init -backend=false -input=false && TF_WORKSPACE=default TF_CLI_ARGS_init="-backend=false -input=false" terraform test
 
 tf-test-pipeline:
-	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false -input=false && TF_WORKSPACE=dev-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=basic.tftest.hcl && TF_WORKSPACE=prod-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=production.tftest.hcl
+	@cd "$(TF_PIPELINE_DIR)" && terraform init -backend=false -input=false && TF_WORKSPACE=dev-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=basic.tftest.hcl && TF_WORKSPACE=prod-test TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=production.tftest.hcl && TF_WORKSPACE=dev-demo TF_CLI_ARGS_init="-backend=false -input=false" terraform test -filter=demo.tftest.hcl -var-file=demo.tfvars
 
 tf-test-deployment:
 	@cd "$(TF_DEPLOYMENT_DIR)" && terraform init -backend=false -input=false && TF_CLI_ARGS_init="-backend=false -input=false" terraform test
