@@ -8,6 +8,12 @@ with what the pipeline recorded about it:
 * an object under a data-level prefix of an instrument bucket must have a
   MetaTracker row (``<mission>_science_file``) and a Timestream record.
 
+The processing Lambda creates the MetaTracker tables when it tracks its first
+file, so a workspace that has processed nothing yet has none. That is not a
+failed check: with nothing to reconcile the database check is skipped and says
+so, and once there are objects to reconcile a missing table means every one
+of them is missing its row.
+
 The counts are published as CloudWatch metrics in the workspace's namespace,
 and every affected key is logged, in ``affected_keys`` entries of bounded
 size, so the log doubles as the replay list however many files a run finds.
@@ -23,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 from collections.abc import Iterable, Iterator
@@ -294,14 +301,35 @@ def metatracker_sql(table: str, column: str, values: Iterable[str]) -> str:
     )
 
 
+def tables_exist_sql(tables: Iterable[str]) -> str:
+    """SELECT one boolean per table: does the name resolve to a relation?
+
+    ``to_regclass`` resolves the quoted name the way the other queries do and
+    returns NULL, rather than raising, when there is no such relation.
+    """
+    columns = []
+    for table in tables:
+        if not IDENTIFIER.match(table):
+            raise ValueError("table must be a plain identifier")
+        name = pgwire.quote_literal(pgwire.quote_identifier(table))
+        columns.append(f"to_regclass({name}) IS NOT NULL")
+    return "SELECT " + ", ".join(columns)
+
+
 def failed_status_sql(status_table: str, window: timedelta) -> str:
+    """Count the status rows marked failed inside ``window``.
+
+    The window is given in seconds so a fractional
+    ``pipeline_reconciliation_window_hours`` covers the same span here as in
+    the other checks.
+    """
     if not IDENTIFIER.match(status_table):
         raise ValueError("status table must be a plain identifier")
-    hours = max(1, int(window.total_seconds() // 3600))
+    seconds = math.ceil(window.total_seconds())
     return (
         f"SELECT count(*) FROM {pgwire.quote_identifier(status_table)} "
         f"WHERE processing_status = 'failed' AND last_processing_timestamp > "
-        f"now() - interval '{hours} hours'"
+        f"now() - interval '{seconds} seconds'"
     )
 
 
@@ -347,6 +375,53 @@ def fetch_metatracker_rows(
                 if s3_key:
                     s3_keys.add(s3_key)
     return filenames, s3_keys
+
+
+def check_metatracker(
+    connection: pgwire.Connection,
+    settings: Settings,
+    candidates: list[S3Object],
+    report: Report,
+) -> None:
+    """Fill in the MetaTracker results of ``report`` from an open connection.
+
+    The tables are created by the processing Lambda on its first file, so a
+    table that does not exist is a state to report, not a query to fail on.
+    """
+    science_table = settings.science_file_table
+    status_table = settings.status_table
+    rows = connection.query(tables_exist_sql([science_table, status_table]))
+    has_science, has_status = (value == "t" for value in rows[0])
+
+    if has_science:
+        filenames, s3_keys = fetch_metatracker_rows(
+            connection, science_table, candidates
+        )
+        report.missing_metatracker = missing_from_metatracker(
+            candidates, filenames, s3_keys
+        )
+    elif candidates:
+        # Objects the pipeline should have recorded, and nowhere to have
+        # recorded them: each one is missing its row.
+        log.warning(
+            "table %s does not exist; all %d reconciled objects are missing rows",
+            science_table,
+            len(candidates),
+        )
+        report.missing_metatracker = missing_from_metatracker(candidates, set(), set())
+    else:
+        report.skipped.append(
+            f"metatracker: table {science_table} does not exist yet "
+            "and there is nothing to reconcile"
+        )
+
+    if has_status:
+        rows = connection.query(failed_status_sql(status_table, settings.window))
+        report.failed_processing = int(rows[0][0] or 0) if rows else 0
+    else:
+        report.skipped.append(
+            f"failed processing: table {status_table} does not exist yet"
+        )
 
 
 def fetch_timestream_keys(timestream, sql: str) -> set[str]:
@@ -428,16 +503,7 @@ def reconcile(settings: Settings, session, now: datetime | None = None) -> Repor
     else:
         try:
             with open_rds(settings, session.client("secretsmanager")) as connection:
-                filenames, s3_keys = fetch_metatracker_rows(
-                    connection, settings.science_file_table, candidates
-                )
-                report.missing_metatracker = missing_from_metatracker(
-                    candidates, filenames, s3_keys
-                )
-                rows = connection.query(
-                    failed_status_sql(settings.status_table, settings.window)
-                )
-                report.failed_processing = int(rows[0][0] or 0) if rows else 0
+                check_metatracker(connection, settings, candidates, report)
         except Exception as error:
             log.exception("metatracker check failed")
             report.check_errors.append(f"metatracker: {error}")

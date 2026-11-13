@@ -122,9 +122,26 @@ class Sql(unittest.TestCase):
 
     def test_window_sql(self):
         self.assertIn(
-            "interval '24 hours'", reconcile.failed_status_sql("p_status", WINDOW)
+            "interval '86400 seconds'", reconcile.failed_status_sql("p_status", WINDOW)
         )
         self.assertIn("ago(26h)", reconcile.timestream_sql("db", "table", WINDOW))
+
+    def test_a_fractional_window_is_not_shortened(self):
+        window = timedelta(hours=1.5)
+        self.assertIn(
+            "interval '5400 seconds'", reconcile.failed_status_sql("p_status", window)
+        )
+        # The Timestream query reads past the window, never short of it.
+        self.assertIn("ago(3h)", reconcile.timestream_sql("db", "table", window))
+
+    def test_tables_exist_sql_asks_about_each_quoted_name(self):
+        self.assertEqual(
+            reconcile.tables_exist_sql(["demo_science_file", "demo_status"]),
+            "SELECT to_regclass('\"demo_science_file\"') IS NOT NULL, "
+            "to_regclass('\"demo_status\"') IS NOT NULL",
+        )
+        with self.assertRaises(ValueError):
+            reconcile.tables_exist_sql(["demo_status; drop"])
 
 
 class Metrics(unittest.TestCase):
@@ -172,6 +189,88 @@ class Metrics(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeConnection:
+    """Answers the reconciliation queries the way PostgreSQL would."""
+
+    def __init__(self, tables: set[str], science_rows=(), failed: int = 0):
+        self.tables = tables
+        self.science_rows = list(science_rows)
+        self.failed = failed
+        self.queries: list[str] = []
+
+    def query(self, sql: str) -> list[tuple[str | None, ...]]:
+        self.queries.append(sql)
+        if sql.startswith("SELECT to_regclass"):
+            names = re.findall(r"to_regclass\('\"(\w+)\"'\)", sql)
+            return [tuple("t" if name in self.tables else "f" for name in names)]
+        table = re.search(r'FROM "(\w+)"', sql).group(1)
+        if table not in self.tables:
+            raise AssertionError(f"queried {table}, which does not exist")
+        if sql.startswith("SELECT count(*)"):
+            return [(str(self.failed),)]
+        return self.science_rows
+
+
+class CheckMetatracker(unittest.TestCase):
+    SETTINGS = reconcile.Settings.from_environment(
+        {
+            "MISSION": "demo",
+            "INCOMING_BUCKET": "dev-demo-incoming",
+            "INSTRUMENT_BUCKETS": "dev-demo-craft",
+            "DATA_LEVELS": "raw",
+            "TIMESTREAM_DATABASE": "d",
+            "TIMESTREAM_TABLE": "t",
+            "METRIC_NAMESPACE": "SWxSOC/Pipeline/dev-demo",
+        }
+    )
+    CANDIDATES = (
+        obj("dev-demo-craft", "raw/2026/11/demo_craft_1.csv", timedelta(hours=2)),
+        obj("dev-demo-craft", "raw/2026/11/demo_craft_2.csv", timedelta(hours=3)),
+    )
+
+    def check(self, connection, candidates):
+        report = reconcile.Report()
+        reconcile.check_metatracker(connection, self.SETTINGS, candidates, report)
+        return report
+
+    def test_an_empty_workspace_without_tables_is_skipped_not_failed(self):
+        connection = FakeConnection(tables=set())
+        report = self.check(connection, [])
+        self.assertEqual(report.check_errors, [])
+        self.assertEqual(report.missing_metatracker, [])
+        self.assertEqual(report.failed_processing, 0)
+        self.assertEqual(len(report.skipped), 2)
+        self.assertIn("demo_science_file does not exist yet", report.skipped[0])
+        self.assertIn("demo_status does not exist yet", report.skipped[1])
+        # Only the existence question was asked.
+        self.assertEqual(len(connection.queries), 1)
+
+    def test_objects_without_a_table_are_all_missing_their_rows(self):
+        report = self.check(FakeConnection(tables=set()), list(self.CANDIDATES))
+        self.assertEqual(
+            report.missing_metatracker,
+            [
+                "s3://dev-demo-craft/raw/2026/11/demo_craft_1.csv",
+                "s3://dev-demo-craft/raw/2026/11/demo_craft_2.csv",
+            ],
+        )
+        self.assertEqual(report.metrics()["MissingMetaTrackerRows"], 2)
+
+    def test_existing_tables_are_reconciled_and_counted(self):
+        connection = FakeConnection(
+            tables={"demo_science_file", "demo_status"},
+            science_rows=[("demo_craft_1", "raw/2026/11/demo_craft_1.csv")],
+            failed=3,
+        )
+        report = self.check(connection, list(self.CANDIDATES))
+        self.assertEqual(
+            report.missing_metatracker,
+            ["s3://dev-demo-craft/raw/2026/11/demo_craft_2.csv"],
+        )
+        self.assertEqual(report.failed_processing, 3)
+        self.assertEqual(report.skipped, [])
 
 
 class AffectedKeys(unittest.TestCase):

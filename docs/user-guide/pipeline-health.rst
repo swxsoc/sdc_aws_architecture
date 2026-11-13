@@ -238,7 +238,7 @@ objects, not metrics:
 * queries ``<mission>_science_file`` for those objects by filename stem and by
   key, and counts the ones with no row as ``MissingMetaTrackerRows``. It also
   reports ``FailedProcessingFiles``, the ``<mission>_status`` rows marked
-  ``failed`` in the window, for the dashboard;
+  ``failed`` in the window (fractional hours included), for the dashboard;
 * queries the mission's Timestream table over the window and counts objects
   that appear in neither ``file_key`` nor ``new_file_key`` as
   ``MissingTimestreamRecords``;
@@ -258,6 +258,17 @@ pipeline_reconciliation_grace_minutes``), and Terraform rejects a
 configuration that does not. Otherwise an object too fresh to judge at one
 run would already be outside the window at the next and would never be
 checked.
+
+The processing Lambda creates the MetaTracker tables when it tracks its first
+file, so a new workspace, such as one in the middle of the bootstrap applies
+that keep ``enable_processing_lambda`` false, has none. The reconciliation
+asks whether the tables exist before it queries them. With no table and
+nothing to reconcile the database check is skipped and listed under
+``skipped`` in the run summary, so an empty workspace does not hold
+``reconciliation-check-errors`` in alarm. With no ``<mission>_science_file``
+table and objects that should have been recorded, every one of them counts as
+a missing row and is listed, which raises ``missing-metatracker-rows``; a
+table that disappears from a working pipeline shows up the same way.
 
 The RDS security group admits only the Lambda and Grafana security groups, so
 the reconciliation Lambda joins the mission's Lambda security group and
