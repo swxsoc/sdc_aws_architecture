@@ -367,3 +367,109 @@ variable "rds_engine_version" {
   description = "Postgres engine version for the RDS instance"
   default     = "14.12"
 }
+
+// Pipeline health: alarms, dashboard and reconciliation for every workspace.
+// Everything these gate is additive; defaults create the monitoring but
+// deliver nothing until a mission opts in to a destination.
+
+variable "enable_pipeline_alarms" {
+  type        = bool
+  description = "Whether to create the pipeline alert topic, the per-stage CloudWatch alarms and log metric filters, the composite alarm and the dashboard for this workspace. Creates new resources only."
+  default     = true
+}
+
+variable "enable_pipeline_reconciliation" {
+  type        = bool
+  description = "Whether to create the scheduled reconciliation Lambda that compares the mission buckets with MetaTracker and Timestream and publishes the SWxSOC/Pipeline/<env>-<mission> metrics, plus the alarms on those metrics when enable_pipeline_alarms is true."
+  default     = true
+}
+
+variable "pipeline_alert_emails" {
+  type        = list(string)
+  description = "Email addresses subscribed to the pipeline alert topic. Each must confirm the subscription SNS sends it. Empty subscribes nobody."
+  default     = []
+
+  validation {
+    condition     = alltrue([for address in var.pipeline_alert_emails : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", address))])
+    error_message = "Every pipeline_alert_emails entry must be an email address."
+  }
+}
+
+variable "enable_pipeline_alerts_mattermost" {
+  type        = bool
+  description = "Whether to post pipeline alarm transitions to the mission's Mattermost channel through a notifier Lambda that reuses the mission's Mattermost secret. Requires enable_mattermost."
+  default     = false
+
+  validation {
+    condition     = !var.enable_pipeline_alerts_mattermost || var.enable_mattermost
+    error_message = "enable_pipeline_alerts_mattermost needs enable_mattermost, which supplies the Mattermost secret the notifier posts with."
+  }
+}
+
+variable "pipeline_reconciliation_interval_minutes" {
+  type        = number
+  description = "Minutes between reconciliation runs; also the period of the alarms on the reconciliation metrics. The window must cover this interval plus the grace period."
+  default     = 60
+
+  validation {
+    condition     = var.pipeline_reconciliation_interval_minutes >= 5 && var.pipeline_reconciliation_interval_minutes <= 1440 && floor(var.pipeline_reconciliation_interval_minutes) == var.pipeline_reconciliation_interval_minutes
+    error_message = "pipeline_reconciliation_interval_minutes must be a whole number of minutes between 5 and 1440."
+  }
+
+  # On this variable because the grace validation already reads the window;
+  # a window validation that read the grace back would be a dependency cycle.
+  validation {
+    condition     = var.pipeline_reconciliation_interval_minutes + var.pipeline_reconciliation_grace_minutes <= var.pipeline_reconciliation_window_hours * 60
+    error_message = "pipeline_reconciliation_interval_minutes plus pipeline_reconciliation_grace_minutes must fit inside pipeline_reconciliation_window_hours, so every object is inside the window on at least one run after its grace period."
+  }
+}
+
+variable "pipeline_reconciliation_window_hours" {
+  type        = number
+  description = "How far back each reconciliation run looks at object creation times. Timestream keeps 30 days, so the window must not exceed 720 hours. It must cover the run interval plus the grace period, or an object that is too fresh for one run is already outside the window at the next and is never judged."
+  default     = 24
+
+  validation {
+    condition     = var.pipeline_reconciliation_window_hours >= 1 && var.pipeline_reconciliation_window_hours <= 720
+    error_message = "pipeline_reconciliation_window_hours must be between 1 and 720."
+  }
+}
+
+variable "pipeline_reconciliation_grace_minutes" {
+  type        = number
+  description = "Objects newer than this are assumed to still be moving through the chain and are not judged yet."
+  default     = 60
+
+  validation {
+    condition     = var.pipeline_reconciliation_grace_minutes >= 1 && var.pipeline_reconciliation_grace_minutes * 60 < var.pipeline_reconciliation_window_hours * 3600
+    error_message = "pipeline_reconciliation_grace_minutes must be at least 1 and shorter than the window."
+  }
+}
+
+variable "pipeline_reconciliation_ignore_key_regex" {
+  type        = string
+  description = "Incoming-bucket keys matching this regular expression are never counted as unsorted (directory markers and the static index files by default). Empty ignores nothing."
+  default     = "(^|/)(index\\.html|list\\.js)$|/$"
+}
+
+variable "pipeline_lambda_duration_alarm_fraction" {
+  type        = number
+  description = "A Lambda stage alarms when its maximum duration reaches this fraction of its timeout."
+  default     = 0.9
+
+  validation {
+    condition     = var.pipeline_lambda_duration_alarm_fraction > 0 && var.pipeline_lambda_duration_alarm_fraction <= 1
+    error_message = "pipeline_lambda_duration_alarm_fraction must be greater than 0 and at most 1."
+  }
+}
+
+variable "pipeline_sqs_oldest_message_age_threshold_seconds" {
+  type        = number
+  description = "An instrument queue alarms when its oldest message is older than this, meaning the external consumer has stopped. Must stay below the queue's four-day retention."
+  default     = 21600
+
+  validation {
+    condition     = var.pipeline_sqs_oldest_message_age_threshold_seconds >= 60 && var.pipeline_sqs_oldest_message_age_threshold_seconds < 345600
+    error_message = "pipeline_sqs_oldest_message_age_threshold_seconds must be between 60 and the four-day queue retention."
+  }
+}

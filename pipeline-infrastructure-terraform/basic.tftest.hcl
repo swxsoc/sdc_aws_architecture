@@ -1129,3 +1129,514 @@ run "plan_rds_operator_prefix_list" {
     error_message = "No operator CIDR blocks should be written into the RDS security group from this repository."
   }
 }
+
+# Pipeline health defaults: every workspace gets the alert topic, the
+# per-stage alarms and log filters, the reconciliation Lambda, the composite
+# alarm and the dashboard, and nothing is subscribed until a mission opts in.
+run "plan_pipeline_health_defaults" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["reach"]
+    include_craft_instrument             = false
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = false
+    enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
+    enable_mattermost                    = true
+    enable_processing_lambda             = true
+    enable_sorting_lambda                = true
+    enable_artifacts_lambda              = true
+    enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
+    sf_image_tag                         = "test-immutable-sha"
+    af_image_tag                         = "test-immutable-sha"
+    pf_image_tag                         = "test-immutable-sha"
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
+  assert {
+    condition = (
+      resource.aws_sns_topic.pipeline_alerts[0].name == "dev-swxsoc-pipeline-pipeline-alerts" &&
+      resource.aws_sns_topic.pipeline_alerts[0].tags["Service"] == "pipeline-health" &&
+      length(resource.aws_sns_topic_subscription.pipeline_alert_emails) == 0 &&
+      length(resource.aws_lambda_function.pipeline_alert_notifier) == 0
+    )
+    error_message = "The alert topic should exist by default with nothing subscribed to it."
+  }
+
+  assert {
+    condition = (
+      sort(keys(resource.aws_cloudwatch_metric_alarm.lambda_errors)) == sort(["sorting", "processing", "artifacts"]) &&
+      sort(keys(resource.aws_cloudwatch_metric_alarm.lambda_throttles)) == sort(["sorting", "processing", "artifacts"]) &&
+      sort(keys(resource.aws_cloudwatch_metric_alarm.lambda_duration)) == sort(["sorting", "processing", "artifacts"]) &&
+      sort(keys(resource.aws_cloudwatch_metric_alarm.lambda_log_errors)) == sort(["sorting", "processing", "artifacts"]) &&
+      !contains(keys(resource.aws_cloudwatch_metric_alarm.lambda_errors), "concating")
+    )
+    error_message = "Each enabled Lambda stage, and only those, should get errors, throttles, duration and log-errors alarms."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_metric_alarm.lambda_errors["processing"].alarm_name == "dev-swxsoc-pipeline-pipeline-processing-errors" &&
+      resource.aws_cloudwatch_metric_alarm.lambda_errors["processing"].dimensions["FunctionName"] == "dev-swxsoc_pipeline_sdc_aws_processing_lambda_function" &&
+      resource.aws_cloudwatch_metric_alarm.lambda_errors["processing"].treat_missing_data == "notBreaching" &&
+      length(resource.aws_cloudwatch_metric_alarm.lambda_errors["processing"].alarm_actions) == 1 &&
+      length(resource.aws_cloudwatch_metric_alarm.lambda_errors["processing"].ok_actions) == 1
+    )
+    error_message = "Lambda alarms should watch the workspace's function, stay quiet on missing data, and notify the alert topic on both transitions."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_metric_alarm.lambda_duration["processing"].threshold == 810000 &&
+      resource.aws_cloudwatch_metric_alarm.lambda_duration["sorting"].threshold == 540000 &&
+      resource.aws_cloudwatch_metric_alarm.lambda_duration["processing"].statistic == "Maximum"
+    )
+    error_message = "Duration alarms should fire at 90% of each function's own timeout, in milliseconds."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["processing"].log_group_name == "/aws/lambda/dev-swxsoc_pipeline_sdc_aws_processing_lambda_function" &&
+      strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["processing"].pattern, "Error Processing Event") &&
+      strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["sorting"].pattern, "Issue parsing file") &&
+      startswith(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["artifacts"].pattern, "\"'status': 'ERROR'\" -") &&
+      !strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["artifacts"].pattern, "?") &&
+      alltrue([for term in ["comms client", "Slack", "slack", "Mattermost", "mattermost", "message_ts"] : strcontains(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["artifacts"].pattern, " -\"${term}\"")]) &&
+      resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["processing"].metric_transformation[0].namespace == "SWxSOC/Pipeline/dev-swxsoc-pipeline" &&
+      resource.aws_cloudwatch_log_metric_filter.lambda_log_errors["processing"].metric_transformation[0].name == "ProcessingLogErrors" &&
+      resource.aws_cloudwatch_metric_alarm.lambda_log_errors["processing"].metric_name == "ProcessingLogErrors" &&
+      resource.aws_cloudwatch_metric_alarm.lambda_log_errors["processing"].namespace == "SWxSOC/Pipeline/dev-swxsoc-pipeline"
+    )
+    error_message = "Log metric filters should count each stage's failure lines (for artifacts every ERROR entry except comms errors) into the workspace namespace that the alarm reads."
+  }
+
+  assert {
+    condition = (
+      keys(resource.aws_cloudwatch_metric_alarm.topic_delivery_failures) == ["swxsoc-pipeline-reach"] &&
+      resource.aws_cloudwatch_metric_alarm.topic_delivery_failures["swxsoc-pipeline-reach"].alarm_name == "dev-swxsoc-pipeline-pipeline-reach-topic-delivery-failures" &&
+      resource.aws_cloudwatch_metric_alarm.topic_delivery_failures["swxsoc-pipeline-reach"].dimensions["TopicName"] == "dev-swxsoc-pipeline-reach-sns-topic" &&
+      resource.aws_cloudwatch_metric_alarm.queue_age["swxsoc-pipeline-reach"].dimensions["QueueName"] == "dev-swxsoc-pipeline-reach-sqs-queue" &&
+      resource.aws_cloudwatch_metric_alarm.queue_age["swxsoc-pipeline-reach"].threshold == 21600
+    )
+    error_message = "Every instrument should get a topic delivery-failure alarm and a queue-age alarm named after the instrument."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.pipeline_reconciliation[0].function_name == "dev-swxsoc_pipeline_pipeline_reconciliation" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].runtime == "python3.12" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].handler == "reconcile.handler" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["MISSION"] == "swxsoc_pipeline" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["INCOMING_BUCKET"] == "dev-swxsoc-pipeline-incoming" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["INSTRUMENT_BUCKETS"] == "dev-swxsoc-pipeline-reach" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["DATA_LEVELS"] == "raw,l0,l1" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["TIMESTREAM_DATABASE"] == "dev-swxsoc_pipeline_sdc_aws_logs" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["METRIC_NAMESPACE"] == "SWxSOC/Pipeline/dev-swxsoc-pipeline" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["WINDOW_HOURS"] == "24" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["GRACE_MINUTES"] == "60" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["SKIP_RDS"] == "false" &&
+      length(resource.aws_lambda_function.pipeline_reconciliation[0].vpc_config) == 1 &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].tags["Service"] == "pipeline-health"
+    )
+    error_message = "The reconciliation Lambda should be configured from the workspace's own names and join the Lambda VPC so it can reach RDS."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_event_rule.pipeline_reconciliation[0].schedule_expression == "rate(60 minutes)" &&
+      resource.aws_cloudwatch_log_group.pipeline_reconciliation[0].name == "/aws/lambda/dev-swxsoc_pipeline_pipeline_reconciliation" &&
+      resource.aws_cloudwatch_log_group.pipeline_reconciliation[0].retention_in_days == 90 &&
+      resource.aws_cloudwatch_log_group.pipeline_reconciliation[0].tags["Service"] == "pipeline-health" &&
+      resource.aws_lambda_permission.pipeline_reconciliation_schedule[0].principal == "events.amazonaws.com"
+    )
+    error_message = "The reconciliation should run hourly from EventBridge with a retained, tagged log group."
+  }
+
+  assert {
+    condition = (
+      sort(keys(resource.aws_cloudwatch_metric_alarm.reconciliation_counts)) == sort(["unsorted-incoming-objects", "missing-metatracker-rows", "missing-timestream-records", "reconciliation-check-errors"]) &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_counts["missing-metatracker-rows"].metric_name == "MissingMetaTrackerRows" &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_counts["missing-metatracker-rows"].period == 3600 &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_not_running[0].treat_missing_data == "breaching" &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_not_running[0].evaluation_periods == 2 &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_errors[0].dimensions["FunctionName"] == "dev-swxsoc_pipeline_pipeline_reconciliation"
+    )
+    error_message = "The reconciliation metrics should each have an alarm, and a missing run marker should itself alarm."
+  }
+
+  assert {
+    condition = (
+      length(local.pipeline_alarm_names) == 20 &&
+      resource.aws_cloudwatch_composite_alarm.pipeline_unhealthy[0].alarm_name == "dev-swxsoc-pipeline-pipeline-unhealthy" &&
+      strcontains(resource.aws_cloudwatch_composite_alarm.pipeline_unhealthy[0].alarm_rule, "ALARM(\"dev-swxsoc-pipeline-pipeline-processing-log-errors\")") &&
+      strcontains(resource.aws_cloudwatch_composite_alarm.pipeline_unhealthy[0].alarm_rule, "ALARM(\"dev-swxsoc-pipeline-pipeline-missing-metatracker-rows\")") &&
+      length(regexall("ALARM\\(", resource.aws_cloudwatch_composite_alarm.pipeline_unhealthy[0].alarm_rule)) == 20
+    )
+    error_message = "The composite alarm should OR together every alarm the workspace creates: 3 stages x 4, 1 instrument x 2, 4 reconciliation counts, not-running and reconciliation errors."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_dashboard.pipeline[0].dashboard_name == "dev-swxsoc-pipeline-pipeline" &&
+      length(jsondecode(resource.aws_cloudwatch_dashboard.pipeline[0].dashboard_body).widgets) == 12 &&
+      length(jsondecode(resource.aws_cloudwatch_dashboard.pipeline[0].dashboard_body).widgets[1].properties.alarms) == 20
+    )
+    error_message = "The dashboard should show the chain widgets, one pair per Lambda stage, and every alarm's state."
+  }
+}
+
+# Opting in: email subscriptions and the Mattermost notifier; and without the
+# Lambda VPC the database check is skipped rather than attempted.
+run "plan_pipeline_health_opt_in" {
+  command = plan
+
+  variables {
+    deployment_region                        = "us-east-1"
+    mission_name                             = "swxsoc_pipeline"
+    instrument_names                         = ["reach"]
+    include_craft_instrument                 = false
+    valid_data_levels                        = ["raw", "l0", "l1"]
+    timestream_database_name                 = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name            = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                     = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name        = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name        = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name      = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name     = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name      = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name              = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                          = false
+    enable_grafana_secret                    = false
+    comms_platform                           = "mattermost"
+    enable_mattermost                        = true
+    enable_processing_lambda                 = false
+    enable_sorting_lambda                    = true
+    enable_artifacts_lambda                  = false
+    enable_concating_lambda                  = false
+    adopt_existing_lambda_log_groups         = false
+    sf_image_tag                             = "test-immutable-sha"
+    enable_lambda_vpc                        = false
+    pipeline_alert_emails                    = ["soc@example.org", "oncall@example.org"]
+    enable_pipeline_alerts_mattermost        = true
+    pipeline_reconciliation_interval_minutes = 30
+    pipeline_reconciliation_window_hours     = 48
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_sns_topic_subscription.pipeline_alert_emails) == 2 &&
+      resource.aws_sns_topic_subscription.pipeline_alert_emails["soc@example.org"].protocol == "email" &&
+      resource.aws_sns_topic_subscription.pipeline_alert_notifier[0].protocol == "lambda"
+    )
+    error_message = "Opting in should subscribe each email address and the Mattermost notifier to the alert topic."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.pipeline_alert_notifier[0].function_name == "dev-swxsoc_pipeline_pipeline_alert_notifier" &&
+      resource.aws_lambda_function.pipeline_alert_notifier[0].handler == "notifier.handler" &&
+      resource.aws_lambda_function.pipeline_alert_notifier[0].environment[0].variables["MATTERMOST_CHANNEL_ID"] == "channel-123" &&
+      resource.aws_lambda_function.pipeline_alert_notifier[0].environment[0].variables["MATTERMOST_TOKEN"] == "token-123" &&
+      resource.aws_lambda_function.pipeline_alert_notifier[0].environment[0].variables["MATTERMOST_URL"] == "https://mm.sciencecloud.nasa.gov:443" &&
+      length(resource.aws_lambda_function.pipeline_alert_notifier[0].vpc_config) == 0 &&
+      resource.aws_lambda_permission.pipeline_alert_notifier_sns[0].principal == "sns.amazonaws.com"
+    )
+    error_message = "The notifier should reuse the mission's Mattermost secret, stay outside the VPC, and be invocable by the alert topic."
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["SKIP_RDS"] == "true" &&
+      length(resource.aws_lambda_function.pipeline_reconciliation[0].vpc_config) == 0 &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["WINDOW_HOURS"] == "48" &&
+      resource.aws_cloudwatch_event_rule.pipeline_reconciliation[0].schedule_expression == "rate(30 minutes)" &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_counts["unsorted-incoming-objects"].period == 1800 &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_not_running[0].period == 1800
+    )
+    error_message = "Without the Lambda VPC the reconciliation must skip the RDS check, and the interval should drive the schedule and alarm periods."
+  }
+
+  assert {
+    condition = (
+      keys(local.monitored_lambdas) == ["sorting"] &&
+      length(local.pipeline_alarm_names) == 12
+    )
+    error_message = "With only the sorting Lambda enabled the alarm set should shrink to that stage plus the instrument and reconciliation alarms."
+  }
+}
+
+# Both switches off: no health resource at all, and nothing else changes.
+run "plan_pipeline_health_disabled" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["reach"]
+    include_craft_instrument             = false
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = false
+    enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
+    enable_mattermost                    = true
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = true
+    enable_artifacts_lambda              = false
+    enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
+    sf_image_tag                         = "test-immutable-sha"
+    enable_pipeline_alarms               = false
+    enable_pipeline_reconciliation       = false
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_sns_topic.pipeline_alerts) == 0 &&
+      length(resource.aws_cloudwatch_metric_alarm.lambda_errors) == 0 &&
+      length(resource.aws_cloudwatch_log_metric_filter.lambda_log_errors) == 0 &&
+      length(resource.aws_cloudwatch_metric_alarm.topic_delivery_failures) == 0 &&
+      length(resource.aws_cloudwatch_metric_alarm.queue_age) == 0 &&
+      length(resource.aws_cloudwatch_composite_alarm.pipeline_unhealthy) == 0 &&
+      length(resource.aws_cloudwatch_dashboard.pipeline) == 0 &&
+      length(resource.aws_lambda_function.pipeline_reconciliation) == 0 &&
+      length(resource.aws_cloudwatch_event_rule.pipeline_reconciliation) == 0 &&
+      length(resource.aws_cloudwatch_metric_alarm.reconciliation_counts) == 0 &&
+      length(local.pipeline_alarm_names) == 0
+    )
+    error_message = "Turning both health switches off must leave no health resource behind."
+  }
+}
+
+run "reject_mattermost_alerts_without_mattermost" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["reach"]
+    include_craft_instrument             = false
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = false
+    enable_grafana_secret                = false
+    comms_platform                       = "slack"
+    enable_mattermost                    = false
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = true
+    enable_artifacts_lambda              = false
+    enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
+    sf_image_tag                         = "test-immutable-sha"
+    enable_pipeline_alerts_mattermost    = true
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  expect_failures = [
+    var.enable_pipeline_alerts_mattermost,
+  ]
+}
+
+# A window shorter than the run interval plus the grace period leaves objects
+# that are never judged: too fresh at one run, outside the window at the next.
+# Here a daily run meets the default 24 hour window and 60 minute grace.
+run "reject_reconciliation_window_shorter_than_interval_plus_grace" {
+  command = plan
+
+  variables {
+    deployment_region                        = "us-east-1"
+    mission_name                             = "swxsoc_pipeline"
+    instrument_names                         = ["reach"]
+    include_craft_instrument                 = false
+    valid_data_levels                        = ["raw", "l0", "l1"]
+    timestream_database_name                 = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name            = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                     = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name        = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name        = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name      = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name     = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name      = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name              = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                          = false
+    enable_grafana_secret                    = false
+    comms_platform                           = "slack"
+    enable_mattermost                        = false
+    enable_processing_lambda                 = false
+    enable_sorting_lambda                    = true
+    enable_artifacts_lambda                  = false
+    enable_concating_lambda                  = false
+    adopt_existing_lambda_log_groups         = false
+    sf_image_tag                             = "test-immutable-sha"
+    pipeline_reconciliation_interval_minutes = 1440
+    pipeline_reconciliation_window_hours     = 24
+    pipeline_reconciliation_grace_minutes    = 60
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  expect_failures = [
+    var.pipeline_reconciliation_interval_minutes,
+  ]
+}
