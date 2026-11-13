@@ -287,7 +287,7 @@ def connect(
     user: str,
     password: str,
     timeout: float = 15.0,
-    ssl_context: ssl.SSLContext | None = None,
+    cafile: str | os.PathLike[str] | None = None,
 ) -> Connection:
     """Open and authenticate a connection over verified TLS.
 
@@ -295,12 +295,11 @@ def connect(
     that refuses it, presents a certificate that does not chain to the
     trusted roots, or presents one for another host name is rejected before
     the startup message, so no user name or password reaches it.
-    ``ssl_context`` replaces the default :func:`tls_context`; it must verify
-    the certificate and the host name.
+    ``cafile`` replaces the packaged RDS roots as the only trusted roots.
+    The context always comes from :func:`tls_context`, so a caller cannot
+    turn verification off or allow a protocol older than TLS 1.2.
     """
-    context = ssl_context or tls_context()
-    if context.verify_mode != ssl.CERT_REQUIRED or not context.check_hostname:
-        raise PostgresError("ssl_context must verify the certificate and host name")
+    context = tls_context(cafile)
     sock = socket.create_connection((host, port), timeout=timeout)
     try:
         sock.sendall(struct.pack("!II", 8, SSL_REQUEST_CODE))

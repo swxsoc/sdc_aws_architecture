@@ -89,12 +89,17 @@ class DefaultTrust(unittest.TestCase):
         }
         self.assertIn("Amazon RDS us-east-1 Root CA RSA2048 G1", regions)
 
-    def test_a_context_that_does_not_verify_is_refused(self):
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        with self.assertRaisesRegex(pgwire.PostgresError, "must verify"):
-            pgwire.connect("127.0.0.1", 1, "db", "user", "pw", ssl_context=context)
+    def test_a_custom_root_file_keeps_verification_and_the_tls_floor(self):
+        context = pgwire.tls_context(pgwire.RDS_CA_BUNDLE)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(context.check_hostname)
+        self.assertGreaterEqual(context.minimum_version, ssl.TLSVersion.TLSv1_2)
+
+    def test_connect_takes_no_caller_supplied_context(self):
+        with self.assertRaises(TypeError):
+            pgwire.connect(
+                "127.0.0.1", 1, "db", "user", "pw", ssl_context=ssl.SSLContext()
+            )
 
 
 class TlsIsMandatory(unittest.TestCase):
@@ -143,6 +148,7 @@ class CertificateVerification(unittest.TestCase):
             cls._directory.cleanup()
             raise unittest.SkipTest("openssl could not make a test certificate")
         cls.server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        cls.server_context.minimum_version = ssl.TLSVersion.TLSv1_2
         cls.server_context.load_cert_chain(cls.certificate, key)
 
     @classmethod
@@ -159,19 +165,13 @@ class CertificateVerification(unittest.TestCase):
     def test_a_trusted_certificate_for_another_host_is_sent_nothing(self):
         server = FakeServer(b"S", self.server_context)
         with self.assertRaisesRegex(pgwire.PostgresError, "TLS verification"):
-            connect(
-                server,
-                "127.0.0.1",
-                ssl_context=pgwire.tls_context(self.certificate),
-            )
+            connect(server, "127.0.0.1", cafile=self.certificate)
         server.close()
         self.assertIsNone(server.startup)
 
     def test_a_trusted_certificate_for_this_host_connects(self):
         server = FakeServer(b"S", self.server_context)
-        connection = connect(
-            server, "localhost", ssl_context=pgwire.tls_context(self.certificate)
-        )
+        connection = connect(server, "localhost", cafile=self.certificate)
         connection.close()
         server.close()
         self.assertIsNotNone(server.startup)
