@@ -24,9 +24,9 @@ resource_purpose = "SWxSOC demo mission pipeline test bed"
 
 # Instrument Names Used in the Mission.
 # demo is an example of a stock mission: craft, the generic spacecraft
-# instrument every mission has, and nothing else. Its name must match the
-# instrument name of the demo mission in the swxsoc package configuration. A
-# science instrument would be appended after craft; the processing bucket
+# instrument a mission has by default, and nothing else. Its name must match
+# the instrument name of the demo mission in the swxsoc package configuration.
+# A science instrument would be appended after craft; the processing bucket
 # notifications are indexed by list position, so craft stays first.
 instrument_names = ["craft"]
 
