@@ -97,7 +97,7 @@ the place to try a pipeline change, measure what one mission workspace costs,
 and develop features without touching a live dev or prod pipeline.
 
 - Shape: `mission_name = "demo"`, `instrument_names = ["craft"]` (craft only:
-  the unconfigured stock mission every mission starts from),
+  an example of an unconfigured stock mission),
   processing, sorting, and artifacts only (`needs_concating = false`), no
   Grafana secret, Mattermost notifications, 14-day Lambda log retention, and
   7-day expiry of noncurrent object versions. The only external secret the
@@ -128,8 +128,8 @@ and develop features without touching a live dev or prod pipeline.
   a `raw` level, and `file_extension: csv`. `swxsoc/demo_craft` (tag
   `v0.0.1`, generated from `swxsoc/instrument_pkg_template`) is that package:
   its `process_file` turns one l0 CSV into one l1 CSV and stops, with no CDF
-  library. demo is the stock mission, craft and nothing else; a real mission
-  adds its science instruments on top of that shape. No legacy mission entry
+  library. demo is an example of a stock mission, craft and nothing else; a
+  real mission also has its science instruments. No legacy mission entry
   changes.
 - Bootstrap order, the same as gdctb:
   1. Make the companion changes in other repositories, in this order.

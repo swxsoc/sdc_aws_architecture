@@ -815,10 +815,10 @@ run "plan_gdctb_bootstrap" {
   }
 }
 
-# demo is the lightweight test mission: craft only (the stock mission), no
-# concating, no Grafana, Mattermost as its only external secret, short log
-# retention, and every Lambda disabled until its image exists. These runs
-# re-state the values; demo.tftest.hcl validates demo.tfvars itself.
+# demo is the lightweight test mission: craft only (an example of a stock
+# mission), no concating, no Grafana, Mattermost as its only external secret,
+# short log retention, and every Lambda disabled until its image exists. These
+# runs re-state the values; demo.tftest.hcl validates demo.tfvars itself.
 run "plan_demo_bootstrap" {
   command = plan
 
@@ -889,7 +889,7 @@ run "plan_demo_bootstrap" {
 
   assert {
     condition     = local.instrument_names == tolist(["craft"])
-    error_message = "The demo mission is craft only: the stock mission shape."
+    error_message = "The demo mission is craft only: an example of a stock mission."
   }
 
   assert {
