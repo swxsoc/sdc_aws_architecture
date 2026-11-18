@@ -113,6 +113,20 @@ run "plan_production_pipeline" {
     ])
     error_message = "The production access-log bucket should get the same noncurrent-version expiry and cleanup rules as the mission buckets."
   }
+
+  assert {
+    condition = (
+      resource.aws_sns_topic.pipeline_alerts[0].name == "swxsoc-pipeline-pipeline-alerts" &&
+      resource.aws_cloudwatch_composite_alarm.pipeline_unhealthy[0].alarm_name == "swxsoc-pipeline-pipeline-unhealthy" &&
+      resource.aws_cloudwatch_dashboard.pipeline[0].dashboard_name == "swxsoc-pipeline-pipeline" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].function_name == "swxsoc_pipeline_pipeline_reconciliation" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["ENVIRONMENT"] == "prod" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["INCOMING_BUCKET"] == "swxsoc-pipeline-incoming" &&
+      resource.aws_lambda_function.pipeline_reconciliation[0].environment[0].variables["METRIC_NAMESPACE"] == "SWxSOC/Pipeline/prod-swxsoc-pipeline" &&
+      keys(local.monitored_lambdas) == ["sorting"]
+    )
+    error_message = "Production health resources should carry the unprefixed mission names and the prod metric namespace."
+  }
 }
 
 run "reject_fractional_retention" {
