@@ -20,6 +20,26 @@ resource "aws_cloudwatch_log_group" "alert" {
   })
 }
 
+# The alert Lambda publishes a heartbeat to every flare-threshold GCN topic once
+# per UTC day, so topics that rarely carry a real alert (X1, X5, X10) keep
+# existing for consumers. It records the last heartbeat date here to stay at
+# once per day across stateless invocations. Terraform creates the parameter
+# and then leaves the value to the Lambda.
+resource "aws_ssm_parameter" "alert_goes_xrs_heartbeat" {
+  name           = "/${local.secret_path_root}/alert/goes_xrs_heartbeat_last_date_utc"
+  description    = "UTC date of the last GOES XRS flare-topic heartbeat sent by the alert Lambda"
+  type           = "String"
+  insecure_value = "never"
+
+  tags = merge(local.standard_tags, {
+    "Service" = "alert"
+  })
+
+  lifecycle {
+    ignore_changes = [insecure_value]
+  }
+}
+
 resource "aws_iam_role" "alert_lambda_exec" {
   name = "${local.environment_short_name}swxsoc_alert_lambda_exec_role"
 
@@ -61,6 +81,15 @@ resource "aws_iam_role_policy" "alert_lambda_exec" {
         Action   = ["secretsmanager:GetSecretValue"]
         Resource = data.aws_secretsmanager_secret.alert_gcn.arn
       },
+      {
+        Sid    = "TrackDailyHeartbeat"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:PutParameter",
+        ]
+        Resource = aws_ssm_parameter.alert_goes_xrs_heartbeat.arn
+      },
     ]
   })
 }
@@ -69,7 +98,9 @@ resource "aws_lambda_function" "aws_sdc_alert_lambda_function" {
   function_name = "${local.environment_short_name}aws_sdc_alert_lambda_function"
   description   = "🔔 - SWxSOC Alert Dispatcher Lambda"
   role          = aws_iam_role.alert_lambda_exec.arn
-  memory_size   = 128
+  # The function used 120 MB on average and peaked at 122 MB of 128 MB before
+  # the heartbeat added an SSM client, which left too little room for it.
+  memory_size   = 256
   timeout       = 120
   architectures = ["x86_64"]
 
@@ -78,12 +109,13 @@ resource "aws_lambda_function" "aws_sdc_alert_lambda_function" {
 
   environment {
     variables = {
-      GCN_CLIENT_ID_SECRET_ARN     = data.aws_secretsmanager_secret.alert_gcn.arn
-      GCN_CLIENT_SECRET_SECRET_ARN = data.aws_secretsmanager_secret.alert_gcn.arn
-      LAMBDA_ENVIRONMENT           = upper(local.environment_full_name)
-      SPACEPY                      = "/tmp"
-      SUNPY_CONFIGDIR              = "/tmp"
-      SUNPY_DOWNLOADDIR            = "/tmp"
+      GCN_CLIENT_ID_SECRET_ARN           = data.aws_secretsmanager_secret.alert_gcn.arn
+      GCN_CLIENT_SECRET_SECRET_ARN       = data.aws_secretsmanager_secret.alert_gcn.arn
+      GOES_XRS_HEARTBEAT_STATE_PARAMETER = aws_ssm_parameter.alert_goes_xrs_heartbeat.name
+      LAMBDA_ENVIRONMENT                 = upper(local.environment_full_name)
+      SPACEPY                            = "/tmp"
+      SUNPY_CONFIGDIR                    = "/tmp"
+      SUNPY_DOWNLOADDIR                  = "/tmp"
     }
   }
 
