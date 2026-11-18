@@ -63,6 +63,21 @@ run "plan_base" {
 
   assert {
     condition = (
+      resource.aws_ssm_parameter.alert_goes_xrs_heartbeat.name == "/swxsoc/prod/swxsoc/alert/goes_xrs_heartbeat_last_date_utc" &&
+      resource.aws_ssm_parameter.alert_goes_xrs_heartbeat.type == "String" &&
+      resource.aws_ssm_parameter.alert_goes_xrs_heartbeat.tags["Service"] == "alert" &&
+      resource.aws_lambda_function.aws_sdc_alert_lambda_function.environment[0].variables["GOES_XRS_HEARTBEAT_STATE_PARAMETER"] == resource.aws_ssm_parameter.alert_goes_xrs_heartbeat.name
+    )
+    error_message = "Alert Lambda must be told where its daily heartbeat state lives, or it silently skips the flare-topic heartbeats."
+  }
+
+  assert {
+    condition     = resource.aws_lambda_function.aws_sdc_alert_lambda_function.memory_size >= 256
+    error_message = "Alert Lambda ran at 120 MB of 128 MB before the heartbeat's SSM client; keep at least 256 MB."
+  }
+
+  assert {
+    condition = (
       resource.aws_lambda_permission.alert_eventbridge.statement_id == "lambda-8e809099-7565-4fcb-a416-b694da153a2a" &&
       resource.aws_cloudwatch_event_target.alert.target_id == "jc7f7xt2upcwol5ogc67" &&
       resource.aws_cloudwatch_event_rule.alert.schedule_expression == "rate(5 minutes)"
