@@ -61,3 +61,42 @@ variable "demo_smoke_test_schedule" {
     error_message = "demo_smoke_test_schedule must be an EventBridge cron(...) or rate(...) expression."
   }
 }
+
+variable "enable_pipeline_status_dashboard" {
+  type        = bool
+  description = "Whether to create the account-wide swxsoc-pipeline-status dashboard and the Lambda-rendered status widget behind it. Additive only; the widget reads the <env><mission>-pipeline-* alarms the pipeline root creates."
+  default     = false
+}
+
+variable "pipeline_status_history_days" {
+  type        = number
+  description = "How many days of alarm history the status widget lists as recent events"
+  default     = 14
+
+  validation {
+    condition     = var.pipeline_status_history_days >= 1 && var.pipeline_status_history_days <= 30
+    error_message = "pipeline_status_history_days must be between 1 and 30; CloudWatch keeps alarm history for 30 days."
+  }
+}
+
+variable "pipeline_status_widget_height" {
+  type        = number
+  description = "Height in dashboard grid rows of each environment's status widget; the widget scrolls when its content is taller"
+  default     = 24
+
+  validation {
+    condition     = var.pipeline_status_widget_height >= 6 && var.pipeline_status_widget_height <= 1000
+    error_message = "pipeline_status_widget_height must be between 6 and 1000 dashboard rows."
+  }
+}
+
+variable "pipeline_status_log_retention_days" {
+  type        = number
+  description = "CloudWatch retention in days for the status widget Lambda log group"
+  default     = 14
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.pipeline_status_log_retention_days)
+    error_message = "pipeline_status_log_retention_days must be a CloudWatch Logs supported retention period."
+  }
+}

@@ -25,7 +25,11 @@ endef
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-.PHONY: help Makefile tf-fmt tf-fmt-check tf-validate-base tf-validate-pipeline tf-validate-deployment tf-test-base tf-test-pipeline tf-test-deployment tf-smoke tf-init-base tf-plan-base tf-apply-base tf-workspace tf-init-pipeline tf-plan-pipeline tf-apply-pipeline tf-init-deployment tf-plan-deployment tf-apply-deployment
+.PHONY: help Makefile status-widget-test tf-fmt tf-fmt-check tf-validate-base tf-validate-pipeline tf-validate-deployment tf-test-base tf-test-pipeline tf-test-deployment tf-smoke tf-init-base tf-plan-base tf-apply-base tf-workspace tf-init-pipeline tf-plan-pipeline tf-apply-pipeline tf-init-deployment tf-plan-deployment tf-apply-deployment
+
+# Pipeline status widget (deployment root) unit tests; no AWS access needed
+status-widget-test:
+	@cd "$(TF_DEPLOYMENT_DIR)/lambda/status_widget" && python3 -m unittest discover -s . -p 'test_*.py'
 
 # Terraform targets
 tf-fmt:
