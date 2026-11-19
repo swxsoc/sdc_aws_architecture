@@ -264,3 +264,138 @@ run "plan_deployment_projects" {
     error_message = "The smoke test role must reach only the dev-demo buckets, secrets, and Timestream table."
   }
 }
+
+run "plan_pipeline_status_dashboard" {
+  command = plan
+
+  variables {
+    adopt_existing_codebuild_projects = false
+    enable_pipeline_status_dashboard  = true
+    pipeline_status_history_days      = 7
+    pipeline_status_widget_height     = 30
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_codestarconnections_connection.gdctb[0]
+    values = {
+      arn = "arn:aws:codeconnections:us-east-1:123456789012:connection/00000000-0000-0000-0000-000000000000"
+    }
+  }
+
+  override_data {
+    target = data.aws_partition.current
+    values = {
+      partition = "aws"
+    }
+  }
+
+  override_data {
+    target = data.aws_region.current
+    values = {
+      name = "us-east-1"
+    }
+  }
+
+  assert {
+    condition = (
+      resource.aws_lambda_function.pipeline_status_widget[0].function_name == "swxsoc-pipeline-status-widget" &&
+      resource.aws_lambda_function.pipeline_status_widget[0].runtime == "python3.12" &&
+      resource.aws_lambda_function.pipeline_status_widget[0].handler == "widget.handler" &&
+      resource.aws_lambda_function.pipeline_status_widget[0].architectures == tolist(["arm64"]) &&
+      resource.aws_lambda_function.pipeline_status_widget[0].timeout == 30 &&
+      resource.aws_lambda_function.pipeline_status_widget[0].environment[0].variables["CONSOLE_REGION"] == "us-east-1" &&
+      resource.aws_lambda_function.pipeline_status_widget[0].environment[0].variables["HISTORY_DAYS"] == "7" &&
+      resource.aws_lambda_function.pipeline_status_widget[0].tags["Service"] == "pipeline-status"
+    )
+    error_message = "The status widget must be the arm64 Python 3.12 widget.handler function with the console region and history window in its environment."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_log_group.pipeline_status_widget[0].name == "/aws/lambda/swxsoc-pipeline-status-widget" &&
+      resource.aws_cloudwatch_log_group.pipeline_status_widget[0].retention_in_days == 14 &&
+      resource.aws_iam_role.pipeline_status_widget[0].name == "swxsoc-pipeline-status-widget" &&
+      resource.aws_iam_role_policy.pipeline_status_widget[0].name == "pipeline-status-widget" &&
+      strcontains(resource.aws_iam_role.pipeline_status_widget[0].assume_role_policy, "lambda.amazonaws.com")
+    )
+    error_message = "The status widget must get its own retained log group and a Lambda role."
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_dashboard.pipeline_status[0].dashboard_name == "swxsoc-pipeline-status" &&
+      length(local.status_dashboard_widgets) == 3 &&
+      local.status_dashboard_widgets[1].type == "custom" &&
+      local.status_dashboard_widgets[1].properties.params.environment == "prod" &&
+      local.status_dashboard_widgets[1].properties.updateOn.refresh &&
+      local.status_dashboard_widgets[2].properties.params.environment == "dev" &&
+      local.status_dashboard_widgets[2].y == 32 &&
+      local.status_dashboard_widgets[2].height == 30
+    )
+    error_message = "The status dashboard must stack a header and one custom widget per environment, both refreshing with the dashboard."
+  }
+
+  assert {
+    condition = (
+      resource.aws_iam_policy.pipeline_status_viewer[0].name == "swxsoc-pipeline-status-viewer" &&
+      local.status_dashboard_arn == "arn:aws:cloudwatch::123456789012:dashboard/swxsoc-pipeline-status" &&
+      output.pipeline_status_dashboard_url == "https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=swxsoc-pipeline-status"
+    )
+    error_message = "The viewer policy must target the status dashboard and the output must point at it in the console."
+  }
+}
+
+run "plan_pipeline_status_dashboard_disabled" {
+  command = plan
+
+  variables {
+    adopt_existing_codebuild_projects = false
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_codestarconnections_connection.gdctb[0]
+    values = {
+      arn = "arn:aws:codeconnections:us-east-1:123456789012:connection/00000000-0000-0000-0000-000000000000"
+    }
+  }
+
+  override_data {
+    target = data.aws_partition.current
+    values = {
+      partition = "aws"
+    }
+  }
+
+  override_data {
+    target = data.aws_region.current
+    values = {
+      name = "us-east-1"
+    }
+  }
+
+  assert {
+    condition = (
+      length(resource.aws_lambda_function.pipeline_status_widget) == 0 &&
+      length(resource.aws_cloudwatch_dashboard.pipeline_status) == 0 &&
+      length(resource.aws_iam_policy.pipeline_status_viewer) == 0 &&
+      length(resource.aws_iam_role.pipeline_status_widget) == 0 &&
+      output.pipeline_status_dashboard_url == null &&
+      output.pipeline_status_viewer_policy_arn == null
+    )
+    error_message = "With the status dashboard disabled (the default) nothing of it may be created."
+  }
+}

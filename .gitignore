@@ -95,3 +95,6 @@ override.tf.json
 .terraformrc
 terraform.rc
 .DS_Store
+
+# Claude Code session files
+.claude/

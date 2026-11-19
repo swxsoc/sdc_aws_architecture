@@ -263,6 +263,26 @@ CodeBuild and IAM resource. Shared pipeline resources use
 `processing`, `sorting`, `artifacts`, `concating`, `container-base`, or
 `terraform-deployment` as appropriate.
 
+### Pipeline status dashboard
+
+`swxsoc-pipeline-status` is one account-wide CloudWatch dashboard, in the
+style of a public system-status page, that shows every mission workspace as a
+group with one row per pipeline stage (Landing, Sorting, Notification,
+Processing, Artifacts, Concatenation, Reconciliation) and a list of recent
+alarm events. It is rendered by a custom widget: the dashboard invokes the
+`swxsoc-pipeline-status-widget` Lambda (`deployment-infrastructure-terraform/lambda/status_widget`,
+Python 3.12, no dependencies) with the viewer's credentials and shows the HTML
+it returns, so the page never leaves the console. The widget derives
+everything from the `<env><mission>-pipeline-*` health alarms the pipeline
+root creates, so a workspace appears as soon as its alarms exist.
+
+It is created by the deployment root when `enable_pipeline_status_dashboard`
+is true (default false, additive only). Viewers need the output
+`swxsoc-pipeline-status-viewer` policy attached to their console role or
+group, because a custom widget runs as the person looking at it. See
+`docs/user-guide/pipeline-status.rst` for the alarm-to-stage mapping and
+`make status-widget-test` for the unit tests.
+
 ### Secrets Manager names
 
 Secrets use a mission-first hierarchy:
