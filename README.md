@@ -102,7 +102,8 @@ and develop features without touching a live dev or prod pipeline.
   Grafana secret, Mattermost notifications, 14-day Lambda log retention, and
   7-day expiry of noncurrent object versions. The only external secret the
   plan reads is the Mattermost one below.
-- Notifications: Sorting and Artifacts post to a demo Mattermost channel.
+- Notifications: Sorting and Artifacts post to a demo Mattermost channel, and
+  so do pipeline health alarm transitions (`enable_pipeline_alerts_mattermost`).
   Create the channel and a bot token, then seed and tag
   `swxsoc/dev/demo/communications/mattermost` (`token` and `channel_id` keys;
   tags `Mission=demo`, `Service=communications`, `Environment=Development`,
