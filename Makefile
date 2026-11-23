@@ -25,7 +25,12 @@ endef
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-.PHONY: help Makefile tf-fmt tf-fmt-check tf-validate-base tf-validate-pipeline tf-validate-deployment tf-test-base tf-test-pipeline tf-test-deployment tf-smoke tf-init-base tf-plan-base tf-apply-base tf-workspace tf-init-pipeline tf-plan-pipeline tf-apply-pipeline tf-init-deployment tf-plan-deployment tf-apply-deployment
+.PHONY: help Makefile lambda-test tf-fmt tf-fmt-check tf-validate-base tf-validate-pipeline tf-validate-deployment tf-test-base tf-test-pipeline tf-test-deployment tf-smoke tf-init-base tf-plan-base tf-apply-base tf-workspace tf-init-pipeline tf-plan-pipeline tf-apply-pipeline tf-init-deployment tf-plan-deployment tf-apply-deployment
+
+# Unit tests for the Python Lambdas the pipeline root packages
+lambda-test:
+	@python3 -m unittest discover -s "$(TF_PIPELINE_DIR)/lambda/reconciliation" -p 'test_*.py'
+	@python3 -m unittest discover -s "$(TF_PIPELINE_DIR)/lambda/alert_notifier" -p 'test_*.py'
 
 # Terraform targets
 tf-fmt:
