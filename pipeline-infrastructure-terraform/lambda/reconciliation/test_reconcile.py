@@ -273,6 +273,80 @@ class CheckMetatracker(unittest.TestCase):
         self.assertEqual(report.skipped, [])
 
 
+class FakeTimestream:
+    """Answers the Timestream query, or rejects it the way an empty table does."""
+
+    def __init__(self, keys=(), error: Exception | None = None):
+        self.keys = list(keys)
+        self.error = error
+
+    def query(self, **kwargs):
+        if self.error:
+            raise self.error
+        return {"Rows": [{"Data": [{"ScalarValue": key}]} for key in self.keys]}
+
+
+class QueryRejected(Exception):
+    """Shaped like botocore's ClientError, which carries the service response."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.response = {"Error": {"Code": code, "Message": message}}
+
+
+NO_COLUMN = QueryRejected(
+    "ValidationException", "line 1:17: Column 'file_key' does not exist"
+)
+
+
+class CheckTimestream(unittest.TestCase):
+    SETTINGS = CheckMetatracker.SETTINGS
+    CANDIDATES = CheckMetatracker.CANDIDATES
+
+    def test_an_empty_table_with_nothing_to_reconcile_is_skipped(self):
+        report = reconcile.Report()
+        reconcile.check_timestream(
+            FakeTimestream(error=NO_COLUMN), self.SETTINGS, [], report
+        )
+        self.assertEqual(report.missing_timestream, [])
+        self.assertEqual(len(report.skipped), 1)
+        self.assertIn("no records yet", report.skipped[0])
+
+    def test_an_empty_table_leaves_every_object_missing_its_record(self):
+        report = reconcile.Report()
+        reconcile.check_timestream(
+            FakeTimestream(error=NO_COLUMN),
+            self.SETTINGS,
+            list(self.CANDIDATES),
+            report,
+        )
+        self.assertEqual(len(report.missing_timestream), len(self.CANDIDATES))
+        self.assertEqual(report.skipped, [])
+
+    def test_recorded_objects_are_not_missing(self):
+        report = reconcile.Report()
+        reconcile.check_timestream(
+            FakeTimestream(keys=[self.CANDIDATES[0].key]),
+            self.SETTINGS,
+            list(self.CANDIDATES),
+            report,
+        )
+        self.assertEqual(len(report.missing_timestream), 1)
+
+    def test_any_other_rejection_is_still_an_error(self):
+        for error in (
+            QueryRejected(
+                "ValidationException", "Column 'new_file_key' does not exist"
+            ),
+            QueryRejected("AccessDeniedException", "Column 'file_key' does not exist"),
+            RuntimeError("Column 'file_key' does not exist"),
+        ):
+            with self.assertRaises(type(error)):
+                reconcile.check_timestream(
+                    FakeTimestream(error=error), self.SETTINGS, [], reconcile.Report()
+                )
+
+
 class AffectedKeys(unittest.TestCase):
     def test_batches_keep_every_key_in_order_within_the_size_limit(self):
         keys = [f"s3://dev-demo-craft/l0/2026/11/file_{n:05d}.csv" for n in range(900)]

@@ -14,6 +14,11 @@ failed check: with nothing to reconcile the database check is skipped and says
 so, and once there are objects to reconcile a missing table means every one
 of them is missing its row.
 
+The Timestream table is in the same position. It has no columns until the
+artifacts Lambda writes its first record, and a query that names ``file_key``
+before then is rejected. That is treated the same way: skipped while there is
+nothing to reconcile, and every object missing its record once there is.
+
 The counts are published as CloudWatch metrics in the workspace's namespace,
 and every affected key is logged, in ``affected_keys`` entries of bounded
 size, so the log doubles as the replay list however many files a run finds.
@@ -48,6 +53,9 @@ MAX_LOGGED_KEYS = 200
 # Serialized size of one batch of keys. A CloudWatch log event holds 256 KB
 # and an S3 key is at most 1024 bytes, so a batch always fits in one event.
 KEY_BATCH_BYTES = 100_000
+# Timestream rejects a query that names a column no record has written yet.
+# An empty table has no columns at all, so this is how "no records" looks.
+NO_TIMESTREAM_RECORDS = re.compile(r"Column 'file_key' does not exist")
 SQL_CHUNK = 500
 
 
@@ -424,6 +432,42 @@ def check_metatracker(
         )
 
 
+def has_no_timestream_records(error: Exception) -> bool:
+    """Whether a Timestream query failed only because nothing was ever recorded."""
+    details = getattr(error, "response", None) or {}
+    problem = details.get("Error", {})
+    return problem.get("Code") == "ValidationException" and bool(
+        NO_TIMESTREAM_RECORDS.search(problem.get("Message", ""))
+    )
+
+
+def check_timestream(
+    timestream, settings: Settings, candidates: list[S3Object], report: Report
+) -> None:
+    """Fill the Timestream part of ``report``, tolerating a table with no records."""
+    sql = timestream_sql(
+        settings.timestream_database, settings.timestream_table, settings.window
+    )
+    try:
+        recorded = fetch_timestream_keys(timestream, sql)
+    except Exception as error:
+        if not has_no_timestream_records(error):
+            raise
+        if not candidates:
+            report.skipped.append(
+                f"timestream: table {settings.timestream_table} has no records yet "
+                "and there is nothing to reconcile"
+            )
+            return
+        log.warning(
+            "table %s has no records; all %d reconciled objects are missing one",
+            settings.timestream_table,
+            len(candidates),
+        )
+        recorded = set()
+    report.missing_timestream = missing_from_timestream(candidates, recorded)
+
+
 def fetch_timestream_keys(timestream, sql: str) -> set[str]:
     keys: set[str] = set()
     token: str | None = None
@@ -509,13 +553,9 @@ def reconcile(settings: Settings, session, now: datetime | None = None) -> Repor
             report.check_errors.append(f"metatracker: {error}")
 
     try:
-        recorded = fetch_timestream_keys(
-            session.client("timestream-query"),
-            timestream_sql(
-                settings.timestream_database, settings.timestream_table, settings.window
-            ),
+        check_timestream(
+            session.client("timestream-query"), settings, candidates, report
         )
-        report.missing_timestream = missing_from_timestream(candidates, recorded)
     except Exception as error:
         log.exception("timestream check failed")
         report.check_errors.append(f"timestream: {error}")
