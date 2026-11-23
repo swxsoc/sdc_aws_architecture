@@ -291,6 +291,27 @@ resource "aws_s3_bucket_notification" "pf_bucket_notification" {
   depends_on = [aws_lambda_permission.pf_allow_instrument_buckets]
 }
 
+locals {
+  # The processing Lambda uploads its products next to its inputs, so every
+  # product is announced on the same topic and comes straight back to it. An
+  # image product (the .png quicklooks) is not an input any instrument package
+  # accepts: each one cost an invocation and left a failed status row. The
+  # filter reads the S3 event in the message body and passes every record
+  # whose key does not end in the ignored suffix. Only this subscription is
+  # filtered; the artifacts Lambda and the instrument queue still see every
+  # object. A message without Records (the s3:TestEvent S3 sends when a
+  # notification is configured) does not match and is dropped as well.
+  processing_trigger_filter = var.processing_trigger_ignored_suffix == "" ? null : jsonencode({
+    Records = {
+      s3 = {
+        object = {
+          key = [{ "anything-but" = { suffix = var.processing_trigger_ignored_suffix } }]
+        }
+      }
+    }
+  })
+}
+
 // Invoke Processing Lambda from SNS
 resource "aws_sns_topic_subscription" "pf_sns_topic_subscription" {
   for_each = local.enable_processing_lambda ? toset(local.instrument_bucket_names) : toset([]) # Convert to a set to ensure unique permissions
@@ -298,6 +319,9 @@ resource "aws_sns_topic_subscription" "pf_sns_topic_subscription" {
   topic_arn = aws_sns_topic.sns_topics[each.key].arn
   protocol  = "lambda"
   endpoint  = aws_lambda_function.aws_sdc_processing_lambda_function[0].arn
+
+  filter_policy       = local.processing_trigger_filter
+  filter_policy_scope = local.processing_trigger_filter == null ? null : "MessageBody"
 
   depends_on = [aws_lambda_permission.pf_allow_sns_topic]
 }
