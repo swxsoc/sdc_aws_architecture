@@ -393,6 +393,127 @@ run "plan_processing_extra_environment" {
     )
     error_message = "processing_extra_environment should be added to the processing Lambda alongside the managed variables."
   }
+
+  assert {
+    condition = (
+      resource.aws_sns_topic_subscription.pf_sns_topic_subscription["swxsoc-pipeline-reach"].filter_policy_scope == "MessageBody" &&
+      jsondecode(resource.aws_sns_topic_subscription.pf_sns_topic_subscription["swxsoc-pipeline-reach"].filter_policy) == {
+        Records = { s3 = { object = { key = [{ "anything-but" = { suffix = ".png" } }] } } }
+      }
+    )
+    error_message = "The processing Lambda's topic subscription should drop S3 events for .png keys by default."
+  }
+
+  assert {
+    condition     = resource.aws_sns_topic_subscription.af_sns_topic_subscription["swxsoc-pipeline-reach"].filter_policy == null
+    error_message = "The artifacts Lambda should still receive every object, including the ones processing ignores."
+  }
+}
+
+run "processing_trigger_filter_can_be_removed" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["reach"]
+    include_craft_instrument             = false
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = false
+    enable_grafana_secret                = false
+    comms_platform                       = "mattermost"
+    enable_mattermost                    = true
+    enable_processing_lambda             = true
+    enable_sorting_lambda                = true
+    enable_artifacts_lambda              = true
+    enable_concating_lambda              = false
+    adopt_existing_lambda_log_groups     = false
+    sf_image_tag                         = "test-immutable-sha"
+    af_image_tag                         = "test-immutable-sha"
+    pf_image_tag                         = "test-immutable-sha"
+    artifacts_image_uri_override         = ""
+    processing_trigger_ignored_suffix    = ""
+  }
+
+  override_data {
+    target = data.aws_vpc.default
+    values = {
+      id = "vpc-123456"
+    }
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_secretsmanager_secret.mattermost[0]
+    values = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      id  = "swxsoc/dev/swxsoc-pipeline/communications/mattermost"
+      tags = {
+        Environment = "Development"
+        ManagedBy   = "external"
+        Mission     = "swxsoc_pipeline"
+        Service     = "communications"
+      }
+    }
+  }
+
+  override_data {
+    target          = data.aws_secretsmanager_secret_version.mattermost[0]
+    override_during = plan
+    values = {
+      secret_string = "{\"channel_id\":\"channel-123\",\"token\":\"token-123\"}"
+    }
+  }
+
+  assert {
+    condition     = resource.aws_sns_topic_subscription.pf_sns_topic_subscription["swxsoc-pipeline-reach"].filter_policy == null
+    error_message = "An empty processing_trigger_ignored_suffix should leave the processing subscription unfiltered."
+  }
+}
+
+run "reject_processing_trigger_suffix_that_is_not_an_extension" {
+  command = plan
+
+  variables {
+    deployment_region                    = "us-east-1"
+    mission_name                         = "swxsoc_pipeline"
+    instrument_names                     = ["reach"]
+    include_craft_instrument             = false
+    valid_data_levels                    = ["raw", "l0", "l1"]
+    timestream_database_name             = "swxsoc_pipeline_sdc_aws_logs"
+    timestream_s3_logs_table_name        = "swxsoc_pipeline_sdc_aws_s3_bucket_log_table"
+    incoming_bucket_name                 = "swxsoc-pipeline-incoming"
+    s3_server_access_logs_bucket_name    = "swxsoc-pipeline-s3-server-access-logs"
+    sorting_function_private_ecr_name    = "swxsoc_pipeline_sdc_aws_sorting_lambda"
+    artifacts_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_artifacts_lambda"
+    processing_function_private_ecr_name = "swxsoc_pipeline_sdc_aws_processing_lambda"
+    concating_function_private_ecr_name  = "swxsoc_pipeline_sdc_aws_concating_lambda"
+    docker_base_public_ecr_name          = "swxsoc-pipeline-docker-lambda-base"
+    needs_concating                      = false
+    enable_grafana_secret                = false
+    enable_processing_lambda             = false
+    enable_sorting_lambda                = false
+    enable_artifacts_lambda              = false
+    enable_concating_lambda              = false
+    processing_trigger_ignored_suffix    = "png"
+  }
+
+  expect_failures = [var.processing_trigger_ignored_suffix]
 }
 
 run "reject_processing_extra_environment_override" {

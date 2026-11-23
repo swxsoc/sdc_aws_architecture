@@ -29,6 +29,11 @@ The chain, for one file
    topic fans out to the processing Lambda, the artifacts Lambda, and the
    instrument's SQS queue (that subscription was made outside Terraform; an
    external consumer drains the queue).
+   The processing Lambda's subscription carries an SNS filter that drops
+   objects whose key ends in ``processing_trigger_ignored_suffix`` (default
+   ``.png``): the Lambda uploads its products next to its inputs, so its own
+   quicklook images would otherwise come straight back to it and fail. The
+   artifacts Lambda and the queue still receive every object.
 #. **Process.** ``<env>-<mission>_sdc_aws_processing_lambda_function``
    imports ``<package>.calibration.process_file``, uploads each product next to
    the input, and writes MetaTracker rows to the RDS table

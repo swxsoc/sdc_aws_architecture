@@ -166,6 +166,17 @@ variable "enable_processing_lambda" {
   default     = true
 }
 
+variable "processing_trigger_ignored_suffix" {
+  type        = string
+  description = "Object key suffix the processing Lambda is not invoked for, applied as an SNS filter on its subscription to each instrument topic. The default drops the .png quicklook products the Lambda uploads next to its inputs, which no instrument package processes. The artifacts Lambda and the instrument queue still receive every object. The match is case sensitive. An empty string removes the filter."
+  default     = ".png"
+
+  validation {
+    condition     = var.processing_trigger_ignored_suffix == "" || can(regex("^\\.[A-Za-z0-9._-]+$", var.processing_trigger_ignored_suffix))
+    error_message = "processing_trigger_ignored_suffix must be empty or a file extension such as .png."
+  }
+}
+
 variable "processing_extra_environment" {
   type        = map(string)
   description = "Mission-specific environment variables added to the processing Lambda, such as writable cache paths an instrument package needs. Cannot override a variable Terraform already sets."
