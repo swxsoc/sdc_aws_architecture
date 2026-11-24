@@ -275,6 +275,17 @@ table and objects that should have been recorded, every one of them counts as
 a missing row and is listed, which raises ``missing-metatracker-rows``; a
 table that disappears from a working pipeline shows up the same way.
 
+The Timestream table is in the same position. A Timestream table has only the
+columns that records have written, so a new one has none until the first
+record arrives, normally from the sorting Lambda. Every record carries both
+``file_key`` and ``new_file_key``. Timestream rejects a query that names a
+column the table lacks, and the reconciliation reads a table with neither key
+column as "no records", not as a failed check. With nothing to reconcile the
+Timestream check is listed under ``skipped``; with objects that should have
+been recorded, every one of them counts as a missing record, which raises
+``missing-timestream-records``. If the table has only one of the two key
+columns, the reconciliation reads the records by that column.
+
 The RDS security group admits only the Lambda and Grafana security groups, so
 the reconciliation Lambda joins the mission's Lambda security group and
 subnets whenever ``enable_lambda_vpc`` is true, exactly like the processing

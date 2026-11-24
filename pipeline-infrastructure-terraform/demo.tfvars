@@ -95,6 +95,13 @@ comms_platform    = "mattermost"
 enable_mattermost = true
 mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
 
+# Pipeline health alerts
+# Post every pipeline alarm transition (ALARM and OK) to the same demo
+# Mattermost channel through the alert notifier Lambda. The notifier reuses
+# the secret above and sits outside the VPC, so it does not depend on any
+# pipeline Lambda being enabled.
+enable_pipeline_alerts_mattermost = true
+
 # Lambda creation flags
 # Nothing exists for demo yet. Keep every flag false for the first apply, which
 # creates the buckets, topics, queues, ECR repositories, and database before
