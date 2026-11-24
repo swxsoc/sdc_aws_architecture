@@ -103,19 +103,20 @@ mattermost_url    = "https://mm.sciencecloud.nasa.gov:443"
 enable_pipeline_alerts_mattermost = true
 
 # Lambda creation flags
-# Nothing exists for demo yet. Keep every flag false for the first apply, which
-# creates the buckets, topics, queues, ECR repositories, and database before
-# any image exists. Flip each flag to true once its image has been pushed by
-# the build_demo_* CodeBuild projects, and apply with the immutable
-# *_image_tag variables.
-enable_processing_lambda = false
-enable_sorting_lambda    = false
-enable_artifacts_lambda  = false
+# The first apply ran with every flag false, to create the buckets, topics,
+# queues, ECR repositories, and database before any image existed. The
+# build_demo_* CodeBuild projects have since pushed the sorting, processing,
+# and artifacts images, so those three Lambdas are on. Apply with the
+# immutable *_image_tag variables. To rebuild the mission from nothing, set
+# the three flags back to false for the first apply. demo has no concating
+# Lambda.
+enable_processing_lambda = true
+enable_sorting_lambda    = true
+enable_artifacts_lambda  = true
 enable_concating_lambda  = false
 
-# Nothing exists for demo yet, so there are no Lambda log groups to adopt.
-# Keep this false through the applies that turn each Lambda on; Terraform
-# creates the log groups then.
+# Terraform creates demo's Lambda log groups along with the Lambdas, so there
+# are none to adopt.
 adopt_existing_lambda_log_groups = false
 
 # Cost trims for a test mission: short log retention and quick expiry of
