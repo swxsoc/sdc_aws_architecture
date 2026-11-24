@@ -14,10 +14,12 @@ failed check: with nothing to reconcile the database check is skipped and says
 so, and once there are objects to reconcile a missing table means every one
 of them is missing its row.
 
-The Timestream table is in the same position. It has no columns until the
-artifacts Lambda writes its first record, and a query that names ``file_key``
-before then is rejected. That is treated the same way: skipped while there is
-nothing to reconcile, and every object missing its record once there is.
+The Timestream table is in the same position. It has only the columns that
+records have written, so it has none until the first record arrives (every
+record carries both ``file_key`` and ``new_file_key``), and a query that names
+a column it lacks is rejected. That is treated the same way: skipped while
+there is nothing to reconcile, and every object missing its record once there
+is. A table with one of the two key columns is read by that column.
 
 The counts are published as CloudWatch metrics in the workspace's namespace,
 and every affected key is logged, in ``affected_keys`` entries of bounded
@@ -53,9 +55,11 @@ MAX_LOGGED_KEYS = 200
 # Serialized size of one batch of keys. A CloudWatch log event holds 256 KB
 # and an S3 key is at most 1024 bytes, so a batch always fits in one event.
 KEY_BATCH_BYTES = 100_000
-# Timestream rejects a query that names a column no record has written yet.
-# An empty table has no columns at all, so this is how "no records" looks.
-NO_TIMESTREAM_RECORDS = re.compile(r"Column 'file_key' does not exist")
+# The columns of the Timestream table that hold an object key.
+TIMESTREAM_KEY_COLUMNS = ("file_key", "new_file_key")
+# Timestream rejects a query that names a column no record has written, one
+# column per rejection. A table with neither key column has no records.
+MISSING_TIMESTREAM_COLUMN = re.compile(r"Column '(\w+)' does not exist")
 SQL_CHUNK = 500
 
 
@@ -341,10 +345,15 @@ def failed_status_sql(status_table: str, window: timedelta) -> str:
     )
 
 
-def timestream_sql(database: str, table: str, window: timedelta) -> str:
+def timestream_sql(
+    database: str,
+    table: str,
+    window: timedelta,
+    columns: Iterable[str] = TIMESTREAM_KEY_COLUMNS,
+) -> str:
     hours = max(1, int(window.total_seconds() // 3600)) + 2
     return (
-        f'SELECT DISTINCT file_key, new_file_key FROM "{database}"."{table}" '
+        f'SELECT DISTINCT {", ".join(columns)} FROM "{database}"."{table}" '
         f"WHERE time > ago({hours}h)"
     )
 
@@ -432,27 +441,48 @@ def check_metatracker(
         )
 
 
-def has_no_timestream_records(error: Exception) -> bool:
-    """Whether a Timestream query failed only because nothing was ever recorded."""
+def missing_timestream_column(error: Exception) -> str | None:
+    """The key column a Timestream query was rejected for naming, if any."""
     details = getattr(error, "response", None) or {}
     problem = details.get("Error", {})
-    return problem.get("Code") == "ValidationException" and bool(
-        NO_TIMESTREAM_RECORDS.search(problem.get("Message", ""))
-    )
+    if problem.get("Code") != "ValidationException":
+        return None
+    match = MISSING_TIMESTREAM_COLUMN.search(problem.get("Message", ""))
+    if match and match.group(1) in TIMESTREAM_KEY_COLUMNS:
+        return match.group(1)
+    return None
+
+
+def fetch_recorded_keys(timestream, settings: Settings) -> set[str] | None:
+    """Keys recorded in the window, or ``None`` when the table has no records.
+
+    The query names both key columns. If the table lacks one, the query is
+    repeated without it, so records are still read by the column that exists.
+    """
+    columns = list(TIMESTREAM_KEY_COLUMNS)
+    while columns:
+        sql = timestream_sql(
+            settings.timestream_database,
+            settings.timestream_table,
+            settings.window,
+            columns,
+        )
+        try:
+            return fetch_timestream_keys(timestream, sql)
+        except Exception as error:
+            absent = missing_timestream_column(error)
+            if absent not in columns:
+                raise
+            columns.remove(absent)
+    return None
 
 
 def check_timestream(
     timestream, settings: Settings, candidates: list[S3Object], report: Report
 ) -> None:
     """Fill the Timestream part of ``report``, tolerating a table with no records."""
-    sql = timestream_sql(
-        settings.timestream_database, settings.timestream_table, settings.window
-    )
-    try:
-        recorded = fetch_timestream_keys(timestream, sql)
-    except Exception as error:
-        if not has_no_timestream_records(error):
-            raise
+    recorded = fetch_recorded_keys(timestream, settings)
+    if recorded is None:
         if not candidates:
             report.skipped.append(
                 f"timestream: table {settings.timestream_table} has no records yet "

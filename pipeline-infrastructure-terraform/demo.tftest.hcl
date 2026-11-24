@@ -112,6 +112,21 @@ run "demo_tfvars_bootstrap" {
     )
     error_message = "demo stays minimal: no concating, no Grafana, and one external secret, the dev-demo Mattermost secret."
   }
+
+  # Health alerts reach the demo Mattermost channel from the bootstrap apply
+  # on: the notifier does not wait for any pipeline Lambda.
+  assert {
+    condition = (
+      var.enable_pipeline_alerts_mattermost == true &&
+      length(resource.aws_lambda_function.pipeline_alert_notifier) == 1 &&
+      resource.aws_lambda_function.pipeline_alert_notifier[0].function_name == "dev-demo_pipeline_alert_notifier" &&
+      resource.aws_lambda_function.pipeline_alert_notifier[0].environment[0].variables["MATTERMOST_CHANNEL_ID"] == "demo-channel-123" &&
+      length(resource.aws_sns_topic_subscription.pipeline_alert_notifier) == 1 &&
+      resource.aws_sns_topic_subscription.pipeline_alert_notifier[0].protocol == "lambda" &&
+      length(resource.aws_lambda_permission.pipeline_alert_notifier_sns) == 1
+    )
+    error_message = "demo.tfvars must opt in to enable_pipeline_alerts_mattermost, which plans the alert notifier Lambda, subscribed to the pipeline alert topic, posting to the demo channel."
+  }
 }
 
 # The same tfvars with every Lambda turned on: the state the mission reaches

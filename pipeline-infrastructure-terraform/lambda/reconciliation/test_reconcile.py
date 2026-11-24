@@ -126,6 +126,16 @@ class Sql(unittest.TestCase):
         )
         self.assertIn("ago(26h)", reconcile.timestream_sql("db", "table", WINDOW))
 
+    def test_timestream_sql_names_the_key_columns_it_is_given(self):
+        self.assertIn(
+            "SELECT DISTINCT file_key, new_file_key FROM",
+            reconcile.timestream_sql("db", "table", WINDOW),
+        )
+        self.assertIn(
+            "SELECT DISTINCT new_file_key FROM",
+            reconcile.timestream_sql("db", "table", WINDOW, ["new_file_key"]),
+        )
+
     def test_a_fractional_window_is_not_shortened(self):
         window = timedelta(hours=1.5)
         self.assertIn(
@@ -274,16 +284,36 @@ class CheckMetatracker(unittest.TestCase):
 
 
 class FakeTimestream:
-    """Answers the Timestream query, or rejects it the way an empty table does."""
+    """A Timestream table, which has only the columns its records have written.
 
-    def __init__(self, keys=(), error: Exception | None = None):
-        self.keys = list(keys)
+    A query that names a column no record has written is rejected the way the
+    service rejects it. ``error`` rejects every query instead.
+    """
+
+    def __init__(self, records=(), error: Exception | None = None):
+        self.records = [dict(record) for record in records]
         self.error = error
+        self.queries: list[str] = []
 
     def query(self, **kwargs):
+        sql = kwargs["QueryString"]
+        self.queries.append(sql)
         if self.error:
             raise self.error
-        return {"Rows": [{"Data": [{"ScalarValue": key}]} for key in self.keys]}
+        selected = re.search(r"SELECT DISTINCT (.+?) FROM", sql).group(1).split(", ")
+        written = {column for record in self.records for column in record}
+        for column in selected:
+            if column not in written:
+                raise QueryRejected(
+                    "ValidationException",
+                    f"line 1:17: Column '{column}' does not exist",
+                )
+        return {
+            "Rows": [
+                {"Data": [{"ScalarValue": record.get(c)} for c in selected]}
+                for record in self.records
+            ]
+        }
 
 
 class QueryRejected(Exception):
@@ -294,57 +324,68 @@ class QueryRejected(Exception):
         self.response = {"Error": {"Code": code, "Message": message}}
 
 
-NO_COLUMN = QueryRejected(
-    "ValidationException", "line 1:17: Column 'file_key' does not exist"
-)
-
-
 class CheckTimestream(unittest.TestCase):
     SETTINGS = CheckMetatracker.SETTINGS
     CANDIDATES = CheckMetatracker.CANDIDATES
 
-    def test_an_empty_table_with_nothing_to_reconcile_is_skipped(self):
+    def check(self, timestream, candidates):
         report = reconcile.Report()
-        reconcile.check_timestream(
-            FakeTimestream(error=NO_COLUMN), self.SETTINGS, [], report
-        )
+        reconcile.check_timestream(timestream, self.SETTINGS, candidates, report)
+        return report
+
+    def test_an_empty_table_with_nothing_to_reconcile_is_skipped(self):
+        report = self.check(FakeTimestream(), [])
         self.assertEqual(report.missing_timestream, [])
         self.assertEqual(len(report.skipped), 1)
         self.assertIn("no records yet", report.skipped[0])
 
     def test_an_empty_table_leaves_every_object_missing_its_record(self):
-        report = reconcile.Report()
-        reconcile.check_timestream(
-            FakeTimestream(error=NO_COLUMN),
-            self.SETTINGS,
-            list(self.CANDIDATES),
-            report,
-        )
+        report = self.check(FakeTimestream(), list(self.CANDIDATES))
         self.assertEqual(len(report.missing_timestream), len(self.CANDIDATES))
         self.assertEqual(report.skipped, [])
 
     def test_recorded_objects_are_not_missing(self):
-        report = reconcile.Report()
-        reconcile.check_timestream(
-            FakeTimestream(keys=[self.CANDIDATES[0].key]),
-            self.SETTINGS,
-            list(self.CANDIDATES),
-            report,
+        timestream = FakeTimestream(
+            [{"file_key": "demo_craft_1.csv", "new_file_key": self.CANDIDATES[0].key}]
         )
-        self.assertEqual(len(report.missing_timestream), 1)
+        report = self.check(timestream, list(self.CANDIDATES))
+        self.assertEqual(
+            report.missing_timestream,
+            [f"s3://dev-demo-craft/{self.CANDIDATES[1].key}"],
+        )
+        # A table with both key columns is read with one query.
+        self.assertEqual(len(timestream.queries), 1)
+
+    def test_a_table_with_one_key_column_is_read_by_that_column(self):
+        for column in reconcile.TIMESTREAM_KEY_COLUMNS:
+            with self.subTest(column=column):
+                timestream = FakeTimestream([{column: self.CANDIDATES[0].key}])
+                report = self.check(timestream, list(self.CANDIDATES))
+                self.assertEqual(
+                    report.missing_timestream,
+                    [f"s3://dev-demo-craft/{self.CANDIDATES[1].key}"],
+                )
+                self.assertEqual(report.skipped, [])
+                self.assertIn(f"SELECT DISTINCT {column} FROM", timestream.queries[-1])
 
     def test_any_other_rejection_is_still_an_error(self):
         for error in (
-            QueryRejected(
-                "ValidationException", "Column 'new_file_key' does not exist"
-            ),
+            QueryRejected("ValidationException", "Column 'time' does not exist"),
+            QueryRejected("ValidationException", "line 1:40: Table t does not exist"),
             QueryRejected("AccessDeniedException", "Column 'file_key' does not exist"),
             RuntimeError("Column 'file_key' does not exist"),
         ):
-            with self.assertRaises(type(error)):
-                reconcile.check_timestream(
-                    FakeTimestream(error=error), self.SETTINGS, [], reconcile.Report()
-                )
+            with self.subTest(error=error), self.assertRaises(type(error)):
+                self.check(FakeTimestream(error=error), [])
+
+    def test_a_column_rejected_twice_is_an_error_not_a_loop(self):
+        error = QueryRejected(
+            "ValidationException", "Column 'new_file_key' does not exist"
+        )
+        timestream = FakeTimestream(error=error)
+        with self.assertRaises(QueryRejected):
+            self.check(timestream, [])
+        self.assertEqual(len(timestream.queries), 2)
 
 
 class AffectedKeys(unittest.TestCase):
