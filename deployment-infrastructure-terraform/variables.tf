@@ -47,14 +47,14 @@ variable "codebuild_log_retention_days" {
 
 variable "enable_demo_smoke_test_schedule" {
   type        = bool
-  description = "Whether the demo-smoke-test project runs on demo_smoke_test_schedule. Leave false until the dev-demo workspace is bootstrapped and a demo instrument package exists; the project can always be started by hand."
-  default     = false
+  description = "Whether the demo-smoke-test project runs on demo_smoke_test_schedule. On now that the dev-demo workspace is bootstrapped and the processing image includes demo_craft. Set false while rebuilding dev-demo from nothing, because every run fails at the processing stage until then; the project can always be started by hand."
+  default     = true
 }
 
 variable "demo_smoke_test_schedule" {
   type        = string
-  description = "EventBridge schedule expression for the demo mission smoke test"
-  default     = "cron(0 13 * * ? *)"
+  description = "EventBridge schedule expression for the demo mission smoke test. The default runs it at 13:00 UTC on weekdays (Monday to Friday) and skips the weekend."
+  default     = "cron(0 13 ? * MON-FRI *)"
 
   validation {
     condition     = can(regex("^(cron|rate)\\(.+\\)$", var.demo_smoke_test_schedule))

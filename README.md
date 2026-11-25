@@ -169,10 +169,12 @@ and develop features without touching a live dev or prod pipeline.
   `demo_craft_l0_<time>_v0.0.1.csv` to `dev-demo-swsoc-incoming` and verifies
   the sorted copy in `dev-demo-craft`, a processed output, the Timestream
   record, and the Mattermost post, then deletes what it created; any missing
-  stage fails the build. Its daily schedule is created disabled
-  (`enable_demo_smoke_test_schedule` in the deployment root); turn it on after
-  step 3, once the processing image includes `demo_craft`, and start the project by
-  hand from CodeBuild at any time. To check names and access first, run
+  stage fails the build. It runs on weekdays at 13:00 UTC
+  (`enable_demo_smoke_test_schedule` in the deployment root, on by default);
+  when rebuilding the mission from nothing, apply the deployment root with
+  that flag false until step 3 is done and the processing image includes
+  `demo_craft`. Start the project by hand from CodeBuild at any time. To check
+  names and access first, run
   `python scripts/demo_smoke_test.py --dry-run` with credentials for the
   account; `--help` lists the options, including `--skip-rds` for a host the
   RDS security group does not admit.
@@ -193,8 +195,8 @@ and develop features without touching a live dev or prod pipeline.
 
   CodeBuild is billed per build minute on top of that, driven by pushes to
   the demo and Lambda repositories and by `trigger_rebuild_swxsoc`, which
-  rebuilds the demo base image on every swxsoc package release. The daily
-  smoke test adds a few build minutes a day, under 2 USD a month.
+  rebuilds the demo base image on every swxsoc package release. The weekday
+  smoke test adds a few build minutes a run, under 2 USD a month.
 
 ### swxsoc_pipeline Notes
 - `swxsoc_pipeline.tfvars` uses mission-scoped names and starts with `instrument_names = ["reach"]` and `mission_name = "swxsoc_pipeline"`.
