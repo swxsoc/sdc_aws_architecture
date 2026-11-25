@@ -249,3 +249,22 @@ demo from configuration into evidence: because `trigger_rebuild_swxsoc`
 rebuilds and redeploys the demo images on every swxsoc release, a scheduled
 smoke run exercises each release through sorting, processing, and artifacts
 before a live mission's release tag does.
+
+## Pipeline status dashboard
+
+`status_dashboard.tf` adds the account-wide `swxsoc-pipeline-status`
+dashboard when `enable_pipeline_status_dashboard = true`. This root hosts it
+because it is the only root without per-environment workspaces, and one
+dashboard covers both environments: a Production widget above a Development
+widget, each a CloudWatch custom widget rendered by the
+`swxsoc-pipeline-status-widget` Lambda in `lambda/status_widget`.
+
+The Lambda's role may only `cloudwatch:DescribeAlarms` and
+`cloudwatch:DescribeAlarmHistory`. Because a custom widget is invoked with the
+viewer's own credentials, the root also creates the
+`swxsoc-pipeline-status-viewer` IAM policy (`cloudwatch:GetDashboard` on the
+dashboard plus `lambda:InvokeFunction` on the widget); attach it to the
+console role or group that should see the page. The outputs
+`pipeline_status_dashboard_url` and `pipeline_status_viewer_policy_arn` give
+the link and the policy ARN. Unit tests: `make status-widget-test` from the
+repository root; sample pages: `python lambda/status_widget/preview.py <dir>`.
