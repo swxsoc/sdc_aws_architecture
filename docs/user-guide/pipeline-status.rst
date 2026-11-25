@@ -21,8 +21,8 @@ Where it comes from
 The pipeline root gives every ``<env>-<mission>`` workspace a set of health
 alarms (see :ref:`pipeline-health`) named ``<env><mission-slug>-pipeline-*`` and a composite alarm
 ``<env><mission-slug>-pipeline-unhealthy`` (``dev-`` prefixes development
-workspaces; production names have no prefix). The status widget reads only
-those alarms:
+workspaces; production names have no prefix). The status widget reads those
+alarms and, for one line per mission, the health check's own metrics:
 
 * every ``*-pipeline-unhealthy`` composite alarm identifies a workspace, so a
   mission appears on the dashboard as soon as its health alarms exist, with no
@@ -31,7 +31,14 @@ those alarms:
   suffix, together with what its ALARM state means (an *issue*: errors or
   slowness while data still flows, or an *outage*: data is not getting
   through);
-* ``DescribeAlarmHistory`` supplies the recent events.
+* ``DescribeAlarmHistory`` supplies the recent events;
+* one ``GetMetricData`` call per environment reads the latest health-check
+  counts of every mission from its ``SWxSOC/Pipeline/<env>-<mission-slug>``
+  namespace (``IncomingObjectsInWindow``, ``ReconciledObjects``,
+  ``MissingMetaTrackerRows``, ``MissingTimestreamRecords`` and
+  ``FailedProcessingFiles``, each the Maximum over the last reconciliation
+  period, which the widget takes from the alarms' period). These feed the
+  "Last 24 h" line only; nothing else depends on them.
 
 .. list-table:: Alarm suffix to stage
    :header-rows: 1
@@ -84,6 +91,17 @@ How a status is decided
 * The **verdict band** at the top says in one sentence which missions are not
   getting data through, which have errors, and which are fine, followed by one
   line per problem and when it was last checked.
+* The **daily counts line** under each mission header ("Last 24 h: 142 files
+  arrived · 140 checked · 0 missing records · 2 failed processing") is what
+  the latest health-check run counted: files that landed in the incoming
+  bucket inside the reconciliation window (24 h by default), files it checked
+  against MetaTracker and Timestream, the missing records of both kinds added
+  together, and the processing status rows marked failed. It is shown
+  collapsed or expanded. "0 files arrived" stays in the muted colour because
+  it is not a status: a quiet day and a stopped uploader look the same to the
+  pipeline, which is what its tooltip says. A mission whose health check has
+  not published yet has no line, and if the metrics cannot be read the page
+  renders without the lines rather than failing.
 * Every **firing alarm** renders as a block with a plain-language headline, the
   latest value in words ("3,612 files", "2 in the last 5 min", "waiting 2.5 h"),
   when it started, and pill links: the log group filtered to the lines that
@@ -91,7 +109,12 @@ How a status is decided
   the affected-file lists), the alarm itself, the topic, queue or bucket
   involved, and a "What to do" note. Log links are derived from the
   ``FunctionName``, ``TopicName`` and ``QueueName`` dimensions the alarms carry,
-  so they need no extra permissions.
+  so they need no extra permissions. The ``unsorted-incoming-objects`` alarm
+  gets an "Incoming bucket" pill when its description names the bucket
+  ("... > 0 in bucket <name>; ..."), which the pipeline root writes because
+  the bucket name does not always follow the mission's (HERMES lands in
+  ``swsoc-incoming``); an alarm applied before that description change simply
+  has no pill.
 * **Recent events** pairs each alarm's transitions to ALARM and back to OK
   into "<day> · lasted <time>" rows, newest first, or "Ongoing · <time>" for
   alarms still firing, each with the reason recorded at the time and a log
@@ -112,8 +135,9 @@ both environments. ``status_dashboard.tf`` creates, when
 
 * the widget Lambda ``swxsoc-pipeline-status-widget``
   (``lambda/status_widget/widget.py``, Python 3.12, arm64, no third-party
-  dependencies) with a role that may only ``cloudwatch:DescribeAlarms`` and
-  ``cloudwatch:DescribeAlarmHistory``;
+  dependencies) with a role that may only ``cloudwatch:DescribeAlarms``,
+  ``cloudwatch:DescribeAlarmHistory`` and ``cloudwatch:GetMetricData`` (none
+  of them resource-scoped; the role writes nothing but its own log);
 * the dashboard ``swxsoc-pipeline-status`` with a header and one custom widget
   per environment (Production above Development), both updating on dashboard
   refresh and resize;
@@ -138,7 +162,8 @@ Operating notes
   ``widgetContext`` the dashboard passes it.
 * Turn on the dashboard's auto-refresh to keep the page current; each refresh
   invokes the widget once per environment. The data is alarm state, so it is
-  never fresher than the alarms' five-minute evaluation periods.
+  never fresher than the alarms' five-minute evaluation periods; the daily
+  counts line is as fresh as the last health-check run (hourly by default).
 * Until a workspace has its health alarms applied, its environment shows a
   "no mission pipelines are reporting yet" panel rather than an empty page.
 * If the widget cannot read CloudWatch (missing permission, throttling), it
@@ -147,8 +172,9 @@ Operating notes
 Development
 -----------
 
-``make status-widget-test`` runs the unit tests, which cover workspace
-discovery, every alarm classification, status precedence, history pairing and
-both themes without any AWS access. ``python preview.py <dir>`` in the widget
+``make lambda-test`` runs the unit tests, which cover workspace
+discovery, every alarm classification, status precedence, history pairing,
+the daily counts (query batching, parsing, wording and the degraded page)
+and both themes without any AWS access, using a fake CloudWatch client. ``python preview.py <dir>`` in the widget
 directory writes sample pages for a browser, and the codestyle workflow lints
 the sources with ruff and runs the tests.

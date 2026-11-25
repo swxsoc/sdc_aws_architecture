@@ -437,10 +437,13 @@ resource "aws_lambda_permission" "pipeline_reconciliation_schedule" {
 // Reconciliation alarms
 ///////////////////////////////////////
 
+# The unsorted-objects alarm names the incoming bucket in its description so
+# the status page can link to it (the bucket name is not derivable from the
+# alarm name: hermes lands in swsoc-incoming).
 resource "aws_cloudwatch_metric_alarm" "reconciliation_counts" {
   for_each            = local.reconciliation_alarm_targets
   alarm_name          = "${local.health_prefix}-${each.key}"
-  alarm_description   = "The last ${terraform.workspace} reconciliation run reported ${each.value} > 0; the run's log entry lists the keys."
+  alarm_description   = "The last ${terraform.workspace} reconciliation run reported ${each.value} > 0${each.key == "unsorted-incoming-objects" ? " in bucket ${aws_s3_bucket.sdc_buckets[var.incoming_bucket_name].bucket}" : ""}; the run's log entry lists the keys."
   namespace           = local.health_metric_namespace
   metric_name         = each.value
   statistic           = "Maximum"

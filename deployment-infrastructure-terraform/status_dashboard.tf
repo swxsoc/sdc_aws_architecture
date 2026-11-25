@@ -5,7 +5,8 @@
 # dashboard invokes lambda/status_widget with the viewer's own credentials and
 # shows the HTML it returns, so nothing is exposed outside the console. The
 # widget reads only the <env><mission>-pipeline-* alarms that the pipeline root
-# creates per workspace; a workspace appears here as soon as its alarms exist.
+# creates per workspace, plus the SWxSOC/Pipeline/<env>-<mission> metrics for
+# the daily counts line; a workspace appears here as soon as its alarms exist.
 #
 # This root is the only one without per-environment workspaces, which is why
 # the cross-environment dashboard lives here next to the CodeBuild fleet.
@@ -29,6 +30,15 @@ locals {
   status_widget_environments = [
     { key = "prod", title = "Production" },
     { key = "dev", title = "Development" },
+  ]
+
+  # Everything the widget may do in CloudWatch: describe alarms and their
+  # history, and read the health-check metrics behind the daily counts line.
+  # All read-only, none resource-scoped.
+  status_widget_read_actions = [
+    "cloudwatch:DescribeAlarms",
+    "cloudwatch:DescribeAlarmHistory",
+    "cloudwatch:GetMetricData",
   ]
 
   # Built whether or not the dashboard is enabled (the dashboard resource is
@@ -101,7 +111,9 @@ resource "aws_iam_role" "pipeline_status_widget" {
   tags = local.status_tags
 }
 
-# Read-only: the widget describes alarms and their history, nothing else.
+# Read-only: the widget describes alarms and their history and reads the
+# health-check metrics for the daily counts line. GetMetricData is not
+# resource-scoped, so it has to be granted on "*".
 resource "aws_iam_role_policy" "pipeline_status_widget" {
   count = local.status_dashboard_enabled ? 1 : 0
   name  = "pipeline-status-widget"
@@ -117,9 +129,9 @@ resource "aws_iam_role_policy" "pipeline_status_widget" {
         Resource = "${aws_cloudwatch_log_group.pipeline_status_widget[0].arn}:*"
       },
       {
-        Sid      = "ReadAlarms"
+        Sid      = "ReadAlarmsAndMetrics"
         Effect   = "Allow"
-        Action   = ["cloudwatch:DescribeAlarms", "cloudwatch:DescribeAlarmHistory"]
+        Action   = local.status_widget_read_actions
         Resource = "*"
       },
     ]

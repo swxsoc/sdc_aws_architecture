@@ -108,8 +108,15 @@ def workspace_alarms(prefix, instruments=("craft",), concating=False, **override
         "missing-timestream-records",
         "reconciliation-check-errors",
     ):
+        # Only the unsorted-objects alarm names the bucket, as pipeline_health.tf does.
+        where = f" in bucket {base}incoming" if suffix.startswith("unsorted") else ""
         add(
-            suffix, Period=3600, AlarmDescription=f"The last run reported {suffix} > 0."
+            suffix,
+            Period=3600,
+            AlarmDescription=(
+                f"The last run reported {suffix} > 0{where}; the run's log entry "
+                "lists the keys."
+            ),
         )
     add("reconciliation-not-running", Period=3600, Threshold=1.0)
     add(
@@ -143,6 +150,11 @@ SAMPLE_ALARMS = (
             "state": "ALARM",
             "reason": crossed(3612.0),
             "updated": NOW - dt.timedelta(days=8),
+            # HERMES lands in a bucket whose name does not follow the mission's.
+            "AlarmDescription": (
+                "The last hermes reconciliation run reported UnsortedIncomingObjects "
+                "> 0 in bucket swsoc-incoming; the run's log entry lists the keys."
+            ),
         },
         craft_queue_age={
             "state": "ALARM",
@@ -196,6 +208,56 @@ SAMPLE_HISTORY = [
 ]
 
 
+# Latest health-check counts per namespace: what GetMetricData returns, as
+# (IncomingObjectsInWindow, ReconciledObjects, MissingMetaTrackerRows,
+# MissingTimestreamRecords, FailedProcessingFiles). GDC-Trailblazer has not
+# published yet, so it has no entry.
+SAMPLE_COUNTS = {
+    "SWxSOC/Pipeline/prod-padre": (142, 140, 0, 0, 2),
+    "SWxSOC/Pipeline/prod-hermes": (0, 0, 0, 0, 0),
+    "SWxSOC/Pipeline/prod-impax": (1, 1, 1, 0, 0),
+    "SWxSOC/Pipeline/prod-swxsoc-pipeline": (3612, 3612, 0, 0, 0),
+    "SWxSOC/Pipeline/dev-demo": (5, 5, 0, 0, 1),
+}
+COUNT_METRIC_ORDER = (
+    "IncomingObjectsInWindow",
+    "ReconciledObjects",
+    "MissingMetaTrackerRows",
+    "MissingTimestreamRecords",
+    "FailedProcessingFiles",
+)
+
+
+def metric_data_results(queries, counts=SAMPLE_COUNTS):
+    """MetricDataResults for ``queries``: newest first, empty when unpublished."""
+    results = []
+    for query in queries:
+        metric = query["MetricStat"]["Metric"]
+        values = counts.get(metric["Namespace"])
+        if values is None:
+            results.append(
+                {
+                    "Id": query["Id"],
+                    "Timestamps": [],
+                    "Values": [],
+                    "StatusCode": "Complete",
+                }
+            )
+            continue
+        value = float(values[COUNT_METRIC_ORDER.index(metric["MetricName"])])
+        results.append(
+            {
+                "Id": query["Id"],
+                "Label": metric["MetricName"],
+                # Two periods of data, newest first, as ScanBy=TimestampDescending gives.
+                "Timestamps": [hours_ago(0.5), hours_ago(1.5)],
+                "Values": [value, value + 1000],
+                "StatusCode": "Complete",
+            }
+        )
+    return results
+
+
 class FakePaginator:
     def __init__(self, pages):
         self.pages = pages
@@ -207,7 +269,11 @@ class FakePaginator:
 
 
 class FakeCloudWatch:
-    def __init__(self, alarms=SAMPLE_ALARMS, history_items=SAMPLE_HISTORY):
+    def __init__(
+        self, alarms=SAMPLE_ALARMS, history_items=SAMPLE_HISTORY, counts=SAMPLE_COUNTS
+    ):
+        self.counts = counts
+        self.metric_calls = []
         metric = [a for a in alarms if not a["AlarmName"].endswith("unhealthy")]
         composite = [a for a in alarms if a["AlarmName"].endswith("unhealthy")]
         self.paginators = {
@@ -224,6 +290,16 @@ class FakeCloudWatch:
 
     def get_paginator(self, name):
         return self.paginators[name]
+
+    def get_metric_data(self, **kwargs):
+        self.metric_calls.append(kwargs)
+        if self.counts is None:
+            raise RuntimeError("AccessDenied: not authorized to GetMetricData")
+        return {
+            "MetricDataResults": metric_data_results(
+                kwargs["MetricDataQueries"], self.counts
+            )
+        }
 
 
 class BrokenCloudWatch:
@@ -526,6 +602,37 @@ class LinkTests(unittest.TestCase):
         start = int((unsorted.updated - dt.timedelta(hours=3)).timestamp() * 1000)
         self.assertIn(f"start$3D{start}", log.url)
 
+    def test_unsorted_alarm_links_to_the_bucket_named_in_its_description(self):
+        snap = snapshot()
+        hermes = mission(snap, "HERMES")
+        (unsorted,) = stage(hermes, "landing").firing
+        links = links_for(unsorted, hermes)
+        self.assertEqual(
+            list(links), ["List of affected files", "Incoming bucket", "Alarm"]
+        )
+        self.assertEqual(
+            links["Incoming bucket"].url,
+            "https://s3.console.aws.amazon.com/s3/buckets/swsoc-incoming"
+            "?region=us-east-1&tab=objects",
+        )
+        self.assertEqual(links["Incoming bucket"].title, "swsoc-incoming")
+        # An older alarm whose description does not name the bucket gets no pill.
+        unsorted.description = "The last run reported UnsortedIncomingObjects > 0."
+        self.assertNotIn("Incoming bucket", links_for(unsorted, hermes))
+
+    def test_bucket_in_description(self):
+        for text, expected in (
+            (
+                "reported 3 > 0 in bucket padre-incoming; the log lists the keys.",
+                "padre-incoming",
+            ),
+            ("Objects in bucket my.dotted-bucket.", "my.dotted-bucket"),
+            ("in bucket swsoc-incoming", "swsoc-incoming"),
+            ("no bucket here", ""),
+            ("", ""),
+        ):
+            self.assertEqual(widget.bucket_in_description(text), expected, text)
+
     def test_queue_alarm_links_to_the_queue_and_not_to_logs(self):
         snap = snapshot()
         hermes = mission(snap, "HERMES")
@@ -604,7 +711,8 @@ class LinkTests(unittest.TestCase):
         snap = snapshot(client=FakeCloudWatch(alarms=alarms, history_items=[]))
         padre = mission(snap, "PADRE")
         (unsorted,) = stage(padre, "landing").firing
-        self.assertEqual(list(links_for(unsorted, padre)), ["Alarm"])
+        # The bucket pill comes from the description, so it needs no function.
+        self.assertEqual(list(links_for(unsorted, padre)), ["Incoming bucket", "Alarm"])
 
     def test_resolved_event_window_has_an_end(self):
         snap = snapshot()
@@ -614,6 +722,139 @@ class LinkTests(unittest.TestCase):
         )
         end = int((resolved.end + dt.timedelta(minutes=15)).timestamp() * 1000)
         self.assertIn(f"$26end$3D{end}", links["List of affected files"].url)
+
+
+class CountsTests(unittest.TestCase):
+    def test_one_batched_get_metric_data_call_per_environment(self):
+        client = FakeCloudWatch()
+        snap = snapshot(client=client)
+        self.assertEqual(len(client.metric_calls), 1)
+        call = client.metric_calls[0]
+        queries = call["MetricDataQueries"]
+        self.assertEqual(len(queries), 5 * len(snap.missions))
+        self.assertEqual(len({q["Id"] for q in queries}), len(queries))
+        for query in queries:
+            self.assertRegex(query["Id"], r"^[a-z][a-zA-Z0-9_]*$")
+            self.assertEqual(query["MetricStat"]["Stat"], "Maximum")
+            self.assertEqual(query["MetricStat"]["Period"], 3600)  # the alarms' period
+            self.assertTrue(query["ReturnData"])
+        self.assertEqual(
+            {q["MetricStat"]["Metric"]["Namespace"] for q in queries},
+            {
+                "SWxSOC/Pipeline/prod-padre",
+                "SWxSOC/Pipeline/prod-hermes",
+                "SWxSOC/Pipeline/prod-impax",
+                "SWxSOC/Pipeline/prod-gdctb",
+                "SWxSOC/Pipeline/prod-swxsoc-pipeline",
+            },
+        )
+        self.assertEqual(
+            {q["MetricStat"]["Metric"]["MetricName"] for q in queries},
+            set(COUNT_METRIC_ORDER),
+        )
+        # Two reconciliation periods, newest datapoint first.
+        self.assertEqual(call["StartTime"], NOW - dt.timedelta(hours=2))
+        self.assertEqual(call["EndTime"], NOW)
+        self.assertEqual(call["ScanBy"], "TimestampDescending")
+
+    def test_dev_namespaces_carry_the_dev_prefix(self):
+        client = FakeCloudWatch()
+        snapshot("dev", client=client)
+        (call,) = client.metric_calls
+        self.assertEqual(
+            {q["MetricStat"]["Metric"]["Namespace"] for q in call["MetricDataQueries"]},
+            {"SWxSOC/Pipeline/dev-demo"},
+        )
+
+    def test_counts_are_parsed_per_mission_from_the_newest_datapoint(self):
+        snap = snapshot()
+        padre = mission(snap, "PADRE").counts
+        self.assertEqual(
+            (
+                padre.arrived,
+                padre.checked,
+                padre.missing_metatracker,
+                padre.missing_timestream,
+                padre.failed,
+            ),
+            (142, 140, 0, 0, 2),
+        )
+        self.assertEqual(padre.missing, 0)
+        self.assertEqual(mission(snap, "iMPAX").counts.missing, 1)
+        # Never published: no counts at all, rather than zeros.
+        self.assertIsNone(mission(snap, "GDC-Trailblazer").counts)
+
+    def test_partial_results_leave_fields_none(self):
+        workspace = widget.Workspace("prod", "padre")
+        lookup = {
+            "m0_arrived": (workspace, "arrived"),
+            "m0_failed": (workspace, "failed"),
+        }
+        counts = widget.parse_counts(
+            [
+                {"Id": "m0_arrived", "Values": [7.0]},
+                {"Id": "m0_failed", "Values": []},
+                {"Id": "unknown", "Values": [1.0]},
+            ],
+            lookup,
+        )
+        self.assertEqual(counts[workspace].arrived, 7)
+        self.assertIsNone(counts[workspace].failed)
+        self.assertIsNone(counts[workspace].missing)
+        self.assertEqual(widget.parse_counts([], lookup), {})
+
+    def test_words(self):
+        words = widget.counts_words(widget.Counts(142, 140, 0, 0, 2))
+        self.assertEqual(
+            [text for text, _ in words],
+            [
+                "142 files arrived",
+                "140 checked",
+                "0 missing records",
+                "2 failed processing",
+            ],
+        )
+        self.assertEqual([tip for _, tip in words], ["", "", "", ""])
+        singular = widget.counts_words(widget.Counts(1, 1, 1, 0, 1))
+        self.assertEqual(
+            [text for text, _ in singular],
+            ["1 file arrived", "1 checked", "1 missing record", "1 failed processing"],
+        )
+        quiet = widget.counts_words(widget.Counts(0, 0, 0, 0, 0))
+        self.assertEqual(quiet[0], ("0 files arrived", widget.QUIET_DAY_NOTE))
+        big = widget.counts_words(widget.Counts(3612, 3612, None, None, None))
+        self.assertEqual(
+            [text for text, _ in big], ["3,612 files arrived", "3,612 checked"]
+        )
+
+    def test_no_call_without_missions(self):
+        client = FakeCloudWatch(alarms=[])
+        snap = snapshot(client=client)
+        self.assertEqual(snap.missions, [])
+        self.assertEqual(client.metric_calls, [])
+
+    def test_counts_failure_degrades_to_no_line(self):
+        client = FakeCloudWatch(counts=None)
+        snap = snapshot(client=client)
+        self.assertEqual(len(snap.missions), 5)
+        self.assertTrue(all(m.counts is None for m in snap.missions))
+        page = widget.render(snap, "dark", REGION)
+        self.assertNotIn("Last 24 h", page)
+        self.assertIn("<h1>Production Pipeline Status</h1>", page)
+
+    def test_missing_get_metric_data_permission_still_renders(self):
+        class NoMetricData(FakeCloudWatch):
+            def get_metric_data(self, **kwargs):
+                raise PermissionError(
+                    "not authorized to perform: cloudwatch:GetMetricData"
+                )
+
+        with self.assertLogs("status_widget", level="WARNING") as captured:
+            snap = snapshot(client=NoMetricData())
+        self.assertIn("daily counts unavailable", captured.output[0])
+        self.assertIn(
+            '<div class="gname">PADRE</div>', widget.render(snap, "dark", REGION)
+        )
 
 
 class HistoryTests(unittest.TestCase):
@@ -797,6 +1038,35 @@ class RenderTests(unittest.TestCase):
         self.assertIn("The health check has not reported for this mission yet.", page)
         self.assertIn('title="Reconciliation"', page)
 
+    def test_counts_line_under_each_mission_header(self):
+        page = widget.render(snapshot(), "dark", REGION)
+        self.assertIn(
+            '<div class="gcounts" title="Counted by the latest health-check run">'
+            "Last 24 h: 142 files arrived · 140 checked · 0 missing records · "
+            "2 failed processing</div>",
+            page,
+        )
+        # The line sits inside the header, under the subtitle, so it shows
+        # while the group is collapsed.
+        padre = page.index('<div class="gname">PADRE</div>')
+        self.assertLess(padre, page.index("Last 24 h: 142 files arrived"))
+        self.assertLess(
+            page.index("Last 24 h: 142 files arrived"), page.index("</summary>", padre)
+        )
+        # A quiet day is not a status: muted, with the caveat as a tooltip.
+        self.assertIn(
+            '<span class="quiet" title="No alarm: a quiet day and a stopped uploader '
+            'look the same to the pipeline">0 files arrived</span> · 0 checked · '
+            "0 missing records · 0 failed processing",
+            page,
+        )
+        self.assertIn("Last 24 h: 1 file arrived · 1 checked · 1 missing record", page)
+        self.assertIn("3,612 files arrived · 3,612 checked", page)
+        # No line for a mission whose health check has not published yet.
+        gdctb = page.index('<div class="gname">GDC-Trailblazer</div>')
+        self.assertNotIn("Last 24 h", page[gdctb : page.index("</summary>", gdctb)])
+        self.assertEqual(page.count('class="gcounts"'), 4)
+
     def test_legend_sits_before_the_first_mission(self):
         page = widget.render(snapshot(), "dark", REGION)
         self.assertLess(
@@ -884,6 +1154,7 @@ class HandlerTests(unittest.TestCase):
             widget.cloudwatch_client = original
         self.assertIn("Development Pipeline Status", page)
         self.assertIn('<div class="gname">Demo</div>', page)
+        self.assertIn("Last 24 h: 5 files arrived · 5 checked", page)
 
 
 if __name__ == "__main__":
