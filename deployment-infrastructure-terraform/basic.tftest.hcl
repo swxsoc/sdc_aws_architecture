@@ -241,12 +241,12 @@ run "plan_deployment_projects" {
 
   assert {
     condition = (
-      resource.aws_cloudwatch_event_rule.demo_smoke_test.state == "DISABLED" &&
+      resource.aws_cloudwatch_event_rule.demo_smoke_test.state == "ENABLED" &&
       resource.aws_cloudwatch_event_rule.demo_smoke_test.schedule_expression == "cron(0 13 * * ? *)" &&
       resource.aws_cloudwatch_event_target.demo_smoke_test.rule == resource.aws_cloudwatch_event_rule.demo_smoke_test.name &&
       strcontains(resource.aws_iam_role.demo_smoke_test_schedule.assume_role_policy, "events.amazonaws.com")
     )
-    error_message = "The smoke test schedule must exist, default to disabled, and start the project through the EventBridge role."
+    error_message = "The smoke test schedule must exist, default to enabled, and start the project through the EventBridge role."
   }
 
   assert {
@@ -262,5 +262,53 @@ run "plan_deployment_projects" {
       !strcontains(resource.aws_iam_role_policy.codebuild["swxsoc-codebuild-demo-smoke-test"].policy, "s3:*")
     )
     error_message = "The smoke test role must reach only the dev-demo buckets, secrets, and Timestream table."
+  }
+}
+
+# The schedule can still be switched off: a rebuild of dev-demo from nothing
+# needs that until the workspace is bootstrapped, because every run fails at
+# the processing stage before then.
+run "plan_demo_smoke_test_schedule_off" {
+  command = plan
+
+  variables {
+    adopt_existing_codebuild_projects = false
+    enable_demo_smoke_test_schedule   = false
+  }
+
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_codestarconnections_connection.gdctb[0]
+    values = {
+      arn = "arn:aws:codeconnections:us-east-1:123456789012:connection/00000000-0000-0000-0000-000000000000"
+    }
+  }
+
+  override_data {
+    target = data.aws_partition.current
+    values = {
+      partition = "aws"
+    }
+  }
+
+  override_data {
+    target = data.aws_region.current
+    values = {
+      name = "us-east-1"
+    }
+  }
+
+  assert {
+    condition = (
+      resource.aws_cloudwatch_event_rule.demo_smoke_test.state == "DISABLED" &&
+      resource.aws_cloudwatch_event_target.demo_smoke_test.rule == resource.aws_cloudwatch_event_rule.demo_smoke_test.name
+    )
+    error_message = "enable_demo_smoke_test_schedule = false must keep the smoke test rule and its target but leave the rule disabled."
   }
 }

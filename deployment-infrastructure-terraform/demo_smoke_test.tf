@@ -4,9 +4,11 @@
 # acted on it (sorted copy, processed output, Timestream record, Mattermost
 # post, and optionally the MetaTracker row). It runs scripts/demo_smoke_test.py
 # from this repository on a schedule and on demand, and fails the build when
-# any stage is missing. The schedule starts disabled: enable it once the
-# dev-demo workspace is bootstrapped and a demo instrument package exists,
-# otherwise every run fails at the processing stage.
+# any stage is missing. The schedule is on by default. Turn it off
+# (enable_demo_smoke_test_schedule = false) while rebuilding the dev-demo
+# workspace from nothing: until the workspace is bootstrapped and the
+# processing image includes a demo instrument package, every run fails at the
+# processing stage.
 locals {
   demo_smoke_test = {
     mission    = "demo"

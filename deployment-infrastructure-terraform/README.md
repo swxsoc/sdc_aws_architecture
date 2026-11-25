@@ -121,11 +121,12 @@ deletes what it created. Any missing stage fails the build. The MetaTracker
 row check is skipped in CodeBuild (`SMOKE_TEST_ARGS=--skip-rds`) because the
 RDS security group admits only the Lambda and Grafana security groups; run the
 script by hand from an allowed host to include it. An EventBridge rule starts
-the project daily through its own `swxsoc-events-demo-smoke-test` role; the
-rule is created disabled and is switched on with
-`enable_demo_smoke_test_schedule = true` once `dev-demo` is bootstrapped and
-the processing image includes `demo_craft`, since every run fails at the
-processing stage until then. The project's role can list, read, write, and delete objects in
+the project daily through its own `swxsoc-events-demo-smoke-test` role. The
+rule is enabled (`enable_demo_smoke_test_schedule` defaults to `true`) now
+that `dev-demo` is bootstrapped and the processing image includes
+`demo_craft`. Apply with `enable_demo_smoke_test_schedule = false` while
+rebuilding `dev-demo` from nothing, since every run fails at the processing
+stage until then. The project's role can list, read, write, and delete objects in
 the two dev-demo buckets, read the `swxsoc/dev/demo/*` secrets, and query
 the dev-demo Timestream table, and nothing else.
 
