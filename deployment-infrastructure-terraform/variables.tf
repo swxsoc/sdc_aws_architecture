@@ -65,7 +65,7 @@ variable "demo_smoke_test_schedule" {
 variable "enable_pipeline_status_dashboard" {
   type        = bool
   description = "Whether to create the account-wide swxsoc-pipeline-status dashboard and the Lambda-rendered status widget behind it. Additive only; the widget reads the <env><mission>-pipeline-* alarms the pipeline root creates."
-  default     = false
+  default     = true
 }
 
 variable "pipeline_status_history_days" {
@@ -74,8 +74,8 @@ variable "pipeline_status_history_days" {
   default     = 14
 
   validation {
-    condition     = var.pipeline_status_history_days >= 1 && var.pipeline_status_history_days <= 30
-    error_message = "pipeline_status_history_days must be between 1 and 30; CloudWatch keeps alarm history for 30 days."
+    condition     = var.pipeline_status_history_days >= 1 && var.pipeline_status_history_days <= 30 && floor(var.pipeline_status_history_days) == var.pipeline_status_history_days
+    error_message = "pipeline_status_history_days must be a whole number between 1 and 30; CloudWatch keeps alarm history for 30 days."
   }
 }
 
@@ -85,8 +85,8 @@ variable "pipeline_status_widget_height" {
   default     = 24
 
   validation {
-    condition     = var.pipeline_status_widget_height >= 6 && var.pipeline_status_widget_height <= 1000
-    error_message = "pipeline_status_widget_height must be between 6 and 1000 dashboard rows."
+    condition     = var.pipeline_status_widget_height >= 6 && var.pipeline_status_widget_height <= 1000 && floor(var.pipeline_status_widget_height) == var.pipeline_status_widget_height
+    error_message = "pipeline_status_widget_height must be a whole number of dashboard rows between 6 and 1000; CloudWatch dashboard positions and sizes are integers."
   }
 }
 

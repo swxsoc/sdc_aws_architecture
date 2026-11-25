@@ -309,8 +309,8 @@ it returns, so the page never leaves the console. The widget derives
 everything from the `<env><mission>-pipeline-*` health alarms the pipeline
 root creates, so a workspace appears as soon as its alarms exist.
 
-It is created by the deployment root when `enable_pipeline_status_dashboard`
-is true (default false, additive only). Viewers need the output
+It is created by the deployment root while `enable_pipeline_status_dashboard`
+is true (the default; additive only). Viewers need the output
 `swxsoc-pipeline-status-viewer` policy attached to their console role or
 group, because a custom widget runs as the person looking at it. See
 `docs/user-guide/pipeline-status.rst` for the alarm-to-stage mapping and

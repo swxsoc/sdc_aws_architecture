@@ -15,7 +15,7 @@ Where it comes from
 -------------------
 
 The pipeline root gives every ``<env>-<mission>`` workspace a set of health
-alarms named ``<env><mission-slug>-pipeline-*`` and a composite alarm
+alarms (see :ref:`pipeline-health`) named ``<env><mission-slug>-pipeline-*`` and a composite alarm
 ``<env><mission-slug>-pipeline-unhealthy`` (``dev-`` prefixes development
 workspaces; production names have no prefix). The status widget reads only
 those alarms:
@@ -104,7 +104,7 @@ both environments. ``status_dashboard.tf`` creates, when
   attach this policy to the console role or group of everyone who should see
   the page; identities are managed outside the repository.
 
-The flag defaults to ``false`` and the resources are additive only. Outputs
+The flag defaults to ``true`` (set it to ``false`` to remove the dashboard); the resources are additive only and the deployment root is applied by hand. Outputs
 ``pipeline_status_dashboard_url`` and ``pipeline_status_viewer_policy_arn``
 give the console link and the policy to attach. ``pipeline_status_history_days``
 (default 14), ``pipeline_status_widget_height`` (default 24 grid rows; the

@@ -457,6 +457,34 @@ run "reject_fractional_status_dashboard_sizes" {
     pipeline_status_widget_height     = 24.5
   }
 
+  override_data {
+    target = data.aws_caller_identity.current
+    values = {
+      account_id = "123456789012"
+    }
+  }
+
+  override_data {
+    target = data.aws_codestarconnections_connection.gdctb[0]
+    values = {
+      arn = "arn:aws:codeconnections:us-east-1:123456789012:connection/00000000-0000-0000-0000-000000000000"
+    }
+  }
+
+  override_data {
+    target = data.aws_partition.current
+    values = {
+      partition = "aws"
+    }
+  }
+
+  override_data {
+    target = data.aws_region.current
+    values = {
+      name = "us-east-1"
+    }
+  }
+
   expect_failures = [
     var.pipeline_status_history_days,
     var.pipeline_status_widget_height,

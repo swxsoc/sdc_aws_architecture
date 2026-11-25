@@ -446,5 +446,63 @@ class HandlerTests(unittest.TestCase):
         self.assertIn(">Demo</a>", page)
 
 
+class TimestampTests(unittest.TestCase):
+    def test_transition_time_is_preferred_over_update_time(self):
+        records = [
+            {
+                "AlarmName": "padre-pipeline-sorting-errors",
+                "StateValue": "ALARM",
+                "StateTransitionedTimestamp": hours_ago(30),
+                "StateUpdatedTimestamp": hours_ago(1),
+            },
+            {
+                "AlarmName": "padre-pipeline-sorting-throttles",
+                "StateValue": "OK",
+                "StateUpdatedTimestamp": hours_ago(2),
+            },
+        ]
+        client = FakeCloudWatch(alarms=records, history_items=[])
+        by_name = {a.name: a for a in widget.fetch_alarms(client)}
+        self.assertEqual(
+            by_name["padre-pipeline-sorting-errors"].updated, hours_ago(30)
+        )
+        self.assertEqual(
+            by_name["padre-pipeline-sorting-throttles"].updated, hours_ago(2)
+        )
+
+
+class InsufficientDataEventTests(unittest.TestCase):
+    def test_open_incident_whose_alarm_lost_data_shows_no_data(self):
+        alarms = workspace_alarms(
+            "padre-pipeline-",
+            missing_metatracker_rows={
+                "state": "INSUFFICIENT_DATA",
+                "updated": hours_ago(1),
+            },
+        )
+        items = [
+            history("padre-pipeline-missing-metatracker-rows", "ALARM", hours_ago(3)),
+            history(
+                "padre-pipeline-missing-metatracker-rows",
+                "INSUFFICIENT_DATA",
+                hours_ago(1),
+                "ALARM",
+            ),
+        ]
+        snap = snapshot(client=FakeCloudWatch(alarms=alarms, history_items=items))
+        (event,) = snap.events
+        self.assertTrue(event.ongoing)
+        self.assertEqual(event.start, hours_ago(3))
+        page = widget.render(snap, "dark", "us-east-1")
+        self.assertIn(
+            '<span class="st-nodata">No data</span> · PADRE · Processing', page
+        )
+        self.assertNotIn('<span class="st-outage">Outage</span> · PADRE', page)
+        # The stage itself is still available: its other alarms are OK.
+        self.assertEqual(
+            stage(mission(snap, "PADRE"), "processing").status, "available"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

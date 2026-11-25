@@ -350,7 +350,13 @@ def fetch_alarms(client) -> list[Alarm]:
                     name=record["AlarmName"],
                     state=record.get("StateValue", "INSUFFICIENT_DATA"),
                     reason=record.get("StateReason", ""),
-                    updated=_timestamp(record.get("StateUpdatedTimestamp")),
+                    # StateUpdatedTimestamp also moves on evaluation updates
+                    # without a state change; the transition time is the
+                    # incident start.
+                    updated=_timestamp(
+                        record.get("StateTransitionedTimestamp")
+                        or record.get("StateUpdatedTimestamp")
+                    ),
                 )
             )
     return alarms
@@ -650,8 +656,14 @@ def render_events(snapshot: Snapshot, region: str) -> str:
     stage_titles = dict(STAGES)
     out = []
     for event in snapshot.events:
-        status = event.alarm.severity if event.ongoing else "available"
-        label = STATUS_LABELS[status] if event.ongoing else "Resolved"
+        if not event.ongoing:
+            status, label = "available", "Resolved"
+        elif event.alarm.state == "ALARM":
+            status, label = event.alarm.severity, STATUS_LABELS[event.alarm.severity]
+        else:
+            # Open incident whose alarm has since gone to INSUFFICIENT_DATA:
+            # unresolved, but not a confirmed issue or outage right now.
+            status, label = "nodata", "No data"
         stage = stage_titles.get(event.alarm.stage or "", "Pipeline")
         out.append(
             f'<div class="ev"><div class="evtime">{html.escape(_event_time(event))}</div>'
