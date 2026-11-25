@@ -125,8 +125,8 @@ the demo pipeline alongside the live missions. ``demo`` is a development-only
 mission with no ``prod-demo`` workspace, so its base image is rebuilt for
 ``DEVELOPMENT`` even on a release tag and its image projects have no
 release-tag webhook filter. ``demo-smoke-test`` runs
-``scripts/demo_smoke_test.py`` from this repository on a daily schedule and
-on demand: it pushes one synthetic file through the ``dev-demo``
+``scripts/demo_smoke_test.py`` from this repository on a weekday schedule
+(Monday to Friday, 13:00 UTC) and on demand: it pushes one synthetic file through the ``dev-demo``
 pipeline and fails unless sorting, processing, Timestream, and Mattermost all
 show it.
 

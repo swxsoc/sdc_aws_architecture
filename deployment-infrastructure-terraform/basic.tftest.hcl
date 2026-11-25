@@ -242,11 +242,11 @@ run "plan_deployment_projects" {
   assert {
     condition = (
       resource.aws_cloudwatch_event_rule.demo_smoke_test.state == "ENABLED" &&
-      resource.aws_cloudwatch_event_rule.demo_smoke_test.schedule_expression == "cron(0 13 * * ? *)" &&
+      resource.aws_cloudwatch_event_rule.demo_smoke_test.schedule_expression == "cron(0 13 ? * MON-FRI *)" &&
       resource.aws_cloudwatch_event_target.demo_smoke_test.rule == resource.aws_cloudwatch_event_rule.demo_smoke_test.name &&
       strcontains(resource.aws_iam_role.demo_smoke_test_schedule.assume_role_policy, "events.amazonaws.com")
     )
-    error_message = "The smoke test schedule must exist, default to enabled, and start the project through the EventBridge role."
+    error_message = "The smoke test schedule must exist, default to enabled on weekdays only, and start the project through the EventBridge role."
   }
 
   assert {
