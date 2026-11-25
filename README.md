@@ -97,12 +97,13 @@ the place to try a pipeline change, measure what one mission workspace costs,
 and develop features without touching a live dev or prod pipeline.
 
 - Shape: `mission_name = "demo"`, `instrument_names = ["craft"]` (craft only:
-  the unconfigured stock mission every mission starts from),
+  an example of an unconfigured stock mission),
   processing, sorting, and artifacts only (`needs_concating = false`), no
   Grafana secret, Mattermost notifications, 14-day Lambda log retention, and
   7-day expiry of noncurrent object versions. The only external secret the
   plan reads is the Mattermost one below.
-- Notifications: Sorting and Artifacts post to a demo Mattermost channel.
+- Notifications: Sorting and Artifacts post to a demo Mattermost channel, and
+  so do pipeline health alarm transitions (`enable_pipeline_alerts_mattermost`).
   Create the channel and a bot token, then seed and tag
   `swxsoc/dev/demo/communications/mattermost` (`token` and `channel_id` keys;
   tags `Mission=demo`, `Service=communications`, `Environment=Development`,
@@ -128,8 +129,8 @@ and develop features without touching a live dev or prod pipeline.
   a `raw` level, and `file_extension: csv`. `swxsoc/demo_craft` (tag
   `v0.0.1`, generated from `swxsoc/instrument_pkg_template`) is that package:
   its `process_file` turns one l0 CSV into one l1 CSV and stops, with no CDF
-  library. demo is the stock mission, craft and nothing else; a real mission
-  adds its science instruments on top of that shape. No legacy mission entry
+  library. demo is an example of a stock mission, craft and nothing else; a
+  real mission also has its science instruments. No legacy mission entry
   changes.
 - Bootstrap order, the same as gdctb:
   1. Make the companion changes in other repositories, in this order.
@@ -145,16 +146,15 @@ and develop features without touching a live dev or prod pipeline.
      `dev-swxsoc-pipeline-docker-lambda-base` repository, and starts the three
      `build_swxsoc_pipeline_*` Lambda builds, redeploying `dev-swxsoc_pipeline`;
      once the deployment root is applied, the demo project's webhook does that
-     on the next push to that repository's `main`. Second, add
-     `lambda_function/demo-requirements.txt` to
-     `swxsoc/sdc_aws_processing_lambda` listing `swxsoc`, `swxsoc[tracker]`,
-     `psycopg2-binary`, and
-     `demo_craft @ git+https://github.com/swxsoc/demo_craft.git@v0.0.1`
-     (the package exists; see the swxsoc bullet above); that buildspec selects
-     `<mission>-requirements.txt` and exits if it is missing (the
-     `swxsoc_pipeline-requirements.txt` there is the model; sorting and
-     artifacts share one `requirements.txt` and need nothing). Third, change
-     the swxsoc package's demo mission configuration as described above.
+     on the next push to that repository's `main`. Second, and already done
+     (merged on 2026-11-09): `swxsoc/sdc_aws_processing_lambda` carries
+     `lambda_function/demo-requirements.txt` listing `swxsoc`,
+     `swxsoc[tracker]`, `psycopg2-binary`, and
+     `demo_craft @ git+https://github.com/swxsoc/demo_craft.git@v0.0.1`;
+     that buildspec selects `<mission>-requirements.txt` and exits if it is
+     missing (sorting and artifacts share one `requirements.txt` and need
+     nothing). Third, change the swxsoc package's demo mission configuration
+     as described above.
   2. Seed and tag the `swxsoc/dev/demo/communications/mattermost` secret,
      then create the `dev-demo` workspace and apply `demo.tfvars` with every
      `enable_*_lambda` flag false to create the buckets, topics, queues, ECR
@@ -169,10 +169,12 @@ and develop features without touching a live dev or prod pipeline.
   `demo_craft_l0_<time>_v0.0.1.csv` to `dev-demo-swsoc-incoming` and verifies
   the sorted copy in `dev-demo-craft`, a processed output, the Timestream
   record, and the Mattermost post, then deletes what it created; any missing
-  stage fails the build. Its daily schedule is created disabled
-  (`enable_demo_smoke_test_schedule` in the deployment root); turn it on after
-  step 3, once the processing image includes `demo_craft`, and start the project by
-  hand from CodeBuild at any time. To check names and access first, run
+  stage fails the build. It runs on weekdays at 13:00 UTC
+  (`enable_demo_smoke_test_schedule` in the deployment root, on by default);
+  when rebuilding the mission from nothing, apply the deployment root with
+  that flag false until step 3 is done and the processing image includes
+  `demo_craft`. Start the project by hand from CodeBuild at any time. To check
+  names and access first, run
   `python scripts/demo_smoke_test.py --dry-run` with credentials for the
   account; `--help` lists the options, including `--skip-rds` for a host the
   RDS security group does not admit.
@@ -193,8 +195,8 @@ and develop features without touching a live dev or prod pipeline.
 
   CodeBuild is billed per build minute on top of that, driven by pushes to
   the demo and Lambda repositories and by `trigger_rebuild_swxsoc`, which
-  rebuilds the demo base image on every swxsoc package release. The daily
-  smoke test adds a few build minutes a day, under 2 USD a month.
+  rebuilds the demo base image on every swxsoc package release. The weekday
+  smoke test adds a few build minutes a run, under 2 USD a month.
 
 ### swxsoc_pipeline Notes
 - `swxsoc_pipeline.tfvars` uses mission-scoped names and starts with `instrument_names = ["reach"]` and `mission_name = "swxsoc_pipeline"`.
@@ -252,6 +254,37 @@ root. It keeps the legacy `gdc_test_kafka` GCN secret through the explicit
 
 All three S3 backends use native lockfiles. Terraform execution roles need
 access to both the state object and its `.tflock` object.
+
+### Pipeline health
+
+Every `<env>-<mission>` workspace of the pipeline root now gets a feedback
+loop for its chain (land, sort, notify, process, record), defined in
+`pipeline-infrastructure-terraform/pipeline_health.tf` and documented in
+`docs/user-guide/pipeline-health.rst` with the stage/evidence/alarm/gap table:
+
+- an SNS alert topic `<env>-<mission>-pipeline-alerts`;
+- CloudWatch alarms per Lambda stage (errors, throttles, duration near the
+  timeout, and a log metric filter for the failures the handlers swallow),
+  per instrument topic (delivery failures) and per instrument queue (oldest
+  message age), plus a composite alarm `<env>-<mission>-pipeline-unhealthy`;
+- a scheduled reconciliation Lambda (`lambda/reconciliation`, Python 3.12,
+  no third-party dependencies) that lists the mission buckets and compares
+  them with the MetaTracker rows in RDS and the Timestream records, publishing
+  `UnsortedIncomingObjects`, `MissingMetaTrackerRows`,
+  `MissingTimestreamRecords` and friends to `SWxSOC/Pipeline/<env>-<mission>`,
+  each with an alarm; it joins the Lambda VPC to reach RDS and skips that
+  check where `enable_lambda_vpc` is false;
+- a dashboard `<env>-<mission>-pipeline` showing the chain left to right.
+
+`enable_pipeline_alarms` and `enable_pipeline_reconciliation` default to true
+and only ever create new resources; no existing bucket, topic, queue, Lambda
+or role changes. Nothing is delivered until a mission opts in with
+`pipeline_alert_emails` or `enable_pipeline_alerts_mattermost` (a notifier
+Lambda in `lambda/alert_notifier` that reuses the mission's Mattermost
+secret). The health resources are created by a reviewed full
+`terraform apply -var-file=<mission>.tfvars` per workspace; the image
+deployment builds apply targeted plans and will not create them. The Lambda
+sources have unit tests (`make lambda-test`) and are linted by ruff in CI.
 
 ### Resource tags
 

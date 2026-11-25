@@ -145,4 +145,5 @@ Where to go from here:
    docker-overview
    iam-overview
    aws-tag-overview
+   pipeline-health
    pipeline-status

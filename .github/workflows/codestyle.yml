@@ -44,10 +44,12 @@ jobs:
         python -m pip install ruff
     - name: Ruff format
       run: |
-        ruff format --check --diff docs scripts deployment-infrastructure-terraform/lambda
+        ruff format --check --diff docs scripts pipeline-infrastructure-terraform/lambda deployment-infrastructure-terraform/lambda
     - name: Ruff lint
       run: |
-        ruff check docs scripts deployment-infrastructure-terraform/lambda
+        ruff check docs scripts pipeline-infrastructure-terraform/lambda deployment-infrastructure-terraform/lambda
     - name: Lambda unit tests
       run: |
+        python -m unittest discover -s pipeline-infrastructure-terraform/lambda/reconciliation -p 'test_*.py'
+        python -m unittest discover -s pipeline-infrastructure-terraform/lambda/alert_notifier -p 'test_*.py'
         python -m unittest discover -s deployment-infrastructure-terraform/lambda/status_widget -p 'test_*.py'

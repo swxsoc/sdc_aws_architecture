@@ -1,8 +1,9 @@
 # Validates the checked-in demo.tfvars itself, rather than a copy of its
 # values, in the two states the dev-demo workspace passes through: the
 # bootstrap apply with every Lambda off, and the steady state with all three
-# Lambdas on. The variables come from the file on the command line, so this
-# file must be run alone (a -var-file applies to every test file):
+# Lambdas on, which is how the file is checked in. The variables come from the
+# file on the command line, so this file must be run alone (a -var-file
+# applies to every test file):
 #
 #   TF_WORKSPACE=dev-demo terraform test -filter=demo.tftest.hcl -var-file=demo.tfvars
 #
@@ -24,8 +25,16 @@ mock_provider "aws" {
   }
 }
 
+# The checked-in tfvars with the three Lambda flags turned back off: the first
+# apply of a mission rebuilt from nothing, before any image exists.
 run "demo_tfvars_bootstrap" {
   command = plan
+
+  variables {
+    enable_processing_lambda = false
+    enable_sorting_lambda    = false
+    enable_artifacts_lambda  = false
+  }
 
   override_data {
     target = data.aws_vpc.default
@@ -75,7 +84,7 @@ run "demo_tfvars_bootstrap" {
       length(resource.aws_lambda_function.aws_sdc_artifacts_lambda_function) == 0 &&
       length(resource.aws_lambda_function.aws_sdc_concating_lambda_function) == 0
     )
-    error_message = "demo.tfvars as checked in must plan the bootstrap state: every enable_*_lambda flag false, so no Lambda and no image tag needed."
+    error_message = "demo.tfvars with every enable_*_lambda flag false must plan the bootstrap state: no Lambda and no image tag needed."
   }
 
   assert {
@@ -112,20 +121,44 @@ run "demo_tfvars_bootstrap" {
     )
     error_message = "demo stays minimal: no concating, no Grafana, and one external secret, the dev-demo Mattermost secret."
   }
+
+  # Health alerts reach the demo Mattermost channel from the bootstrap apply
+  # on: the notifier does not wait for any pipeline Lambda.
+  assert {
+    condition = (
+      var.enable_pipeline_alerts_mattermost == true &&
+      length(resource.aws_lambda_function.pipeline_alert_notifier) == 1 &&
+      resource.aws_lambda_function.pipeline_alert_notifier[0].function_name == "dev-demo_pipeline_alert_notifier" &&
+      resource.aws_lambda_function.pipeline_alert_notifier[0].environment[0].variables["MATTERMOST_CHANNEL_ID"] == "demo-channel-123" &&
+      length(resource.aws_sns_topic_subscription.pipeline_alert_notifier) == 1 &&
+      resource.aws_sns_topic_subscription.pipeline_alert_notifier[0].protocol == "lambda" &&
+      length(resource.aws_lambda_permission.pipeline_alert_notifier_sns) == 1
+    )
+    error_message = "demo.tfvars must opt in to enable_pipeline_alerts_mattermost, which plans the alert notifier Lambda, subscribed to the pipeline alert topic, posting to the demo channel."
+  }
 }
 
-# The same tfvars with every Lambda turned on: the state the mission reaches
-# after bootstrap. Exercises the full notification fan-out.
+# The tfvars as checked in, with the three Lambdas on: the state the mission
+# reached after bootstrap. Only the image tags are supplied, as an apply
+# supplies them. Exercises the full notification fan-out.
 run "demo_tfvars_all_lambdas" {
   command = plan
 
   variables {
-    enable_processing_lambda = true
-    enable_sorting_lambda    = true
-    enable_artifacts_lambda  = true
-    pf_image_tag             = "test-immutable-sha"
-    sf_image_tag             = "test-immutable-sha"
-    af_image_tag             = "test-immutable-sha"
+    pf_image_tag = "test-immutable-sha"
+    sf_image_tag = "test-immutable-sha"
+    af_image_tag = "test-immutable-sha"
+  }
+
+  assert {
+    condition = (
+      var.enable_processing_lambda == true &&
+      var.enable_sorting_lambda == true &&
+      var.enable_artifacts_lambda == true &&
+      var.enable_concating_lambda == false &&
+      var.adopt_existing_lambda_log_groups == false
+    )
+    error_message = "demo.tfvars as checked in must turn on the sorting, processing, and artifacts Lambdas, leave concating off, and adopt no log groups."
   }
 
   override_data {
