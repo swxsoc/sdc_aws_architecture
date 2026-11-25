@@ -299,10 +299,12 @@ CodeBuild and IAM resource. Shared pipeline resources use
 ### Pipeline status dashboard
 
 `swxsoc-pipeline-status` is one account-wide CloudWatch dashboard, in the
-style of a public system-status page, that shows every mission workspace as a
-group with one row per pipeline stage (Landing, Sorting, Notification,
-Processing, Artifacts, Concatenation, Reconciliation) and a list of recent
-alarm events. It is rendered by a custom widget: the dashboard invokes the
+style of a public system-status page and written for the whole team: a
+one-sentence verdict first, then every mission workspace as a group with the
+problem named in its header, one row per pipeline step in plain words
+(Arrival, Sorting, Hand-off, Processing, Recording, Daily files, Health check),
+a plain-language block with log, alarm and resource links for every firing
+alarm, and a list of recent events. It is rendered by a custom widget: the dashboard invokes the
 `swxsoc-pipeline-status-widget` Lambda (`deployment-infrastructure-terraform/lambda/status_widget`,
 Python 3.12, no dependencies) with the viewer's credentials and shows the HTML
 it returns, so the page never leaves the console. The widget derives

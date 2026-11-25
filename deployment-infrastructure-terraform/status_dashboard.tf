@@ -144,6 +144,7 @@ resource "aws_lambda_function" "pipeline_status_widget" {
     variables = {
       CONSOLE_REGION = data.aws_region.current.name
       HISTORY_DAYS   = tostring(var.pipeline_status_history_days)
+      STATUS_CONTACT = var.pipeline_status_contact
     }
   }
 

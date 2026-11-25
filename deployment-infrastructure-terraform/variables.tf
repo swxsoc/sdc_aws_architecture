@@ -100,3 +100,9 @@ variable "pipeline_status_log_retention_days" {
     error_message = "pipeline_status_log_retention_days must be a CloudWatch Logs supported retention period."
   }
 }
+
+variable "pipeline_status_contact" {
+  type        = string
+  description = "Where to ask about an outage, shown at the foot of the status dashboard (for example a Mattermost channel or an email address); empty hides the line"
+  default     = ""
+}

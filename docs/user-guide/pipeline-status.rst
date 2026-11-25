@@ -5,11 +5,15 @@ Pipeline Status Dashboard
 
 The ``swxsoc-pipeline-status`` CloudWatch dashboard answers one question at a
 glance: is every mission's data pipeline healthy right now? It is modelled on
-a public system-status page, with one group per mission workspace, one row per
-pipeline stage, a status glyph and word for each, and a list of recent events.
-It stays inside AWS: the page is rendered by a Lambda-backed *custom widget*
-and viewed in the CloudWatch console, so nothing is published outside the
-account.
+a public system-status page and written for the whole team, not only for cloud
+engineers: a one-sentence verdict first ("HERMES has not been getting data
+through for 8 days. PADRE has errors (data still flowing) for 4 h. iMPAX is
+fine."), then one group per mission with the problem named in its header, one
+row per pipeline step in plain words, and for every firing alarm a
+plain-language headline with direct links to the log lines, the alarm and the
+resource involved. It stays inside AWS: the page is rendered by a Lambda-backed
+*custom widget* and viewed in the CloudWatch console, so nothing is published
+outside the account.
 
 Where it comes from
 -------------------
@@ -33,30 +37,31 @@ those alarms:
    :header-rows: 1
    :widths: 18 52 15
 
-   * - Stage
+   * - Step shown (technical name)
      - Alarms (suffix after ``<env><mission-slug>-pipeline-``)
      - ALARM means
-   * - Landing
+   * - Arrival (Landing)
      - ``unsorted-incoming-objects``
      - Outage
    * - Sorting
      - ``sorting-{errors,throttles,duration,log-errors}``
      - Issue
-   * - Notification
-     - ``<instrument>-topic-delivery-failures``, ``<instrument>-queue-age``
-     - Outage
+   * - Hand-off (Notification)
+     - ``<instrument>-topic-delivery-failures``; ``<instrument>-queue-age``
+     - Outage; Issue (the queue is drained by an external consumer, SWxSOC
+       processing runs from the topic)
    * - Processing
      - ``processing-{errors,throttles,duration,log-errors}``;
        ``missing-metatracker-rows``
      - Issue; Outage
-   * - Artifacts
+   * - Recording (Artifacts)
      - ``artifacts-{errors,throttles,duration,log-errors}``;
        ``missing-timestream-records``
      - Issue; Outage
-   * - Concatenation
+   * - Daily files (Concatenation)
      - ``concating-{errors,throttles,duration,log-errors}``
      - Issue
-   * - Reconciliation
+   * - Health check (Reconciliation)
      - ``reconciliation-not-running``, ``reconciliation-errors``,
        ``reconciliation-check-errors``
      - Issue
@@ -64,24 +69,38 @@ those alarms:
 How a status is decided
 -----------------------
 
-* A **stage** shows the worst of its alarms: *Outage* beats *Issue*.
-  *No data* appears only when every alarm of the stage is
-  ``INSUFFICIENT_DATA`` (typically a workspace whose reconciliation job has
-  not run yet). *Not enabled* means the workspace has no alarms for that stage,
-  for example concatenation on a mission without a concating Lambda.
-* A **mission** shows the worst of its stages, and opens expanded whenever it
-  is not fully available.
-* The **summary** at the top counts available stages, current outages, current
-  issues and stages without data, in the manner of "Available services / N
-  current outages / N current issues".
+* A **step** shows the worst of its alarms: *Outage* (data is not getting
+  through this step) beats *Issue* (errors on some files, data still getting
+  through). *Not checked yet* appears only when every alarm of the step is
+  ``INSUFFICIENT_DATA`` (typically a workspace whose health check has not run
+  yet). Steps the mission does not have (daily files on a mission without a
+  concating Lambda) are folded into one "is not part of this mission's
+  pipeline" line.
+* A **mission** shows the worst of its evaluated steps; steps that are not
+  checked yet do not count against it. Missions are ordered worst first and
+  only missions with a problem start expanded. The header names the problem
+  and how long it has lasted ("Outage · Files arrived but were not sorted into
+  instrument buckets · 8 days").
+* The **verdict band** at the top says in one sentence which missions are not
+  getting data through, which have errors, and which are fine, followed by one
+  line per problem and when it was last checked.
+* Every **firing alarm** renders as a block with a plain-language headline, the
+  latest value in words ("3,612 files", "2 in the last 5 min", "waiting 2.5 h"),
+  when it started, and pill links: the log group filtered to the lines that
+  raised the alarm (the Lambda's log for its errors, the health-check log for
+  the affected-file lists), the alarm itself, the topic, queue or bucket
+  involved, and a "What to do" note. Log links are derived from the
+  ``FunctionName``, ``TopicName`` and ``QueueName`` dimensions the alarms carry,
+  so they need no extra permissions.
 * **Recent events** pairs each alarm's transitions to ALARM and back to OK
-  into "Resolved · start – end" rows, newest first, or "Ongoing · since" for
-  alarms still firing. An alarm that has been in ALARM for longer than the
+  into "<day> · lasted <time>" rows, newest first, or "Ongoing · <time>" for
+  alarms still firing, each with the reason recorded at the time and a log
+  link for that window. An alarm that has been in ALARM for longer than the
   history window is listed as ongoing from its own state-change time.
 
-Stage rows link to the alarm in the CloudWatch console and mission titles link
-to the mission's own ``<env><mission-slug>-pipeline`` dashboard, which holds
-the metric graphs for drilling down.
+Mission headers carry "Graphs" (the mission's own
+``<env><mission-slug>-pipeline`` dashboard with the metric graphs) and
+"All alarms" links.
 
 Terraform
 ---------
@@ -109,7 +128,8 @@ The flag defaults to ``true`` (set it to ``false`` to remove the dashboard); the
 give the console link and the policy to attach. ``pipeline_status_history_days``
 (default 14), ``pipeline_status_widget_height`` (default 24 grid rows; the
 widget scrolls) and ``pipeline_status_log_retention_days`` (default 14) tune
-it.
+it. ``pipeline_status_contact`` (default empty) adds a "Questions about an
+outage: ..." line at the foot of the page.
 
 Operating notes
 ---------------

@@ -320,6 +320,7 @@ run "plan_pipeline_status_dashboard" {
     adopt_existing_codebuild_projects = false
     pipeline_status_history_days      = 7
     pipeline_status_widget_height     = 30
+    pipeline_status_contact           = "#swxsoc-ops on Mattermost"
   }
 
   override_data {
@@ -359,6 +360,7 @@ run "plan_pipeline_status_dashboard" {
       resource.aws_lambda_function.pipeline_status_widget[0].timeout == 30 &&
       resource.aws_lambda_function.pipeline_status_widget[0].environment[0].variables["CONSOLE_REGION"] == "us-east-1" &&
       resource.aws_lambda_function.pipeline_status_widget[0].environment[0].variables["HISTORY_DAYS"] == "7" &&
+      resource.aws_lambda_function.pipeline_status_widget[0].environment[0].variables["STATUS_CONTACT"] == "#swxsoc-ops on Mattermost" &&
       resource.aws_lambda_function.pipeline_status_widget[0].tags["Service"] == "pipeline-status"
     )
     error_message = "The status widget must be the arm64 Python 3.12 widget.handler function with the console region and history window in its environment."
