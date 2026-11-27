@@ -746,7 +746,7 @@ def parse_counts(
         setattr(
             counts.setdefault(workspace, Counts()),
             attribute,
-            int(round(float(values[0]))),
+            round(float(values[0])),
         )
     return counts
 
