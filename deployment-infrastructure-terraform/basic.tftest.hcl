@@ -372,9 +372,10 @@ run "plan_pipeline_status_dashboard" {
       resource.aws_cloudwatch_log_group.pipeline_status_widget[0].retention_in_days == 14 &&
       resource.aws_iam_role.pipeline_status_widget[0].name == "swxsoc-pipeline-status-widget" &&
       resource.aws_iam_role_policy.pipeline_status_widget[0].name == "pipeline-status-widget" &&
-      strcontains(resource.aws_iam_role.pipeline_status_widget[0].assume_role_policy, "lambda.amazonaws.com")
+      strcontains(resource.aws_iam_role.pipeline_status_widget[0].assume_role_policy, "lambda.amazonaws.com") &&
+      tolist(local.status_widget_read_actions) == tolist(["cloudwatch:DescribeAlarms", "cloudwatch:DescribeAlarmHistory", "cloudwatch:GetMetricData"])
     )
-    error_message = "The status widget must get its own retained log group and a Lambda role."
+    error_message = "The status widget must get its own retained log group and a Lambda role that may only describe alarms, read alarm history and read metric data."
   }
 
   assert {

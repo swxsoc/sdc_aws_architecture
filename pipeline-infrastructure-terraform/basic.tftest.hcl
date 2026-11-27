@@ -1426,11 +1426,13 @@ run "plan_pipeline_health_defaults" {
       sort(keys(resource.aws_cloudwatch_metric_alarm.reconciliation_counts)) == sort(["unsorted-incoming-objects", "missing-metatracker-rows", "missing-timestream-records", "reconciliation-check-errors"]) &&
       resource.aws_cloudwatch_metric_alarm.reconciliation_counts["missing-metatracker-rows"].metric_name == "MissingMetaTrackerRows" &&
       resource.aws_cloudwatch_metric_alarm.reconciliation_counts["missing-metatracker-rows"].period == 3600 &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_counts["missing-metatracker-rows"].alarm_description == "The last dev-test reconciliation run reported MissingMetaTrackerRows > 0; the run's log entry lists the keys." &&
+      resource.aws_cloudwatch_metric_alarm.reconciliation_counts["unsorted-incoming-objects"].alarm_description == "The last dev-test reconciliation run reported UnsortedIncomingObjects > 0 in bucket dev-swxsoc-pipeline-incoming; the run's log entry lists the keys." &&
       resource.aws_cloudwatch_metric_alarm.reconciliation_not_running[0].treat_missing_data == "breaching" &&
       resource.aws_cloudwatch_metric_alarm.reconciliation_not_running[0].evaluation_periods == 2 &&
       resource.aws_cloudwatch_metric_alarm.reconciliation_errors[0].dimensions["FunctionName"] == "dev-swxsoc_pipeline_pipeline_reconciliation"
     )
-    error_message = "The reconciliation metrics should each have an alarm, and a missing run marker should itself alarm."
+    error_message = "The reconciliation metrics should each have an alarm (only the unsorted-objects one naming the incoming bucket), and a missing run marker should itself alarm."
   }
 
   assert {

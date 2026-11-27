@@ -259,12 +259,18 @@ dashboard covers both environments: a Production widget above a Development
 widget, each a CloudWatch custom widget rendered by the
 `swxsoc-pipeline-status-widget` Lambda in `lambda/status_widget`.
 
-The Lambda's role may only `cloudwatch:DescribeAlarms` and
-`cloudwatch:DescribeAlarmHistory`. Because a custom widget is invoked with the
+The widget derives the status from the `<env><mission-slug>-pipeline-*`
+alarms, and adds one "Last 24 h: N files arrived · N checked · N missing
+records · N failed processing" line per mission from the health check's
+`SWxSOC/Pipeline/<env>-<mission-slug>` metrics (one `GetMetricData` call per
+environment; the page renders without the line when they are absent). The
+Lambda's role may only `cloudwatch:DescribeAlarms`,
+`cloudwatch:DescribeAlarmHistory` and `cloudwatch:GetMetricData`, none of
+which is resource-scoped. Because a custom widget is invoked with the
 viewer's own credentials, the root also creates the
 `swxsoc-pipeline-status-viewer` IAM policy (`cloudwatch:GetDashboard` on the
 dashboard plus `lambda:InvokeFunction` on the widget); attach it to the
 console role or group that should see the page. The outputs
 `pipeline_status_dashboard_url` and `pipeline_status_viewer_policy_arn` give
-the link and the policy ARN. Unit tests: `make status-widget-test` from the
+the link and the policy ARN. Unit tests: `make lambda-test` from the
 repository root; sample pages: `python lambda/status_widget/preview.py <dir>`.

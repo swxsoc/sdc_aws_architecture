@@ -17,11 +17,17 @@ workspace (``pipeline-infrastructure-terraform/pipeline_health.tf``):
   a severity by their suffix (an *issue*: errors while data still flows; an
   *outage*: data is not getting through), and to a headline, a log filter and
   a "what to do" note;
-* ``DescribeAlarmHistory`` provides the recent events.
+* ``DescribeAlarmHistory`` provides the recent events;
+* one ``GetMetricData`` call per environment reads the latest health-check
+  counts (``IncomingObjectsInWindow``, ``ReconciledObjects``, ...) from the
+  ``SWxSOC/Pipeline/<env>-<mission-slug>`` namespaces for the "Last 24 h"
+  line under each mission header. That line is decoration: when the metrics
+  are absent or the call fails the page renders without it.
 
-The function needs only ``cloudwatch:DescribeAlarms`` and
-``cloudwatch:DescribeAlarmHistory``. It never raises to the dashboard: an AWS
-error renders as an error panel so the widget still explains itself.
+The function needs only ``cloudwatch:DescribeAlarms``,
+``cloudwatch:DescribeAlarmHistory`` and ``cloudwatch:GetMetricData``. It never
+raises to the dashboard: an AWS error renders as an error panel so the widget
+still explains itself.
 """
 
 from __future__ import annotations
@@ -132,7 +138,7 @@ class AlarmKind:
     log_source: str  # self | stage | reconciliation | none
     log_filter: str  # "" = unfiltered; "{stage}" = that stage's log-error pattern
     log_label: str
-    resource: str  # "" | topic | queue
+    resource: str  # "" | topic | queue | incoming-bucket
     monitoring: bool = False  # add a Lambda monitoring link
 
 
@@ -149,7 +155,7 @@ ALARM_KINDS: tuple[AlarmKind, ...] = (
         "reconciliation",
         "affected_keys unsorted",
         "List of affected files",
-        "",
+        "incoming-bucket",
     ),
     AlarmKind(
         re.compile(rf"^{LAMBDA_STAGES}-log-errors$"),
@@ -359,6 +365,11 @@ class Workspace:
         return self.prefix[:-1]
 
     @property
+    def namespace(self) -> str:
+        """Where the workspace's health check publishes its metrics."""
+        return f"SWxSOC/Pipeline/{self.environment}-{self.slug}"
+
+    @property
     def name(self) -> str:
         if self.slug in MISSION_NAMES:
             return MISSION_NAMES[self.slug]
@@ -419,12 +430,52 @@ class Stage:
         )
 
 
+# Health-check metrics behind the "Last 24 h" line: Counts field -> MetricName.
+COUNT_METRICS = {
+    "arrived": "IncomingObjectsInWindow",
+    "checked": "ReconciledObjects",
+    "missing_metatracker": "MissingMetaTrackerRows",
+    "missing_timestream": "MissingTimestreamRecords",
+    "failed": "FailedProcessingFiles",
+}
+DEFAULT_RECONCILIATION_PERIOD = 3600
+METRIC_DATA_BATCH = 500  # GetMetricData accepts at most 500 queries per call
+QUIET_DAY_NOTE = (
+    "No alarm: a quiet day and a stopped uploader look the same to the pipeline"
+)
+
+
+@dataclass
+class Counts:
+    """What the latest health-check run counted; None when it was not published."""
+
+    arrived: int | None = None
+    checked: int | None = None
+    missing_metatracker: int | None = None
+    missing_timestream: int | None = None
+    failed: int | None = None
+
+    @property
+    def missing(self) -> int | None:
+        parts = [
+            v
+            for v in (self.missing_metatracker, self.missing_timestream)
+            if v is not None
+        ]
+        return sum(parts) if parts else None
+
+    @property
+    def available(self) -> bool:
+        return self.arrived is not None
+
+
 @dataclass
 class Mission:
     workspace: Workspace
     stages: list[Stage]
     status: str
     functions: dict[str, str] = field(default_factory=dict)  # stage key -> FunctionName
+    counts: Counts | None = None
 
     @property
     def firing_stages(self) -> list[Stage]:
@@ -631,6 +682,95 @@ def pair_history(
     return events
 
 
+def reconciliation_period(mission: Mission) -> int:
+    """The workspace's health-check interval, read from its reconciliation alarms."""
+    for stage in mission.stages:
+        for alarm in stage.alarms:
+            if (
+                alarm.kind
+                and alarm.kind.log_source == "reconciliation"
+                and alarm.period
+            ):
+                return int(alarm.period)
+    return DEFAULT_RECONCILIATION_PERIOD
+
+
+def count_queries(
+    missions: list[Mission],
+) -> tuple[list[dict], dict[str, tuple[Workspace, str]]]:
+    """GetMetricData queries for every mission's counts, and query id -> target.
+
+    Each query asks for the Maximum over one reconciliation period, so a
+    datapoint is the value one health-check run published.
+    """
+    queries: list[dict] = []
+    lookup: dict[str, tuple[Workspace, str]] = {}
+    for index, mission in enumerate(missions):
+        period = reconciliation_period(mission)
+        for attribute, metric in COUNT_METRICS.items():
+            query_id = f"m{index}_{attribute}"
+            lookup[query_id] = (mission.workspace, attribute)
+            queries.append(
+                {
+                    "Id": query_id,
+                    "MetricStat": {
+                        "Metric": {
+                            "Namespace": mission.workspace.namespace,
+                            "MetricName": metric,
+                        },
+                        "Period": period,
+                        "Stat": "Maximum",
+                    },
+                    "ReturnData": True,
+                }
+            )
+    return queries, lookup
+
+
+def parse_counts(
+    results: list[dict], lookup: dict[str, tuple[Workspace, str]]
+) -> dict[Workspace, Counts]:
+    """Counts per workspace from MetricDataResults ordered newest first.
+
+    A result without values (the metric has never been published, or not in
+    the window) leaves that field None; a workspace with no values at all is
+    absent from the mapping.
+    """
+    counts: dict[Workspace, Counts] = {}
+    for result in results:
+        target = lookup.get(result.get("Id", ""))
+        values = result.get("Values") or []
+        if target is None or not values:
+            continue
+        workspace, attribute = target
+        setattr(
+            counts.setdefault(workspace, Counts()),
+            attribute,
+            round(float(values[0])),
+        )
+    return counts
+
+
+def counts_words(counts: Counts) -> list[tuple[str, str]]:
+    """The "Last 24 h" segments as (text, tooltip) pairs, in reading order."""
+
+    def plural(n: int, noun: str) -> str:
+        return f"{n:,} {noun}{'' if n == 1 else 's'}"
+
+    out: list[tuple[str, str]] = []
+    if counts.arrived is not None:
+        text = f"{plural(counts.arrived, 'file')} arrived"
+        out.append((text, QUIET_DAY_NOTE if counts.arrived == 0 else ""))
+    if counts.checked is not None:
+        out.append((f"{counts.checked:,} checked", ""))
+    missing = counts.missing
+    if missing is not None:
+        out.append((f"{plural(missing, 'missing record')}", ""))
+    if counts.failed is not None:
+        out.append((f"{counts.failed:,} failed processing", ""))
+    return out
+
+
 # -- AWS access ---------------------------------------------------------------
 
 
@@ -703,6 +843,38 @@ def fetch_history(client, start: dt.datetime, end: dt.datetime) -> list[dict]:
     return items
 
 
+def fetch_counts(
+    client, missions: list[Mission], now: dt.datetime
+) -> dict[Workspace, Counts]:
+    """The latest health-check counts of every mission, in one GetMetricData call.
+
+    The window is two reconciliation periods so the latest run is always
+    inside it whatever the phase of the schedule; the newest datapoint wins.
+    More than 500 queries (100 workspaces) would take a second call.
+    """
+    if not missions:
+        return {}
+    queries, lookup = count_queries(missions)
+    longest = max(reconciliation_period(m) for m in missions)
+    start = now - dt.timedelta(seconds=2 * longest)
+    results: list[dict] = []
+    for offset in range(0, len(queries), METRIC_DATA_BATCH):
+        kwargs = {
+            "MetricDataQueries": queries[offset : offset + METRIC_DATA_BATCH],
+            "StartTime": start,
+            "EndTime": now,
+            "ScanBy": "TimestampDescending",
+        }
+        while True:
+            page = client.get_metric_data(**kwargs)
+            results.extend(page.get("MetricDataResults", []))
+            token = page.get("NextToken")
+            if not token:
+                break
+            kwargs["NextToken"] = token
+    return parse_counts(results, lookup)
+
+
 def collect(client, environment: str, settings: Settings, now: dt.datetime) -> Snapshot:
     """Read CloudWatch and build the snapshot for one environment."""
     all_alarms = fetch_alarms(client)
@@ -712,6 +884,15 @@ def collect(client, environment: str, settings: Settings, now: dt.datetime) -> S
         if w.environment == environment
     ]
     missions = build_missions(workspaces, all_alarms)
+    # The counts line is a nicety: a missing permission or a throttled call
+    # must not take the status page down with it.
+    try:
+        counts = fetch_counts(client, missions, now)
+    except Exception:
+        log.warning("daily counts unavailable; rendering without them", exc_info=True)
+        counts = {}
+    for mission in missions:
+        mission.counts = counts.get(mission.workspace)
     classified = {
         alarm.name: alarm
         for mission in missions
@@ -754,6 +935,13 @@ def headline(alarm: Alarm) -> str:
 
 
 DATAPOINT = re.compile(r"\[(\d+(?:\.\d+)?) \(")
+BUCKET_IN_DESCRIPTION = re.compile(r"\bin bucket (\S+)")
+
+
+def bucket_in_description(description: str) -> str:
+    """The bucket an alarm description names with "in bucket <name>", or ""."""
+    match = BUCKET_IN_DESCRIPTION.search(description or "")
+    return match.group(1).rstrip(";,.") if match else ""
 
 
 def latest_datapoint(reason: str) -> float | None:
@@ -982,6 +1170,12 @@ def evidence_links(
         queue = alarm.dimensions["QueueName"]
         if account:
             links.append(Link("Queue", _queue_url(region, account, queue)))
+    if kind.resource == "incoming-bucket":
+        bucket = bucket_in_description(alarm.description)
+        if bucket:
+            links.append(
+                Link("Incoming bucket", _bucket_url(region, bucket), title=bucket)
+            )
 
     links.append(
         Link(
@@ -1100,6 +1294,8 @@ def _css(p: dict[str, str]) -> str:
 .sw .gtitle {{flex:1 1 auto;min-width:0}}
 .sw .gname {{font-size:18px;font-weight:600;color:{p["fg"]}}}
 .sw .gsub {{color:{p["muted"]};font-size:13px;margin-top:1px}}
+.sw .gcounts {{color:{p["muted"]};font-size:12px;margin-top:2px}}
+.sw .gcounts .quiet {{cursor:help;border-bottom:1px dotted {p["muted"]}}}
 .sw .pills {{display:flex;gap:6px;flex-wrap:wrap;align-items:center}}
 .sw .pill {{display:inline-flex;align-items:center;gap:4px;border:1px solid {p["rule_strong"]};border-radius:6px;padding:2px 8px;font-size:12px;line-height:18px;color:{p["link"]};white-space:nowrap;background:{p["bg"]}}}
 .sw .pill.mono {{font-family:{mono};font-size:11px}}
@@ -1305,6 +1501,25 @@ def render_incident(
     )
 
 
+def render_counts(mission: Mission) -> str:
+    """The muted "Last 24 h" line under a mission header, or "" without counts."""
+    if mission.counts is None or not mission.counts.available:
+        return ""
+    segments = []
+    for text, tooltip in counts_words(mission.counts):
+        if tooltip:
+            segments.append(
+                f'<span class="quiet" title="{html.escape(tooltip)}">'
+                f"{html.escape(text)}</span>"
+            )
+        else:
+            segments.append(html.escape(text))
+    return (
+        '<div class="gcounts" title="Counted by the latest health-check run">'
+        f"Last 24 h: {' · '.join(segments)}</div>"
+    )
+
+
 def render_mission(
     mission: Mission, palette: dict[str, str], region: str, now: dt.datetime
 ) -> str:
@@ -1358,7 +1573,8 @@ def render_mission(
         f'<details class="group"{" open" if is_open else ""}>'
         f'<summary class="ghead">{_glyph(mission.status, palette)}'
         f'<span class="gtitle"><div class="gname">{html.escape(mission.workspace.name)}'
-        f'</div><div class="gsub">{html.escape(mission_subtitle(mission, now))}</div></span>'
+        f'</div><div class="gsub">{html.escape(mission_subtitle(mission, now))}</div>'
+        f"{render_counts(mission)}</span>"
         f"{_pills(header_links)}{chevron}</summary>"
         f'<div class="gbody">{"".join(rows)}</div></details>'
     )
